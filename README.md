@@ -40,7 +40,7 @@ That's the origin story — not a theme, not a dialect, and not a restriction on
 %%{init: {'theme':'default'}}%%
 flowchart TD
     accTitle: The answer one, ask one reciprocity loop
-    accDescr: A participant is shown a question and may skip freely. Recording an answer sends it to automated review. Only a passing review grants one ask. Withheld and failed outcomes grant nothing and return the participant to the start. Spending the ask publishes a question and returns them to needing an answer.
+    accDescr: A participant is shown a question and may skip freely. Recording an answer sends it to automated review. Only a passing review grants one ask. Withheld and failed outcomes grant nothing and allow a fresh recording. Spending the ask publishes a question and returns them to needing an answer.
 
     A["Find me a question"] --> B{"Can you answer it?"}
     B -- "Try another question" --> A
@@ -49,9 +49,10 @@ flowchart TD
     D --> E{"Review"}
     E -- "passes" --> F["Answer published<br/>1 ask earned"]
     E -- "withheld" --> G["Result page<br/>no ask granted"]
-    E -- "our fault" --> H["Try processing again"]
+    E -- "our fault" --> H["Record again"]
     G --> A
-    H --> D
+    H --> C
+    G --> C
     F --> I["Record your question"]
     I --> J["Checking…"]
     J -- "passes" --> K["Question published<br/>ask spent"]
@@ -61,7 +62,7 @@ flowchart TD
 Three rules the diagram is enforcing:
 
 - **The ask is granted by the review, not by the recording.** Finishing a recording earns nothing.
-- **Failure costs nothing.** A withheld answer applies no penalty. A broken check is retryable and never blamed on the participant.
+- **Failure costs nothing.** A withheld answer applies no penalty. A broken check retries independently; exhausted failures offer a fresh recording.
 - **Asks don't stack.** One unspent ask, maximum, forever.
 
 ---
@@ -120,6 +121,10 @@ Built against a two-day window for the DEV Weekend Challenge: Generosity Edition
 - [ ] **004** — question recording and the ask spend
 - [ ] **005** — `Yours` history and generated playback
 - [ ] Deploy, demo on real phones, write the submission
+
+Only published contributions are stored in `Yours`; unpublished attempts are discarded when the
+submission ends or the participant leaves. Every Withheld reason, including crisis, permits a
+fresh recording. Ashley will author the seed pool; seed content remains TBD.
 
 Known and accepted for the weekend: identity is session-scoped, so clearing cookies resets your
 state. The reciprocity gate is soft by design during the challenge.

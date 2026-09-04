@@ -6,14 +6,14 @@
 
 **Status**: Draft
 
-**Input**: AI handoff "Happen to Have?" revision 4 — Receive responses, Personal history, Audio output.
+**Input**: AI handoff "Happen to Have?" revision 5 — Receive responses, Personal history, Audio output.
 
 ## Overview
 
 Giving advice into a void is not an exchange. `Yours` is where a participant sees what became of
 what they gave, and what came back for what they asked.
 
-Two sections. Their answers, with the question each one addressed and what happened to it. Their
+Two sections. Their published answers, with the question each one addressed. Their
 questions, with every response as text and a `Listen` action that speaks it aloud in the
 product's voice.
 
@@ -49,27 +49,24 @@ response count.
 
 ---
 
-### User Story 2 - See what happened to what you gave (Priority: P2)
+### User Story 2 - See what you gave (Priority: P2)
 
-A participant answered four questions this week. One published. One is still being checked. One
-was withheld. One failed. `Yours` shows all four, with the question each one addressed and where
-it stands.
+A participant opens Yours and sees their published answers with each original question.
+Unpublished attempts are not retained or listed.
 
-**Why this priority**: A participant who cannot see the state of their contributions cannot tell
-whether the reciprocity gate is working or whether the product ate their answer.
+**Why this priority**: History records contributions that reached another person without becoming
+an attempt-recovery system.
 
-**Independent Test**: Seed a participant with published, in-progress, withheld, and failed
-answers, open `Yours`, and confirm each renders with the correct original question and state.
+**Independent Test**: Publish an answer, separately withhold and fail submissions, then open Yours
+and confirm that only the published answer is present.
 
 **Acceptance Scenarios**:
 
-1. **Given** a participant with answers in several states, **When** they open `Yours`, **Then** the `Your Answers` section lists all of them.
-2. **Given** any listed answer, **When** it is displayed, **Then** the original question it addressed is shown.
-3. **Given** any listed answer, **When** it is displayed, **Then** its current processing state is shown.
-4. **Given** a published answer, **When** it is displayed, **Then** its published processed text is shown.
-5. **Given** a withheld or failed answer, **When** it is displayed, **Then** that state is shown and no published text is shown for it.
-6. **Given** a participant's own original recording of any answer, **When** they view `Yours`, **Then** no playback or review of that recording is offered anywhere.
-7. **Given** a participant with no answers yet, **When** they open `Yours`, **Then** an empty state points them toward answering their first question.
+1. **Given** a participant with published answers, **When** they open Yours, **Then** Your Answers lists all published answers and their original questions.
+2. **Given** a listed answer, **When** it renders, **Then** its processed text and Published label are visible.
+3. **Given** a pending, withheld, failed, or abandoned submission, **When** Yours is opened, **Then** no entry or recovery control exists for it.
+4. **Given** any contribution, **When** Yours is viewed, **Then** no original-recording playback exists.
+5. **Given** no published answers, **When** Yours opens, **Then** the empty state points toward answering a question.
 
 ---
 
@@ -120,8 +117,8 @@ no audio in existence. Then confirm audio is produced only on the first `Listen`
 
 - **Very long response list**: a question with many responses renders them all without breaking the layout at phone width.
 - **Response arrives while `Yours` is open**: the participant sees it on their next view. Live updating is not required.
-- **Answer still checking when `Yours` is opened**: shows the in-progress state and updates on a later view.
-- **Withheld answer for a crisis outcome**: shown to its own author as withheld. Its content is never shown to anyone else, including the asker of the question it addressed.
+- **Answer still checking when `Yours` is opened**: no entry exists until publication; navigating away abandons the active submission unless publication has already committed.
+- **Withheld answer, including crisis**: no history entry exists; reason and retry appear only on the current flow's shared Withheld page.
 - **Question withheld before publication**: it never appears in `Your Questions`, because it was never published.
 - **Playback requested for a withheld contribution**: not offered. Only published text has a `Listen` action.
 - **Playback requested twice at once**: exactly one audio production occurs and both requests receive the same result.
@@ -135,17 +132,17 @@ no audio in existence. Then confirm audio is produced only on the first `Listen`
 #### Structure
 
 - **FR-001**: The system MUST provide one `Yours` area containing exactly two sections: `Your Answers` and `Your Questions`.
-- **FR-002**: `Yours` MUST show only the requesting participant's own contributions.
+- **FR-002**: `Yours` MUST show only the requesting participant's published questions and answers, plus published responses to their questions.
 - **FR-003**: Every screen in `Yours` MUST be usable at phone and desktop widths without horizontal scrolling.
 
 #### Your Answers
 
-- **FR-004**: `Your Answers` MUST list every answer the participant submitted, in every state.
+- **FR-004**: `Your Answers` MUST list every answer the participant published and no unpublished attempts.
 - **FR-005**: Each listed answer MUST show the original question it addressed.
-- **FR-006**: Each listed answer MUST show its current processing state.
+- **FR-006**: Each listed answer MUST show its Published label.
 - **FR-007**: Each published answer MUST show its published processed text.
-- **FR-008**: Each withheld or failed answer MUST show that state, and MUST NOT show published text.
-- **FR-009**: `Your Answers` MUST show an empty state when the participant has submitted none.
+- **FR-008**: Pending, withheld, failed, and abandoned submissions MUST NOT appear in Yours or expose a restore/retry control.
+- **FR-009**: `Your Answers` MUST show an empty state when the participant has published none.
 
 #### Your Questions
 
@@ -163,12 +160,12 @@ no audio in existence. Then confirm audio is produced only on the first `Listen`
 - **FR-018**: Responses MUST NOT be ranked, scored, or ordered by any quality signal.
 - **FR-019**: The system MUST NOT offer a best-answer selection.
 - **FR-020**: The system MUST NOT offer votes, likes, reactions, ratings, or comments on any response.
-- **FR-021**: The system MUST NOT show a withheld contribution's content to anyone other than its own author.
+- **FR-021**: Withheld content and unpublished attempt state MUST NOT be stored or displayed in Yours, including to the author.
 - **FR-022**: The system MUST NOT offer review or playback of a participant's own original recording anywhere.
 
 #### Playback
 
-- **FR-023**: Playback MUST be produced from a contribution's processed text.
+- **FR-023**: Playback MUST be produced from published processed text; TTS MUST NOT request structured output, and returned audio type and nonempty payload MUST be validated before use.
 - **FR-024**: Playback MUST NOT be produced from, or expose, an original participant recording.
 - **FR-025**: Playback MUST use one consistent voice everywhere in the product.
 - **FR-026**: Playback MUST be produced lazily, on the first `Listen` request for that contribution.
@@ -184,7 +181,7 @@ no audio in existence. Then confirm audio is produced only on the first `Listen`
 ### Key Entities
 
 - **Generated Playback**: Audio produced from a published contribution's processed text in the product's single voice. Created on first request, cached for reuse, and associated with the contribution and the voice used.
-- **Answer History Entry**: One of the participant's answers as they see it — the question it addressed, its current state, and its published text where it exists.
+- **Answer History Entry**: One of the participant's answers as they see it — the question it addressed, its Published label, and its published text.
 - **Question History Entry**: One of the participant's published questions as they see it — its text, its response count, and its responses.
 
 ## Success Criteria *(mandatory)*
@@ -197,7 +194,7 @@ no audio in existence. Then confirm audio is produced only on the first `Listen`
 - **SC-004**: A repeated `Listen` on the same response produces zero additional audio, reusing the cached result every time.
 - **SC-005**: Concurrent first `Listen` requests for the same response result in exactly one production.
 - **SC-006**: Zero original participant recordings are exposed, offered, or playable anywhere in `Yours`.
-- **SC-007**: Zero withheld contributions have their content shown to anyone other than their own author.
+- **SC-007**: Zero pending, withheld, failed, or abandoned submissions appear in history or survive as recoverable attempts.
 - **SC-008**: Zero ranking, scoring, voting, rating, reaction, or best-answer controls exist anywhere in the response display.
 - **SC-009**: Both empty states, the loading state, and the playback failure state each render correctly when induced, with zero blank or errored screens.
 - **SC-010**: `Yours` renders correctly on a current iPhone browser and a current Android browser, including a question with at least ten responses.
@@ -209,13 +206,13 @@ no audio in existence. Then confirm audio is produced only on the first `Listen`
 - **Ordering**: responses are shown in the order they were published. This is chronology, not ranking, and carries no quality signal.
 - **Voice**: the single product voice used for playback is the same voice used for optional question playback elsewhere. The specific voice is a planning decision, not a specification one.
 - **Cache durability**: cached playback audio persists for the life of the contribution. It is not regenerated on each session.
-- **Withheld visibility**: a participant sees their own withheld answers so they understand what happened. Nobody else ever sees them, including the asker of the question addressed.
+- **History boundary**: only published contributions persist; unpublished outcomes exist only in the current flow and are discarded when it ends.
 - **Access**: `Yours` is scoped to the participant's session identity. A session reset loses access to prior history, per the accepted identity limitation.
 - **Volume**: a weekend-scale participant has a small history. Pagination is unnecessary; the list renders in full.
 
 ## Out of Scope
 
-- Live updating, notifications, email, or any alert that a response has arrived.
+- Attempt history, recovery, processing-retry controls, live updating, notifications, email, or alerts.
 - Public browsing of other participants' questions, answers, or history.
 - Playback or review of any participant's original recording.
 - Editing, deleting, withdrawing, or hiding a published contribution.
@@ -228,7 +225,7 @@ no audio in existence. Then confirm audio is produced only on the first `Listen`
 
 ## Dependencies
 
-- [003-answer-and-unlock](../003-answer-and-unlock/spec.md) for published answers and their states.
+- [003-answer-and-unlock](../003-answer-and-unlock/spec.md) for published answers.
 - [004-ask-one](../004-ask-one/spec.md) for published questions and their closure state.
 - [002-contribution-review](../002-contribution-review/spec.md) for processed text and contribution outcomes.
 - A text-to-speech capability providing one consistent voice.

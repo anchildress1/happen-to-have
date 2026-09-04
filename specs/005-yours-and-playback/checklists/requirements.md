@@ -26,7 +26,7 @@
 
 - [x] All functional requirements have clear acceptance criteria
 - [x] User scenarios cover primary flows
-- [x] Feature meets measurable outcomes defined in Success Criteria
+- [ ] Implementation meets measurable outcomes defined in Success Criteria (runtime proof pending)
 - [x] No implementation details leak into specification
 
 ## Split Integrity
@@ -34,9 +34,9 @@
 - [x] Read-only over contributions; publication and review behavior owned by 002, 003, 004
 - [x] Owns generated playback end to end; no other spec specifies TTS behavior
 - [x] Original-recording prohibition restated here as a display constraint, consistent with 002
-- [x] No requirement duplicates one in another spec
+- [x] Shared ownership is identified; cross-flow enforcement references its owning spec
 
-## Constitution Alignment (v1.0.0)
+## Constitution Alignment (v2.0.0)
 
 | Principle | Covered by |
 |-----------|------------|
@@ -58,4 +58,4 @@
 
 ## Notes
 
-- All items pass. Ready for `/speckit-plan`.
+- Specification decisions are synchronized; implementation validation remains pending.

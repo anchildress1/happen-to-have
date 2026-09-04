@@ -6,7 +6,7 @@
 
 **Status**: Draft
 
-**Input**: AI handoff "Happen to Have?" revision 4 — Guardrail outcomes, processing contract, audio output, contribution state model, abuse and cost protection.
+**Input**: AI handoff "Happen to Have?" revision 5 — Guardrail outcomes, processing contract, audio output, contribution state model, abuse and cost protection.
 
 ## Overview
 
@@ -43,14 +43,15 @@ and confirm each returns validated, structurally correct text and a single decis
 
 **Acceptance Scenarios**:
 
-1. **Given** a recording of relevant spoken advice, **When** the review runs, **Then** it returns readable display text, the detected source language, and a decision of published.
+1. **Given** a recording of relevant spoken advice, **When** the review runs, **Then** it returns readable display text, the detected source language, and permission to publish.
 2. **Given** a recording in a language other than the display language, **When** the review runs, **Then** the returned text is in the display language and is readable, with no participant asked to approve it.
 3. **Given** a recording naming a person, an employer, a street address, or a phone number, **When** the review runs, **Then** those details are removed or generalized from the returned text.
 4. **Given** a recording, **When** the review runs, **Then** the returned text contains no advice, facts, recommendations, or judgments that were not in the recording, and does not alter the substance of what was said.
 5. **Given** an answer submission, **When** the review runs, **Then** four independent checks are performed on the original recording — content processing, relevance to the question, crisis signalling, and illegal or dangerous content.
 6. **Given** a question submission, **When** the review runs, **Then** three independent checks are performed — content processing, crisis signalling, and illegal or dangerous content — and relevance is not evaluated.
 7. **Given** any check, **When** it runs, **Then** it receives the original recording directly and does not consume another check's transcript or output.
-8. **Given** all checks complete, **When** the decision resolves, **Then** it is published only if the content decision passed, relevance is true where applicable, crisis is false, and illegal or dangerous is false.
+8. **Given** all applicable checks return validated permission to publish, **When** the decision resolves, **Then** it permits publication.
+8a. **Given** any check rejects, **When** its validated result arrives, **Then** Withheld renders immediately, other work is cancelled where possible, and later results cannot publish anything.
 9. **Given** a recording where a broad emotional direction is reliably detectable, **When** the review runs, **Then** that direction is recorded alongside the text.
 
 ---
@@ -59,8 +60,8 @@ and confirm each returns validated, structurally correct text and a single decis
 
 Someone records something the review will not publish. It might not answer the question at all.
 It might describe something illegal. They see one page, with text that matches what actually
-happened, and they are sent back to try again. Nothing is published. Nothing is held against
-them.
+happened, and they can try that same question again or go find a different one. Nothing is
+published. Nothing is held against them.
 
 **Why this priority**: Publishing an unpublishable contribution is the failure that ends the
 product. Handling the rejection gracelessly is the failure that loses the participant.
@@ -71,13 +72,16 @@ flow with no penalty.
 
 **Acceptance Scenarios**:
 
-1. **Given** an answer that does not address its question, **When** the review completes, **Then** the decision is irrelevant, nothing is published, and the result page reads `That response doesn't appear to answer this question. Try another.`
-2. **Given** a recording describing illegal or dangerous activity, **When** the review completes, **Then** the decision is illegal-withheld, nothing is published, and the result page reads `That response can't be shared here. Try another.`
+1. **Given** an answer that does not address its question, **When** the review completes, **Then** the outcome is Withheld with reason relevance, nothing is published, and the result page reads `That response doesn't appear to answer this question. Try another.`
+2. **Given** a recording describing illegal or dangerous activity, **When** the review completes, **Then** the outcome is Withheld with reason illegal/dangerous, nothing is published, and the result page reads `That response can't be shared here. Try another.`
 3. **Given** a recording that is silent, unintelligible, spam, deliberate nonsense, or harassing, **When** the review completes, **Then** the contribution is withheld and nothing is published.
 4. **Given** a recording whose identifying details cannot be safely removed, **When** the review completes, **Then** the contribution is withheld rather than published in partially redacted form.
-5. **Given** any non-passing outcome, **When** the result page renders, **Then** it is the same page for every outcome, differing only in its text, and its text is short and non-argumentative.
+5. **Given** any rejected contribution, **When** the result page renders, **Then** it is one shared Withheld page for all rejection reasons, with reason-specific text and contribution-specific actions, and its text is short and non-argumentative.
 6. **Given** a withheld contribution, **When** the participant returns to the flow, **Then** they may record again immediately with no penalty, cooldown, or strike recorded against them.
-7. **Given** crisis and illegal-or-dangerous outcomes, **When** they are recorded, **Then** they remain distinct results so the correct page text can be selected.
+6a. **Given** an answer Withheld for relevance or illegal/dangerous content, **When** the result page renders, **Then** it offers both a retry of the same question and a way to find a different one, and retry does not require finding the question again in the pool.
+6b. **Given** a crisis Withheld result, **When** it renders, **Then** fixed resources and a fresh-recording action are both available because the classification can be wrong.
+6c. **Given** a withheld question, **When** the participant retries, **Then** `/ask` starts a fresh question recording with the earned ask intact, never an answer recorder.
+7. **Given** crisis and illegal-or-dangerous reasons, **When** they are evaluated, **Then** their reasons remain distinct within the single Withheld outcome so the correct text is selected.
 
 ---
 
@@ -96,42 +100,41 @@ confirm those resources are reachable by a participant who has never contributed
 
 **Acceptance Scenarios**:
 
-1. **Given** a recording signalling a personal crisis, **When** the review completes, **Then** the decision is crisis-routed and the recording is withheld from the public pool entirely.
+1. **Given** a recording signalling a personal crisis, **When** the review completes, **Then** the outcome is Withheld with reason crisis and the recording is withheld from the public pool entirely.
 2. **Given** a crisis outcome, **When** the result page renders, **Then** it shows fixed, human-authored routing text including both US and international resources.
 3. **Given** a crisis outcome, **When** the page renders, **Then** no counseling text is generated and no claim of emergency intervention is made.
 4. **Given** a participant who has never contributed anything, **When** they need crisis resources, **Then** those resources are reachable without earning an ask.
 5. **Given** a crisis recording submitted as a question, **When** the review completes, **Then** crisis detection applies exactly as it does to an answer and the question is not published.
-6. **Given** a crisis-routed contribution, **When** any other participant views any part of the product, **Then** its content appears nowhere.
+6. **Given** a contribution Withheld for crisis, **When** any other participant views any part of the product, **Then** its content appears nowhere.
 
 ---
 
-### User Story 4 - Something broke on our side (Priority: P4)
+### User Story 4 - Retry only what broke (Priority: P4)
 
-The review cannot complete because the network dropped or the provider is down. The participant
-is told the check did not finish — not that they failed — and is offered a retry. Their
-recording is held just long enough to try again.
+One check fails while the others pass. The passing results stay valid for this submission;
+only the failed check retries. No attempt is saved for later.
 
-**Why this priority**: Infrastructure failure is certain on a two-day build. Silently discarding
-a recording somebody just spent sixty seconds making is the worst thing this product can do.
+**Why this priority**: A provider fault must not become a participant rejection or duplicate
+all the work that already succeeded.
 
-**Independent Test**: Force the review path to fail, confirm a retryable state appears with
-`Try processing again`, restore the path, retry, and confirm the contribution completes normally.
+**Independent Test**: Force one check to fail once, then succeed, and verify that only it runs
+again; separately exhaust retries and confirm fresh recording is offered without stored state.
 
 **Acceptance Scenarios**:
 
-1. **Given** the review path is unavailable, **When** a contribution is submitted, **Then** the outcome is a retryable failure offering `Try processing again`, and the participant is not told they failed.
-2. **Given** a retryable failure, **When** the participant retries and the review passes, **Then** the contribution publishes exactly as it would have on the first attempt.
-3. **Given** a review result that does not match its expected structure, **When** it is evaluated, **Then** it is treated as an infrastructure failure and retried, never as a guardrail rejection.
-4. **Given** any review result, **When** it is used, **Then** it has been validated against its expected structure first, and unvalidated output never reaches storage or the interface.
-5. **Given** a retryable failure, **When** the participant does not retry, **Then** nothing is published and no ask is granted or consumed.
-6. **Given** repeated failures on the same contribution, **When** attempts are recorded, **Then** the attempt count and the last error are retained for diagnosis.
+1. **Given** three passing checks and one provider failure, **When** retry runs, **Then** only the failed check runs again using the same original audio.
+2. **Given** a schema-invalid result, **When** it is handled, **Then** that check retries independently and no unvalidated output reaches storage or the interface.
+3. **Given** an in-flight retry and a definitive rejection from another check, **When** rejection arrives, **Then** Withheld appears immediately and further retries and late results are ignored.
+4. **Given** exhausted retries or the submission deadline, **When** processing ends, **Then** the participant sees a processing failure with a fresh-recording action, not Withheld.
+5. **Given** a processing failure or abandoned page, **When** the participant returns later, **Then** no attempt, recording, or retry entry is restored.
+6. **Given** a failed question submission, **When** processing ends, **Then** the earned ask remains unspent.
 
 ---
 
 ### User Story 5 - The recording disappears (Priority: P5)
 
 The moment a decision is final — published or withheld or failed for good — the original
-recording is gone. It was never reachable by anyone else while it existed. Nothing in the
+recording is deleted. It was never reachable by anyone else while it existed. Nothing in the
 product ever plays it back.
 
 **Why this priority**: People speak honestly only when the raw recording cannot resurface. Every
@@ -145,8 +148,8 @@ no stored copy remains.
 
 1. **Given** an original recording at any point in its life, **When** retrieval is attempted from outside the system, **Then** it is not reachable at any address.
 2. **Given** a contribution reaching a published outcome, **When** the outcome is recorded, **Then** the original recording is deleted immediately.
-3. **Given** a contribution reaching an irrelevant, crisis-routed, illegal-withheld, or failed outcome, **When** the outcome is recorded, **Then** the original recording is deleted immediately.
-4. **Given** a retryable infrastructure failure, **When** the recording is retained, **Then** it is retained only long enough to retry and is deleted on the terminal outcome.
+3. **Given** a contribution reaching a Withheld or processing-failure outcome, **When** the outcome is recorded, **Then** the original recording is deleted immediately.
+4. **Given** an independent check retry, **When** the active submission finishes, expires, or is abandoned, **Then** the original recording and temporary check state are deleted rather than retained for later recovery.
 5. **Given** any part of the product, **When** a participant looks for their own original recording, **Then** no review or playback of it is offered anywhere.
 6. **Given** the storage holding original recordings, **When** it is inspected, **Then** a lifecycle deletion rule exists as a backstop and no recording predates it.
 
@@ -154,14 +157,17 @@ no stored copy remains.
 
 ### Edge Cases
 
-- **Partial check failure**: three checks succeed and one fails. The aggregate decision does not resolve; the contribution is a retryable failure, never a partial pass.
-- **Conflicting signals**: a recording is both irrelevant and crisis-signalling. Crisis routing takes precedence in what the participant is shown, because the participant's safety outranks telling them their answer missed the point.
-- **Crisis inside an otherwise good answer**: the answer is withheld anyway. A contribution that signals crisis is never published regardless of its other qualities.
-- **Empty or corrupt audio**: rejected before spending review work, and recorded as a withheld contribution rather than an infrastructure failure.
-- **Recording at the sixty-second ceiling**: reviewed normally. The ceiling is enforced during recording, not by the review.
-- **Review succeeds but storage deletion fails**: the contribution's outcome still stands; deletion is retried, and the lifecycle rule catches anything the retry misses.
-- **Rate limit hit mid-cycle**: the participant is told when they may retry, and no partial contribution is left in an unresolvable state.
-- **Text with no reliable emotional signal**: no emotional direction is recorded rather than a guessed one.
+- **Partial check failure**: keep passing results and retry only failed checks while no definitive rejection exists.
+- **Rejection plus failure**: Withheld wins immediately; cancel outstanding work where possible and never offer processing retry for that recording.
+- **Multiple known rejections**: crisis, illegal/dangerous, relevance, then content determines the copy; do not wait for unfinished checks to discover another reason.
+- **Late completion after rejection or expiry**: ignore it; it cannot publish or change the resolved page.
+- **Repeated fresh recordings**: allowed for every reason, including crisis, subject to the submission rate limit.
+- **Empty, silent, or corrupt audio**: show Withheld with a content reason before spending avoidable provider calls.
+- **Deletion fails**: retry deletion immediately for up to 60 seconds; the storage lifecycle remains an orphan-cleanup backstop.
+- **Browser closes or disconnects**: cancel on a detected disconnect and delete source audio; the 90-second server deadline also bounds requests whose disconnect is not detected.
+- **Response lost after publication**: the committed contribution remains visible in Yours; do not restore an attempt or roll back an earned/spent ask.
+- **No reliable emotion**: record no emotional direction.
+- **Rate limit**: refuse before review and state when a new recording may be submitted.
 
 ## Requirements *(mandatory)*
 
@@ -173,9 +179,9 @@ no stored copy remains.
 - **FR-002**: An answer review MUST perform four independent checks: content processing, relevance to the question being answered, crisis signalling, and illegal or dangerous content.
 - **FR-003**: A question review MUST perform three independent checks: content processing, crisis signalling, and illegal or dangerous content. Relevance MUST NOT be evaluated for a question.
 - **FR-004**: Each check MUST receive the original recording independently.
-- **FR-005**: No check MUST consume another check's transcript, text, or output.
+- **FR-005**: A check MUST NOT consume another check's transcript, text, or output.
 - **FR-006**: The relevance check MUST additionally receive the text of the question being answered.
-- **FR-007**: The aggregate decision MUST resolve only after every applicable check completes successfully.
+- **FR-007**: Publication MUST wait for every applicable check to pass; a definitive rejection MUST resolve immediately to Withheld without waiting for the other checks.
 - **FR-008**: The system MUST NOT substitute relevance alone, or any single check alone, for the full set.
 
 #### Content processing
@@ -188,23 +194,26 @@ no stored copy remains.
 - **FR-014**: Content processing MUST NOT add advice, facts, recommendations, or moral judgment absent from the recording.
 - **FR-015**: Content processing MUST NOT alter the participant's substantive advice.
 - **FR-016**: Content processing MUST identify recordings that are silent, unintelligible, spam, deliberate nonsense, harassing, or unsafe to publish for privacy reasons, and MUST withhold them.
-- **FR-017**: Content processing MUST record a broad emotional direction when one is reliably detectable, and MUST record none when it is not.
+- **FR-017**: Content processing MUST return a broad emotional direction when reliably detectable and none otherwise.
 - **FR-018**: Translation MUST be invisible to the participant. The system MUST NOT present a translation review or approval screen at any point.
 
 #### Decision
 
-- **FR-019**: A contribution MUST be published only when the content decision passed, relevance is true where applicable, crisis is false, and illegal or dangerous is false.
-- **FR-020**: The system MUST resolve every contribution to exactly one terminal outcome: published, irrelevant, crisis-routed, illegal-withheld, or failed.
-- **FR-021**: The system MUST keep crisis and illegal-or-dangerous outcomes as distinct recorded results.
-- **FR-022**: Where a recording signals both crisis and another non-passing condition, the participant MUST be shown crisis routing.
-- **FR-023**: The system MUST record processing state, attempt count, and last error for every contribution.
+- **FR-019**: A contribution MUST publish only when every applicable check explicitly permits publication; successful checks MUST NOT be rerun inside that active submission.
+- **FR-020**: Review MUST resolve to publishable, Withheld, or processing failure; abandonment publishes nothing. Withheld MUST carry a reason rather than create separate irrelevant/crisis/illegal outcomes.
+- **FR-021**: The Withheld reason MUST distinguish crisis, illegal/dangerous, relevance, and content reasons such as silence, unintelligible audio, spam, harassment, or privacy.
+- **FR-022**: Any definitive rejection MUST stop other work and retries where possible. Among rejections already known at resolution, presentation precedence MUST be crisis, illegal/dangerous, relevance, then content; late results MUST NOT change the outcome.
+- **FR-023**: Check results, retry counts, and errors MUST exist only for the active submission; no unpublished contribution rows or attempt history may be persisted.
 
 #### Result presentation
 
-- **FR-024**: The system MUST render one shared result page for every non-passing outcome, differing only in its text.
+- **FR-024**: Every rejection MUST render the shared Withheld page with reason-specific text and contribution-specific actions; it is not an answer page.
 - **FR-025**: The relevance failure text MUST be `That response doesn't appear to answer this question. Try another.`
 - **FR-026**: The illegal or dangerous text MUST be `That response can't be shared here. Try another.`
 - **FR-027**: Result page text MUST be short and non-argumentative, and MUST NOT explain, justify, or debate the decision.
+- **FR-027a**: Every Withheld result, including crisis, MUST offer a fresh recording and a way back; no withheld recording may be reprocessed.
+- **FR-027b**: Answer retry MUST return to `/answer/record?questionId=<same>`; question retry MUST return to question recording at `/ask` with the earned ask intact.
+- **FR-027c**: The crisis variant MUST retain fixed resources alongside a fresh-recording action because crisis classification can be wrong.
 - **FR-028**: A withheld contribution MUST NOT produce a penalty, cooldown, strike, or any recorded consequence for the participant.
 - **FR-029**: The system MUST display a checking state to the participant while a review is in progress.
 
@@ -221,18 +230,18 @@ no stored copy remains.
 
 - **FR-036**: Every review result MUST be validated against its expected structure before use.
 - **FR-037**: Unvalidated review output MUST NOT reach storage or the interface.
-- **FR-038**: A structurally invalid or unparseable result MUST be treated as an infrastructure failure and retried, never as a guardrail rejection.
-- **FR-039**: Network or provider failure MUST produce a retryable failure state offering `Try processing again`.
-- **FR-040**: A retryable failure MUST NOT be characterized to the participant as their failure.
-- **FR-041**: A retryable failure MUST preserve the pending recording long enough to retry.
-- **FR-042**: A contribution in a retryable failure state MUST NOT be published, and MUST NOT grant or consume an ask.
+- **FR-038**: A failed, timed-out, structurally invalid, or unparseable check MUST retry independently without rerunning checks that passed; it MUST NOT be relabeled as participant rejection.
+- **FR-039**: Each check MUST have at most three invocations per active submission, including the initial call, with a 20-second timeout per invocation and waits of 1 then 2 seconds before retries; the complete server submission MUST stop at 90 seconds from receipt.
+- **FR-040**: Exhausted retries or deadline expiry MUST show processing failure and offer a fresh recording, never blame the participant or promise recovery of the previous audio.
+- **FR-041**: Original audio and successful check results MAY exist only during the active submission; retries MUST stop on rejection, abandonment, or deadline expiry.
+- **FR-042**: Processing failure MUST publish nothing and MUST NOT grant or consume an ask.
 
 #### Audio lifecycle
 
 - **FR-043**: An original recording MUST NOT be reachable from outside the system at any address, at any time.
-- **FR-044**: An original recording MUST be deleted immediately upon any terminal outcome, including published, irrelevant, crisis-routed, illegal-withheld, and failed.
-- **FR-045**: On a retryable failure, an original recording MUST be retained only long enough to retry, then deleted on the terminal outcome.
-- **FR-046**: The storage holding original recordings MUST carry a lifecycle deletion rule as a backstop, which MUST NOT be the primary deletion mechanism.
+- **FR-044**: Every application-held original recording MUST be deleted immediately on publication, Withheld, processing failure, or abandonment.
+- **FR-045**: An original recording or unpublished attempt MUST NOT be retained for a later submission; browser memory MUST be released when the submission ends or the page is left.
+- **FR-046**: Transient storage MUST carry a lifecycle backstop, and normal cleanup MUST explicitly delete objects on every exit; failed deletion MUST be retried for up to 60 seconds without reopening review.
 - **FR-047**: The system MUST NOT offer review or playback of a participant's own original recording anywhere.
 
 #### Abuse and cost protection
@@ -245,9 +254,9 @@ no stored copy remains.
 
 ### Key Entities
 
-- **Contribution**: A submitted recording awaiting or holding a decision. Progresses from received, through processing, to exactly one terminal outcome. Carries display text, source language, emotional direction, every individual check result, processing state, attempt count, last error, and a reference to its transient original recording.
-- **Review Outcome**: The combined result of the independent checks on one recording, resolving to a single decision that determines both what gets published and what the participant is shown.
-- **Crisis Routing Content**: Fixed, human-authored text and resource links covering US and international help. Static content, never generated.
+- **Active Submission**: The current request's original audio, applicable check results, and bounded retry state; discarded at completion, failure, or abandonment.
+- **Review Outcome**: Permission to publish, Withheld with its reason, or processing failure; consumed by 003 or 004 without creating attempt history.
+- **Crisis Routing Content**: Fixed, human-authored text and US/international resources available alongside fresh-recording actions.
 
 ## Success Criteria *(mandatory)*
 
@@ -255,26 +264,27 @@ no stored copy remains.
 
 - **SC-001**: From the moment a recording is submitted, a decision is returned within fifteen seconds in the median case and thirty seconds at the ninety-fifth percentile.
 - **SC-002**: Zero original recordings are retrievable from outside the system at any point in their life, verified by direct retrieval attempts against every terminal outcome.
-- **SC-003**: Zero original recordings remain in storage more than sixty seconds after their contribution reaches a terminal outcome.
-- **SC-004**: One hundred percent of crisis-signalling submissions are withheld and route to fixed resources; zero appear in any other participant's view.
+- **SC-003**: Original recordings are deleted on every submission exit; deletion-failure tests recover within the 60-second cleanup retry window, and lifecycle cleanup is verified for simulated process termination.
+- **SC-004**: Every crisis rejection in the prepared test set renders fixed resources and a fresh-recording action, with no publication.
 - **SC-005**: Zero published texts contain names, street addresses, employers, phone numbers, or comparable identifying details present in the source recording, across the privacy test set.
 - **SC-006**: Zero published texts contain advice, facts, recommendations, or judgments absent from the source recording, across the fidelity test set.
 - **SC-007**: Non-English recordings produce readable display text in the display language in at least ninety percent of the multilingual test set.
-- **SC-008**: One hundred percent of prepared irrelevant, crisis, and illegal recordings resolve to their correct distinct outcome and render the correct page text.
-- **SC-009**: Every induced infrastructure failure produces a retryable state and a successful retry, with zero recordings lost and zero misreported as participant failures.
-- **SC-010**: One hundred percent of structurally invalid review results are retried rather than surfaced as guardrail rejections.
+- **SC-008**: Prepared rejection recordings render Withheld with the correct reason-specific text, including silence, privacy, relevance, crisis, and illegal/dangerous cases.
+- **SC-008a**: All Withheld variants offer a fresh recording in the correct contribution flow, including crisis and rejected questions.
+- **SC-009**: Induced transient failures retry only failed checks; exhaustion produces processing failure, deletes the recording, and leaves no unpublished contribution or recovery entry.
+- **SC-010**: Every schema-invalid result follows independent bounded retry unless another check has already rejected the submission.
 - **SC-011**: The complete answer-then-ask cycle at normal participant pace never triggers the rate limit.
-- **SC-012**: The measured cost per contribution of running all checks on the original recording is known and recorded before interface work depends on it.
+- **SC-012**: Measured cost per contribution, including the maximum independent retries, is recorded before interface work depends on it.
 
 ## Assumptions
 
 - **Display language**: English is the display and translation target for the MVP. Contributions in other languages are translated into English. Policy beyond the weekend is unsettled.
 - **Emotional direction**: best effort and broad only. The product does not claim to preserve the original delivery. If the technical spike shows this is unreliable, it is dropped rather than shipped as a guess.
-- **Crisis precedence**: where a recording signals both crisis and another failure, the participant sees crisis routing. The handoff does not name this case; safety takes precedence.
+- **Boolean meaning**: each check returns `canPublish`; true is YES and false is NO, including the crisis and illegal checks. A negative permission result is definitive; a provider fault is not a negative permission result.
 - **Crisis content authorship**: routing text and resource links are written and verified by a person before launch, and are static.
 - **Rate limit values**: specific numbers come from testing a complete cycle, not from another product. They are configurable without a code change.
 - **Latency budget**: the fifteen-second median in SC-001 is a target set before measurement. The technical spike measures the real figure first; if the real figure is materially worse, either the check structure or the checking-state experience changes before interface work proceeds.
-- **Terminal outcome ordering**: deletion of the original recording follows the recorded outcome. A deletion failure does not reopen a resolved outcome.
+- **Lifetime**: only the active submission owns temporary audio and check results. A fresh recording is a new submission; it does not recover an earlier attempt.
 
 ## Out of Scope
 
@@ -285,7 +295,7 @@ no stored copy remains.
 - Generated playback of processed text.
 - Publishing, reviewing, or playing back original participant recordings.
 - A pre-publication review or approval screen for the participant.
-- Human moderation, appeals, or review of withheld contributions.
+- Human moderation, appeals, durable attempt history, and recovery of unpublished contributions.
 - CAPTCHA, IP blocking, and account suspension.
 - Conversational prompts, follow-up questions, or generated advice of any kind.
 
@@ -294,5 +304,5 @@ no stored copy remains.
 - [001-participant-and-pool](../001-participant-and-pool/spec.md) for participant identity.
 - A speech-processing capability that accepts recorded audio and returns validated structured results for transcription, translation, privacy redaction, relevance, crisis signalling, and illegal-or-dangerous content.
 - Storage for transient original recordings with no external access path and a lifecycle deletion backstop.
-- Durable storage for contribution state, check results, and attempt history.
+- Durable storage for published contributions only; temporary review state is request-scoped.
 - Human-authored crisis routing content covering US and international resources.

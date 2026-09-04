@@ -26,7 +26,7 @@
 
 - [x] All functional requirements have clear acceptance criteria
 - [x] User scenarios cover primary flows
-- [x] Feature meets measurable outcomes defined in Success Criteria
+- [ ] Implementation meets measurable outcomes defined in Success Criteria (runtime proof pending)
 - [x] No implementation details leak into specification
 
 ## Split Integrity
@@ -35,9 +35,9 @@
 - [x] Owns the closure rule; 001 honors the resulting state without redefining it
 - [x] Review behavior is consumed, not restated
 - [x] Recording behavior is explicitly reused from 003 rather than respecified
-- [x] No requirement duplicates one in another spec
+- [x] Shared ownership is identified; cross-flow enforcement references its owning spec
 
-## Constitution Alignment (v1.0.0)
+## Constitution Alignment (v2.0.0)
 
 | Principle | Covered by |
 |-----------|------------|
@@ -48,15 +48,17 @@
 ## Validation Notes
 
 - FR-024 and FR-025 make the closure rule precise where the handoff was terse: closure counts
-  three *distinct participants* with *published* answers. Withheld answers do not count, and
-  three answers from two people do not close a question.
+  three *distinct participants* with published answers; a unique participant/question constraint
+  prevents duplicate published answers from one participant.
 - FR-027 and the concurrent-closure Assumption resolve an unstated race: a fourth answer landing
   with the third publishes normally. Closure governs future routing, not a hard cap on stored
   answers.
 - Interrogative grammar is explicitly not enforced (Edge Cases, Assumptions). The product
   publishes what the participant said.
+- Publication and ask consumption are atomic; no unpublished question rows are retained.
+- All Withheld variants, including crisis, return question retry to `/ask` with the ask intact.
 - Zero [NEEDS CLARIFICATION] markers.
 
 ## Notes
 
-- All items pass. Ready for `/speckit-plan`.
+- Specification decisions are synchronized; implementation validation remains pending.
