@@ -51,3 +51,6 @@ pnpm-debug.log*
 .cache/
 .turbo/
 .eslintcache
+
+# Agent worktrees
+.claude/worktrees/

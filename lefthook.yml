@@ -1,0 +1,42 @@
+# Hooks delegate to `make` targets so they stay in one place with CI.
+# Everything here uses pnpm — never npm or yarn (constitution, Application Stack).
+
+pre-commit:
+  parallel: false
+  commands:
+    format:
+      # Scoped to staged files only. Never point stage_fixed at the whole-repo
+      # `make format` — lefthook would re-stage anything the formatter touched,
+      # including unrelated working-tree drift (see Makefile's format-files comment).
+      glob: '*.{ts,tsx,js,jsx,mjs,cjs,json,md,css}'
+      run: make format-files FILES="{staged_files}"
+      stage_fixed: true
+    lint:
+      run: make lint
+    secret-scan:
+      run: make secret-scan
+    actionlint:
+      # Local-only gate; not duplicated in CI. Requires `brew install actionlint`.
+      glob: '.github/workflows/*.{yml,yaml}'
+      run: |
+        if command -v actionlint > /dev/null; then
+          actionlint
+        else
+          echo "actionlint not found. Install: brew install actionlint" >&2
+          exit 1
+        fi
+
+commit-msg:
+  commands:
+    commitlint:
+      run: pnpm exec commitlint --edit {1}
+
+pre-push:
+  parallel: true
+  commands:
+    typecheck:
+      run: make typecheck
+    unit-tests:
+      run: make test
+    e2e:
+      run: make e2e

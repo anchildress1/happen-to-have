@@ -1,0 +1,41 @@
+{
+  "name": "happen-to-have",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "packageManager": "pnpm@11.25.0",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "format": "biome format --write .",
+    "format:check": "biome format .",
+    "lint": "biome lint .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --project unit",
+    "test:integration": "vitest run --project integration --passWithNoTests",
+    "e2e": "playwright test"
+  },
+  "dependencies": {
+    "next": "16.3.4",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "zod": "4.5.4",
+    "iron-session": "9.0.1"
+  },
+  "devDependencies": {
+    "typescript": "7.0.2",
+    "@types/node": "^24.13.3",
+    "@types/react": "19.2.8",
+    "@types/react-dom": "^19.2.7",
+    "@biomejs/biome": "2.5.12",
+    "@commitlint/cli": "21.2.2",
+    "@commitlint/config-conventional": "21.2.2",
+    "commitlint-plugin-rai": "1.0.2",
+    "vitest": "5.0.0",
+    "@playwright/test": "1.62.1"
+  }
+}
