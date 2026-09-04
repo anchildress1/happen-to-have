@@ -45,7 +45,7 @@ Start the local stack, deploy schema, seed:
 ```bash
 make db-up        # Firebase emulator suite: SQL Connect + local Postgres
 make schema       # deploy dataconnect/schema/schema.gql, generate the typed SDK
-make seed         # Ashley-authored questions, idempotent; seed content/provenance TBD
+make seed         # upserts seed/questions.json by id; idempotent, safe to re-run
 make dev          # http://localhost:3000
 ```
 
