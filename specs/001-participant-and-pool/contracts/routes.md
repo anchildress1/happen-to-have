@@ -1,0 +1,202 @@
+# Contract: Routes
+
+**Feature**: 001-participant-and-pool | **Date**: 2026-09-04
+
+Two pages, two route handlers. Only `/api/questions/next` may create a participant through
+`getOrCreateParticipant` ([session.md](session.md)); `/skip` requires the existing authenticated
+session. Neither Server Component creates participants or sets cookies.
+
+Route names come from the design, not from me — each Chrome frame's `url` prop names its route.
+The full product map, from [design.md](design.md):
+
+| Route | Screen | Spec |
+| - | - | - |
+| `/` | Arrival | **001** |
+| `/answer` | Question selection | **001** |
+| `/answer/record` | Recording an answer; `?questionId=` retries a specific one | 003 |
+| `/ask` | Ask unlocked, then recording a question | 004 |
+| `/yours` | Your Answers · Your Questions | 005 |
+| `/yours/questions/[id]` | Responses to one question | 005 |
+
+001 builds the first two. Checking, the result page, the failure page, and the rate-limit page
+are states within the flow that produced them, not routes.
+
+---
+
+## Pages
+
+### `GET /` — Landing
+
+Server component. Renders fixed copy from [copy.md](copy.md): product name, tagline, and
+`Find me a question` as the primary action.
+
+- Does **not** create a participant. Identity is created on first *interaction*, not on first
+  page view, so a crawler or a preview fetch does not mint rows.
+- The action navigates to `/answer`.
+- No microphone API is referenced anywhere on this route (SC-005).
+
+### `GET /answer` — Presented question
+
+Server component renders a client selection shell. On mount, that shell calls
+`POST /api/questions/next`; the handler establishes the session and returns the first question
+plus the ordered eligible ids. No cookie mutation occurs during Server Component rendering.
+The shell renders these request states:
+
+| Condition | Renders |
+| - | - |
+| A row is returned | Question text + `I can answer this` + `Try another question` (FR-013, FR-014) |
+| Zero rows | Empty state (FR-029) |
+| POST fails | Client failure state with retry (FR-031); `error.tsx` covers route-render failures |
+
+`loading.tsx` covers route loading; the client shell also shows loading while selection POSTs
+are pending and provides retry on failures (FR-030, FR-031).
+
+`I can answer this` is the boundary of this feature. It links to `/answer/record?questionId=<displayed-id>`, which does not
+exist yet and is delivered by 003. Until then it is a disabled or placeholder target — it must
+never request microphone permission from this feature's code.
+
+### Header
+
+001 builds the shared header the whole product uses. It has a left slot and a right slot, and the
+right slot is **contextual — it offers wherever you are not** ([design.md](design.md) lists all
+six variants; `/yours` flips its right slot to `Find me a question`).
+
+001 renders two of them:
+
+| Screen | Left | Right |
+| - | - | - |
+| Arrival, mobile | *(empty)* | `Yours` |
+| Arrival desktop, Selection | `Happen to Have?` | `Yours` |
+
+On Arrival at mobile width there is no product name in the header, because the H1 *is* the
+product name.
+
+`Yours` points at `/yours`, which [005](../../005-yours-and-playback/spec.md) delivers. In this
+feature it renders but **must not 404** — disable it or point it at a placeholder. A header link
+to nothing is the most visible possible bug on the landing screen.
+
+---
+
+## Route handlers
+
+### `POST /api/questions/next`
+
+Start a pass for the current participant, strictly ordered by answer count, creation time, and id.
+Return one question's text plus the eligible ids for tab-local traversal; the list is not a
+public browse API. The browser stores the list and pointer only in page memory.
+
+**Request**: no body. Participant comes from the session cookie.
+
+**200**
+
+```json
+{
+  "question": {
+    "id": "b6f1c2e8-....",
+    "displayText": "How do you tell a friend their business idea has a hole in it?",
+    "publishedAnswers": 1
+  },
+  "questionIds": ["b6f1c2e8-....", "c7f2d3e9-...."]
+}
+```
+
+**200 — empty pool** (FR-029; not an error)
+
+```json
+{ "question": null, "questionIds": [] }
+```
+
+**200 — empty pool** still establishes the session; a later request can find newly published questions.
+
+**500**
+
+```json
+{ "error": "selection_failed" }
+```
+
+---
+
+### `POST /api/questions/skip`
+
+Read the question at the tab's next pointer position after re-checking current eligibility.
+
+**Request**
+
+```json
+{ "questionId": "c7f2d3e9-...." }
+```
+
+**Behavior**
+
+1. The client advances its pointer by one without moving or excluding any list entry.
+2. The handler validates `questionId`, authenticates the existing session, and re-checks that
+   the candidate is open, not authored by this participant, and not already answered by them.
+3. If eligible, return `{ question: { id, displayText, publishedAnswers } }`; if stale, return
+   `409 { error: "question_ineligible" }` and the client advances again.
+4. At the end of the list, call `/next` to refresh and wrap. If its first id is the question just
+   skipped and another eligible id exists, advance once to avoid an immediate repeat.
+5. If only one eligible question remains, keep it visible with the single-question helper;
+   zero genuinely eligible questions is the only empty-pool case.
+6. Missing or invalid session returns `401 { error: "session_required" }`; the client restarts
+   through `/next`. `/skip` does not mint identity or write any cookie.
+
+**Hard requirements** — these are the ones a reviewer should verify by reading the handler:
+
+- **No write to `participants`.** Not `can_ask`, not anything (FR-022).
+- **No write to `answers`.** A skip is not a contribution.
+- **No penalty, cooldown, or counter** of any kind (FR-023).
+- **No rate limit.** Skipping is unlimited (FR-020).
+
+**400** — malformed or missing `questionId`
+
+```json
+{ "error": "invalid_request" }
+```
+
+An unknown-but-well-formed uuid returns `409 { error: "question_ineligible" }` without text.
+Client-supplied ids never bypass current eligibility checks.
+
+---
+
+## Cross-cutting
+
+**Validation**: every request body is parsed with Zod before use. Every database row is parsed
+with Zod before rendering (research D5).
+
+**Method rejection**: both handlers export only `POST`. Any other method gets 405 from the
+framework.
+
+**Caching**: `/answer` and both handlers are dynamic — `export const dynamic = 'force-dynamic'`.
+Caching a per-participant selection would serve one person's question to another, which breaks
+FR-015 and FR-016 in the most visible way possible.
+
+**Error shape**: `{ "error": "<snake_case_code>" }`. Never a stack trace, never a database
+message.
+
+---
+
+## What is deliberately absent
+
+No endpoint returns a public catalogue or more than one question's text. The private ordered-id
+list includes only that participant's eligible questions; each requested id is checked again.
+
+---
+
+## Test obligations
+
+| Behavior | Level |
+| - | - |
+| `/` renders name, tagline, primary action verbatim | E2E |
+| `/` creates no participant row | Integration |
+| `/answer` returns one question with both actions | E2E |
+| Own question never selected | Integration |
+| Question with a published answer from this participant never selected | Integration |
+| Withheld or failed submission leaves no row and does not affect selection | Integration |
+| Closed question never selected | Integration |
+| Strict answer-count order with stable creation/id ties (SC-004) | Integration |
+| Pointer traverses and wraps over 20 skips, including pools of 0, 1, 2, and 15 (SC-003) | E2E |
+| Skip writes nothing to `participants` or `answers` | Integration |
+| Empty pool renders the empty state, not an error | Integration + E2E |
+| Selection failure renders the retry state | E2E |
+| `getUserMedia` is never called on any route (SC-005) | E2E |
+| No horizontal scroll at 390px and 412px widths (SC-006) | E2E |
