@@ -4,7 +4,7 @@ product: "Happen to Have?"
 status: planning
 build_window: two days
 audience: implementation_ai
-revision: 4
+revision: 5
 ---
 
 # Mission
@@ -56,9 +56,7 @@ An answer qualifies when all of the following are true:
 
 ```text
 duration_seconds <= 60
-processing_status == complete
-guardrail_decision == pass
-is_relevant == true
+every applicable check completed with validated canPublish == true
 ```
 
 There is no minimum duration. Gemini guardrails determine whether the contribution qualifies; elapsed time does not substitute for substance.
@@ -83,15 +81,15 @@ Do not expose “safe” as product positioning or routine participant-facing co
 - Do not unlock asking when recording ends.
 - Unlock only after Gemini processing completes and the answer passes the gate.
 - The participant therefore waits on the Checking state.
-- Provider or network failure must produce a retryable Processing Failed state, not silently reject the contribution.
+- Failed checks retry independently during the active submission; exhausted retries produce Processing Failed and offer a fresh recording, never a participant rejection.
 - Skipping only changes the presented question. It never affects ask eligibility and never starts a recording.
 
 ## Guardrail outcomes
 
 - Crisis resources must remain reachable without earning an ask.
 - Use one static result page for every non-passing outcome.
-- Change the text on that page according to whether the result is irrelevant, crisis-related, or illegal/dangerous.
-- Include US and international resources in the crisis variant.
+- Withheld is one outcome with reason-specific text for relevance, crisis, illegal/dangerous, silence, unintelligible audio, privacy, spam, harassment, or other content.
+- Include US and international resources plus a fresh-recording action in the crisis variant; Gemini can be wrong.
 - Apply crisis detection to both questions and answers.
 - Crisis content is withheld from the public response pool.
 - Show fixed, human-authored crisis routing.
@@ -132,12 +130,13 @@ Accepted weekend limitation:
 ## 2. Question selection
 
 - Select an open question from the seeded/live pool.
-- Prefer questions with fewer published responses.
+- Strictly order each eligible pass by published-response count, creation time, and id ascending.
 - Do not select the participant's own question.
 - Do not select a question the participant already answered.
-- Let the participant skip until they find something they can answer.
+- Let the participant skip by advancing a tab-local pointer through that ordered list; never move entries or store skip exclusions.
+- Refresh and wrap at the end; if another question exists avoid an immediate repeat, otherwise keep the sole question visible with an explanation.
 - Skipping does not create a penalty or start recording.
-- Pre-populate the pool before launch so the challenge demo never begins empty.
+- Ashley will author the seed pool before launch. TODO(SEED_CONTENT): content and recording provenance TBD; do not generate substitutes.
 
 Actions:
 
@@ -176,14 +175,17 @@ Do not unlock asking while processing is incomplete.
 - Return the participant to the answer flow.
 - Render the shared result page with short, non-argumentative text for the specific outcome.
 - Relevance text: `That response doesn't appear to answer this question. Try another.`
-- Crisis text: use fixed crisis-routing language and resources.
+- Crisis text: use fixed crisis-routing language and resources with a fresh-recording action.
 - Illegal or dangerous text: `That response can't be shared here. Try another.`
 
 ### Provider or network failure
 
-- Preserve the pending attempt long enough to retry processing.
-- Do not classify infrastructure failure as participant failure.
-- Offer `Try processing again`.
+- Keep successful check results only during the active submission; retry only failed checks.
+- Allow at most three invocations per check, a 20-second timeout each, waits of 1 then 2 seconds,
+  and a 90-second submission deadline from server receipt.
+- A definitive rejection stops all remaining work/retries where possible and shows Withheld.
+- On exhausted retries, expiry, or abandonment, delete the original audio and temporary state.
+- Offer a fresh recording in the originating flow; no stored attempt or later recovery exists.
 
 ## 5. Record a question
 
@@ -219,9 +221,9 @@ Provide one `Yours` area with two sections.
 Show:
 
 - Original question.
-- Processing state.
-- Published processed text when available.
-- Withheld or Failed state when applicable.
+- Published label.
+- Published processed text.
+- Published entries only; no pending, withheld, failed, or abandoned attempts are stored or shown.
 
 Do not build playback for the participant's original recording.
 
@@ -245,20 +247,23 @@ Show:
 
 # Gemini processing contract
 
-Use structured output. Validate every returned object in application code.
+Review calls use structured output and application validation. TTS does not request structured
+output; validate the returned audio type and nonempty payload before caching or serving.
 
-Run the content-processing call and three narrow guardrail calls in parallel. Each call receives the original audio independently; none depends on a transcript returned by another call. Measure the cost and latency of sending the audio to four calls during the initial spike.
+Run content processing and the three narrow checks independently on original audio, in parallel.
+Questions omit relevance. All checks return `canPublish`: true is YES, false is NO.
 
-For an answer, the aggregate gate resolves only after all four calls complete successfully.
-
-For a question, run content processing, crisis detection, and illegal-content detection in parallel. Relevance does not apply because there is no paired question to answer.
+- Keep each validated YES during the active submission.
+- A definitive NO immediately resolves Withheld and cancels other work where possible.
+- Retry only failed, timed-out, or schema-invalid checks within the active submission's bounds.
+- Ignore late results after rejection, deadline, or abandonment.
+- Publish only after every applicable check says YES.
+- Among rejections already known at resolution, display crisis before illegal/dangerous, relevance,
+  then content; do not wait for unfinished calls.
 
 ```text
 guardrail_decision == pass
-  when relevance.isRelevant == true
-  and crisis.isCrisis == false
-  and illegal.isIllegalOrDangerous == false
-  and content.guardrailDecision == pass
+  when every applicable check.canPublish == true
 ```
 
 ## Content-processing call
@@ -271,7 +276,7 @@ Recommended internal answer result:
   "sourceTranscript": "string",
   "displayText": "string",
   "isIntelligible": true,
-  "guardrailDecision": "pass | withhold",
+  "canPublish": true,
   "guardrailReason": "none | silence | nonsense | pii | harassment | other",
   "emotion": "neutral | warm | amused | concerned | frustrated | sad | urgent",
   "redactionsApplied": ["string"]
@@ -301,7 +306,7 @@ Input:
 Output:
 
 ```json
-{ "isRelevant": true }
+{ "canPublish": true }
 ```
 
 Relevance is necessarily model-judged. It supplements the aggregate gate; it does not replace the content, crisis, or illegal-content decisions.
@@ -313,7 +318,7 @@ Input: original audio.
 Output:
 
 ```json
-{ "isCrisis": false }
+{ "canPublish": true }
 ```
 
 ### Illegal or dangerous content
@@ -323,10 +328,11 @@ Input: original audio.
 Output:
 
 ```json
-{ "isIllegalOrDangerous": false }
+{ "canPublish": true }
 ```
 
-Keep the crisis and illegal/dangerous results distinct so the shared result page can display the correct text.
+For both crisis and illegal/dangerous checks, `canPublish: false` means the check detected a
+reason to withhold. Track which check rejected only in active state to select the Withheld text.
 
 Translation behavior:
 
@@ -352,8 +358,10 @@ Emotion behavior:
 - Cache generated playback.
 - Do not block publication on audio generation.
 - Do not retain or expose original participant audio after processing.
-- Delete source audio immediately after any terminal result, including success, irrelevance, crisis routing, or illegal-content withholding.
-- On retryable infrastructure failure, retain it only long enough to retry; delete it after the terminal result.
+- Delete original audio immediately on publication, Withheld, processing failure, or abandonment.
+- Audio may exist only inside the bounded active submission; do not retain it for another attempt.
+- Browser memory is released when the submission ends or the page is left; server cleanup retries
+  deletion for up to 60 seconds, with storage lifecycle cleanup only as a process-failure backstop.
 
 # State models
 
@@ -381,17 +389,22 @@ CHECKING_QUESTION
   -> ASK_UNLOCKED
 ```
 
-## Contribution state
+## Active submission state
 
 ```text
-RECEIVED
-  -> PROCESSING
-  -> PUBLISHED | IRRELEVANT | CRISIS_ROUTED | ILLEGAL_WITHHELD | FAILED
+RECEIVED -> PROCESSING
+PROCESSING -> PUBLISHABLE | WITHHELD(reason) | PROCESSING_FAILED | ABANDONED
 ```
+
+Failed checks retry independently inside PROCESSING; definitive rejection ends the submission.
+Only PUBLISHABLE may create a durable contribution row atomically with the ask grant or spend.
+All other state is discarded, and a fresh recording starts a new submission.
 
 # Minimum data model
 
-Keep processing and generated-audio metadata on the question and answer rows for the weekend MVP. Do not add separate job and audio tables unless the implementation introduces a real worker queue or shared polymorphic audio behavior.
+Keep only published questions and answers, with generated-audio cache metadata on those rows.
+Do not create unpublished contribution rows, attempt history, recovery jobs, or source-audio
+columns. Submission ids on published rows provide idempotency after lost responses.
 
 ## participants
 
@@ -405,13 +418,9 @@ Keep processing and generated-audio metadata on the question and answer rows for
 - `participant_id`
 - `display_text`
 - `source_language`
-- `status`
-- `is_crisis`
-- `is_illegal_or_dangerous`
-- `processing_status`
-- `processing_attempts`
-- `last_error`
-- `source_audio_storage_key`
+- `status` (`open` or `closed`, routing only)
+- `duration_seconds`
+- `submission_id`
 - `generated_audio_storage_key`
 - `audio_voice_id`
 - `created_at`
@@ -425,16 +434,7 @@ Keep processing and generated-audio metadata on the question and answer rows for
 - `display_text`
 - `source_language`
 - `emotion`
-- `guardrail_decision`
-- `guardrail_reason`
-- `is_relevant`
-- `is_crisis`
-- `is_illegal_or_dangerous`
-- `status`
-- `processing_status`
-- `processing_attempts`
-- `last_error`
-- `source_audio_storage_key`
+- `submission_id`
 - `generated_audio_storage_key`
 - `audio_voice_id`
 - `created_at`
@@ -506,7 +506,7 @@ Kill or simplify any feature that does not work reliably during this spike.
 - Build the Gemini content-processing endpoint and three parallel guardrail calls.
 - Build guardrail-gated unlock state.
 - Build question recording and creation.
-- Persist processing state directly on question and answer records.
+- Persist only published questions and answers; keep check/retry state in the active request.
 
 ## Day 2
 
@@ -531,10 +531,12 @@ Kill or simplify any feature that does not work reliably during this spike.
 - Guardrail failure does not unlock asking.
 - Passing answer unlocks exactly one question.
 - A second question cannot be submitted without another qualifying answer.
-- Infrastructure failure remains retryable.
+- Transient failures retry only the failed checks; exhaustion discards the attempt and offers a fresh recording.
+- Definitive rejection cancels further retries and cannot be overridden by a late result.
+- Closing or refreshing a failed submission does not create history or a recovery path.
 - Non-English speech produces valid display text.
 - Identifying information is removed from public text.
-- Crisis content is withheld and routes to fixed resources.
+- Crisis content is Withheld with fixed resources and a fresh-recording action.
 - Illegal or dangerous content is withheld with distinct text on the shared result page.
 - Participant cannot answer their own question.
 - Participant does not receive the same question twice after answering it.
@@ -548,6 +550,7 @@ Kill or simplify any feature that does not work reliably during this spike.
 
 # Open decisions
 
+- Ashley-authored seed content and recording provenance (TBD).
 - Exact Gemini TTS voice.
 - MVP display and translation language policy.
 - Whether accounts are required after the weekend prototype.
