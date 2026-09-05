@@ -38,7 +38,12 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en" className={`${sourGummy.variable} ${sourceSans.variable}`}>
-      <body>{children}</body>
+      {/*
+        Extensions mutate <body> before React hydrates — ColorZilla adds
+        cz-shortcut-listen, Grammarly data-gr-*. Suppression is one level deep, so it
+        silences those attributes without hiding a mismatch in anything rendered below.
+      */}
+      <body suppressHydrationWarning>{children}</body>
     </html>
   );
 }
