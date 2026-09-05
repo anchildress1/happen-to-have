@@ -8,3 +8,21 @@ allowBuilds:
   '@google/genai': false
   lefthook: true
   protobufjs: false
+
+# Every one of these reaches us through @lhci/cli, which is a devDependency driving the
+# local pre-push Lighthouse gate. None of them ship: the runner stage copies only
+# .next/standalone, which traces production dependencies alone.
+#
+# They are pinned forward anyway. "Dev-only" bounds the blast radius to a developer's
+# machine; it does not make an unfixed path-traversal acceptable in a tree we install on
+# every clone.
+#
+#   tmp   GHSA-52f5-9888-hmc6, GHSA-ph9p-34f9-6g65 — symlink escape via dir/prefix
+#   uuid  GHSA-w5hq-g745-h8pq  — missing buffer bounds check in v3/v5/v6
+#
+# extract-zip (GHSA-jmr9-qjv8-65gv, symlink path traversal) has NO patched version at any
+# release, so no override can close it. It arrives via puppeteer-core under lighthouse and
+# is only exercised when lhci downloads a browser. Tracked, not fixable here.
+overrides:
+  tmp: '^0.2.6'
+  uuid: '^11.1.1'
