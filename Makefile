@@ -12,7 +12,7 @@
 LOAD_ENV := set -a; [ -f .env ] && . ./.env; set +a;
 
 .PHONY: help install dev format format-check format-files lint typecheck test build e2e perf \
-	secret-scan clean db-up migrate seed db-sweep db-shell ai-checks
+	secret-scan clean db-up migrate seed db-sweep db-shell lhci ai-checks
 
 ## ---- Required tooling gates (constitution: Required Tooling) ----
 
@@ -63,6 +63,11 @@ e2e: ## Run the Playwright end-to-end suite against a disposable Neon branch
 	pnpm run migrate >/dev/null; \
 	node --conditions=react-server seed/seed.ts >/dev/null; \
 	pnpm run e2e
+
+## Builds first: `next start` serves whatever `.next` holds, so without it Lighthouse
+## happily scores the previous build and a regression passes.
+lhci: ## Run Lighthouse against a production build of the landing screen
+	@SESSION_SECRET="$${SESSION_SECRET:-lighthouse-local-placeholder-never-served}" pnpm run lhci
 
 perf: ## Report production bundle sizes (First Load JS per route)
 	pnpm build

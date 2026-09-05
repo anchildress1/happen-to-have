@@ -38,5 +38,8 @@ pre-push:
       run: make typecheck
     unit-tests:
       run: make test
-    e2e:
-      run: make e2e
+    # Sequential on purpose, in one command: both targets run `next build` into the same
+    # .next, so running them as parallel lefthook commands corrupts the build directory.
+    # They still run alongside typecheck and the unit suite.
+    browser:
+      run: make e2e && make lhci
