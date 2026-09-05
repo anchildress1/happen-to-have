@@ -1,6 +1,33 @@
 <!--
 SYNC IMPACT REPORT
 ==================
+Version change: 2.0.0 → 2.1.0
+
+AMENDMENT 2.1.0 (2026-09-05) — guardrail fan-out corrected by measurement.
+
+Bump rationale: MINOR. A required check is ADDED to Principle III's gate; no principle is
+removed, narrowed, or inverted. The gate's meaning — the conjunction of independent signals —
+is unchanged. What changed is a factual claim about the provider that turned out to be wrong.
+
+  III. Aggregate Guardrail Gate
+    - Answer fan-out 3 -> 4 calls; question fan-out 2 -> 3. Illegal-or-dangerous is now a
+      dedicated call for both, because the rating it was to be read from does not exist.
+    - NEW: the provider's own safety signal MUST NOT be counted as one of the gate's checks.
+
+  Technology And Infrastructure Constraints -> Application Stack
+    - BLOCK_NONE retained, but its stated purpose is corrected: it prevents the provider
+      silently swallowing a recording. It does not produce ratings.
+
+  Verified block
+    - The 2026-09-04 "returns ratings automatically" line is corrected. It was taken from
+      documentation, not a live call.
+
+Evidence: docs/spike-002-guardrails.md. 16 prepared recordings; at the provider's DEFAULT
+guardrails, 7 of 8 must-not-publish recordings returned clean transcribed text, including
+every crisis case and an explicit self-harm method.
+
+--- 2.0.0 (2026-09-04), retained below ---
+
 Version change: 1.0.0 → 2.0.0
 
 1.0.0 is the last committed version (08015e5). Everything below is one amendment; intermediate
@@ -62,10 +89,10 @@ Modified sections:
     - Gemini access MUST use the official `@google/genai` SDK, server-side only.
     - Model ids pinned per job: gemini-3.8-flash for content processing, gemini-3.5-flash-lite
       for the three boolean guardrails, gemini-3.1-flash-tts-preview for playback.
-    - NEW: the content-processing call sets every safety category to BLOCK_NONE (not OFF, which
-      returns no ratings). Illegal-or-dangerous reads those free ratings rather than a dedicated
-      call unless the spike proves otherwise; a dedicated crisis check exists regardless, since
-      no built-in category covers self-harm. Checks stay separate parallel threads.
+    - NEW: the content-processing call sets every safety category to BLOCK_NONE. Illegal-or-
+      dangerous, crisis, and relevance are each a dedicated Flash-Lite call; BLOCK_NONE exists
+      to stop the provider swallowing a recording, not to obtain ratings. Checks stay separate
+      parallel threads. (Amended 2.1.0 — the free-ratings premise was falsified by the spike.)
     - Live API models forbidden outright, with the Principle I and IV conflicts named.
     - Runtime narrowed from "Node.js 22+" to "Node.js 24 LTS" (Krypton).
 
@@ -78,8 +105,11 @@ Verified 2026-09-04:
   @google/genai 2.21.0 (2026-09-02), engines: node >=20.0.0.
   gemini-3.8-flash and gemini-3.5-flash-lite are GA; both accept audio and structured output.
   All Gemini TTS ids are preview; no GA text-to-speech model exists.
-  Gemini safety filter exposes HARM_CATEGORY_{HARASSMENT,HATE_SPEECH,SEXUALLY_EXPLICIT,
-  DANGEROUS} and returns ratings automatically. No self-harm or crisis category exists.
+  Gemini safety filter accepts HARM_CATEGORY_{HARASSMENT,HATE_SPEECH,SEXUALLY_EXPLICIT,
+  DANGEROUS} as request-side thresholds. No self-harm or crisis category exists.
+  CORRECTED 2026-09-05 by live measurement: it does NOT return ratings. `safetyRatings` is
+  absent from the response at BLOCK_NONE, at default thresholds, and with no safety config.
+  The 2026-09-04 entry was read from documentation and never called.
   Node 24 (Krypton) Active LTS through 2026-10-20, maintenance to 2028-04-30.
 
 Deferred TODOs:
@@ -139,9 +169,12 @@ wrong about crisis too, so that result MUST NOT remove the participant's ability
 - An answer qualifies only when its verified duration is at most 60 seconds and every applicable
   check has completed with validated `canPublish == true`.
 - The gate is the conjunction of independent signals, each derived from the original audio.
-  For an answer: content processing, relevance, and crisis as three parallel calls, plus the
-  illegal-or-dangerous rating the content call already returns. For a question: content
-  processing and crisis, two calls; relevance does not apply.
+  For an answer: content processing, relevance, crisis, and illegal-or-dangerous as four
+  parallel calls. For a question: content processing, crisis, and illegal-or-dangerous, three
+  calls; relevance does not apply.
+- The provider's own safety signal MUST NOT be treated as one of these checks. It returns no
+  ratings to read, and at its default thresholds it passed 7 of 8 must-not-publish recordings
+  in the 002 spike. It is not a guardrail this product may rely on.
 - No call may consume another call's transcript, and calls MUST NOT be merged into one that
   returns several verdicts.
 - Relevance MUST NOT substitute for the content, crisis, or illegal-content decisions.
@@ -411,4 +444,4 @@ a performance or a marketing hook is the one failure that cannot be patched late
 - `AGENTS.md` and `CLAUDE.md` carry runtime development guidance and MUST NOT restate or
   contradict the principles above.
 
-**Version**: 2.0.0 | **Ratified**: 2026-09-04 | **Last Amended**: 2026-09-04
+**Version**: 2.1.0 | **Ratified**: 2026-09-04 | **Last Amended**: 2026-09-05
