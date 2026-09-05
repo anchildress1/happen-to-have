@@ -12,7 +12,7 @@ import {
 import { judgmentResultSchemaFor } from '../../src/review/schemas.js';
 
 /**
- * T012-T015, FR-038 and FR-039. The retry budget, and the classification that decides
+ * FR-038 and FR-039. The retry budget, and the classification that decides
  * whether a failure retries at all.
  *
  * Every case here is a fault the provider actually produced during the 002 spike, or a
@@ -34,10 +34,12 @@ const VALID_JUDGMENT = {
   reasonDetail: '',
 };
 
-const PARAMS: GenerateContentParameters = {
-  model: 'gemini-3.5-flash-lite',
-  contents: 'judge this',
-};
+/** Built fresh per use: a shared mutable object makes the no-mutation test order-dependent. */
+function makeParams(): GenerateContentParameters {
+  return { model: 'gemini-3.5-flash-lite', contents: 'judge this' };
+}
+
+const PARAMS = makeParams();
 
 /** A response the SDK could really return. `text` is a getter on the real class. */
 function response(overrides: Partial<Record<string, unknown>> = {}): GenerateContentResponse {
@@ -136,8 +138,11 @@ describe('runCheck — the retry budget (FR-039)', () => {
 
     await run(client, { sleep });
 
+    // Asserted as literals rather than against BACKOFF_MS. Comparing the code to the constant
+    // the code reads passes for any values — changing the schedule to [5, 7] left this green.
+    // FR-039 fixes these numbers in the spec, so the suite fixes them here.
     // A wait after the final attempt is a second of latency bought for nothing.
-    expect(waited).toEqual([...BACKOFF_MS]);
+    expect(waited).toEqual([1_000, 2_000]);
   });
 
   it('stops retrying the moment one attempt succeeds', async () => {
@@ -163,7 +168,8 @@ describe('runCheck — fault classification (FR-038)', () => {
 
     const outcome = await run(client, { sleep: async () => {} });
 
-    expect(outcome).toEqual({ ok: false, fault: 'network', attempts: 3 });
+    expect(outcome.ok === false && outcome.fault).toBe('network');
+    expect(outcome.attempts).toBe(3);
   });
 
   it('treats an empty candidate list as a fault and retries it', async () => {
@@ -178,7 +184,8 @@ describe('runCheck — fault classification (FR-038)', () => {
 
     const outcome = await run(client, { sleep: async () => {} });
 
-    expect(outcome).toEqual({ ok: false, fault: 'no-candidate', attempts: 3 });
+    expect(outcome.ok === false && outcome.fault).toBe('no-candidate');
+    expect(outcome.attempts).toBe(3);
     expect(calls()).toBe(3);
   });
 
@@ -251,7 +258,8 @@ describe('runCheck — abort and deadline are terminal', () => {
 
     // Fail-fast means a rejection elsewhere has already resolved the submission. Spending a
     // call here bills for a result that cannot change anything.
-    expect(outcome).toEqual({ ok: false, fault: 'aborted', attempts: 0 });
+    expect(outcome.ok === false && outcome.fault).toBe('aborted');
+    expect(outcome.attempts).toBe(0);
     expect(calls()).toBe(0);
   });
 
@@ -269,7 +277,8 @@ describe('runCheck — abort and deadline are terminal', () => {
       { now: () => 2_000, sleep: async () => {} },
     );
 
-    expect(outcome).toEqual({ ok: false, fault: 'deadline', attempts: 0 });
+    expect(outcome.ok === false && outcome.fault).toBe('deadline');
+    expect(outcome.attempts).toBe(0);
     expect(calls()).toBe(0);
   });
 
@@ -295,7 +304,8 @@ describe('runCheck — abort and deadline are terminal', () => {
       },
     );
 
-    expect(outcome).toEqual({ ok: false, fault: 'aborted', attempts: 1 });
+    expect(outcome.ok === false && outcome.fault).toBe('aborted');
+    expect(outcome.attempts).toBe(1);
     expect(calls()).toBe(1);
   });
 });
@@ -326,8 +336,8 @@ describe('runCheck — two calls in parallel do not interfere', () => {
 
 describe('runCheck — the attempt timeout (FR-039)', () => {
   it('classifies a per-attempt timeout as a timeout fault', async () => {
-    // The only FaultKind with no other route into the suite. Without this the 20s ceiling is
-    // a constant nobody asserts.
+    // Classification only: the injected error is already a TimeoutError, so this proves the
+    // branch rather than that a real wait produces one.
     const timedOut = Object.assign(new Error('The operation was aborted due to timeout'), {
       name: 'TimeoutError',
     });
@@ -359,26 +369,77 @@ describe('runCheck — the attempt timeout (FR-039)', () => {
     expect(outcome.ok === false && outcome.fault).toBe('deadline');
   });
 
-  it('passes an abort signal through to the provider on every attempt', async () => {
-    // Nothing else proves the wiring: delete the abortSignal line in retry.ts and every
-    // other test in this file still passes.
-    const { client, seen } = scriptedClient([new Error('a'), response()]);
+  it("chains the CALLER's signal into the one the provider receives", async () => {
+    // `toBeDefined()` was not enough: replacing AbortSignal.any([signal, timeout]) with the
+    // timeout alone — severing the caller's abort from the in-flight call entirely — left
+    // every test green. That link is what FR-045 relies on to release the recording when the
+    // submission ends, so it is asserted by actually aborting.
+    const controller = new AbortController();
+    const { client, seen } = scriptedClient([response()]);
 
-    await run(client, { sleep: async () => {} });
+    await runCheck(
+      {
+        client,
+        params: makeParams(),
+        schema: answerSchema,
+        signal: controller.signal,
+        deadline: DEADLINE,
+      },
+      { now: FAR_FUTURE, sleep: async () => {} },
+    );
 
-    expect(seen).toHaveLength(2);
-    for (const params of seen) {
-      expect(params.config?.abortSignal).toBeDefined();
-    }
+    const passed = seen[0].config?.abortSignal;
+    expect(passed?.aborted).toBe(false);
+    controller.abort();
+    expect(passed?.aborted).toBe(true);
+  });
+
+  it('bounds each attempt by the ceiling, not by the whole remaining budget', async () => {
+    // Asserting ATTEMPT_TIMEOUT_MS proved nothing about wiring: multiplying it by 100 inside
+    // the Math.min left every test green, and a hung call would then run to the 90s
+    // submission deadline instead of timing out and retrying. The ceiling is injectable so
+    // this can be exercised at a value a test can wait out; the real 20_000 is pinned by the
+    // literal assertion in the constants block.
+    const { client, seen } = scriptedClient([response()]);
+
+    await runCheck(
+      {
+        client,
+        params: makeParams(),
+        schema: answerSchema,
+        signal: new AbortController().signal,
+        deadline: 90_000,
+      },
+      { now: () => 0, sleep: async () => {}, timeoutMs: 20 },
+    );
+
+    const passed = seen[0].config?.abortSignal;
+    expect(passed?.aborted).toBe(false);
+
+    // 90s of budget remained, so the ceiling is the only thing that can fire here.
+    await new Promise((resolve) => setTimeout(resolve, 60));
+    expect(passed?.aborted).toBe(true);
   });
 
   it('keeps the caller params intact rather than mutating them', async () => {
-    // A retry must not accumulate config from the attempt before it.
+    // Snapshots its OWN object. Asserting against the shared PARAMS only meant anything if
+    // this ran after the tests that could have mutated it — under a shuffled order it might
+    // run first and assert nothing.
     const { client } = scriptedClient([response()]);
+    const mine = makeParams();
 
-    await run(client, { sleep: async () => {} });
+    await runCheck(
+      {
+        client,
+        params: mine,
+        schema: answerSchema,
+        signal: new AbortController().signal,
+        deadline: DEADLINE,
+      },
+      { now: FAR_FUTURE, sleep: async () => {} },
+    );
 
-    expect(PARAMS).toEqual({ model: 'gemini-3.5-flash-lite', contents: 'judge this' });
+    expect(mine).toEqual(makeParams());
   });
 });
 
@@ -420,8 +481,7 @@ describe('defaultSleep — the abort guard', () => {
 
 describe('runCheck — the real sleep (no injected clock)', () => {
   it('actually waits when the signal is live, using the real timer', async () => {
-    // Exercises defaultSleep, which every other test injects around — which is how the
-    // already-aborted defect survived review in the first place.
+    // Exercises defaultSleep, which every other test injects around.
     const { client } = scriptedClient([new Error('transient'), response()]);
 
     const started = Date.now();
@@ -441,11 +501,33 @@ describe('runCheck — the real sleep (no injected clock)', () => {
   });
 });
 
-describe('retry constants stay coupled (FR-039)', () => {
-  it('keeps one backoff for every retry after the first attempt', () => {
-    // Raising MAX_ATTEMPTS without extending the schedule would index past it, hand
-    // setTimeout an undefined delay, and silently drop the backoff.
-    expect(BACKOFF_MS).toHaveLength(MAX_ATTEMPTS - 1);
+describe('retry constants (FR-039)', () => {
+  it('fixes the numbers the spec fixes', () => {
+    // MAX_ATTEMPTS is derived from the schedule, so asserting their relationship cannot fail.
+    // Asserting the literal values can, and those are what FR-039 actually pins.
+    expect(MAX_ATTEMPTS).toBe(3);
     expect(ATTEMPT_TIMEOUT_MS).toBe(20_000);
+    expect([...BACKOFF_MS]).toEqual([1_000, 2_000]);
+  });
+});
+
+describe('runCheck — a sleep failure is not a participant abort', () => {
+  it('retries when the injected sleep throws for a reason other than abort', async () => {
+    // A bare catch reported every sleep failure as 'aborted', which is terminal and means
+    // "the participant left" — the gate would render nothing for someone still waiting.
+    const { client, calls } = scriptedClient([new Error('transient'), response()]);
+    let thrown = false;
+
+    const outcome = await run(client, {
+      sleep: async () => {
+        if (!thrown) {
+          thrown = true;
+          throw new TypeError('a broken sleep, not an abort');
+        }
+      },
+    });
+
+    expect(outcome.ok === false && outcome.fault).toBe('network');
+    expect(calls()).toBe(1);
   });
 });

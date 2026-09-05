@@ -51,7 +51,18 @@ export type FaultKind =
 
 export type CallOutcome<T> =
   | { ok: true; value: T; attempts: number }
-  | { ok: false; fault: FaultKind; attempts: number };
+  | {
+      ok: false;
+      fault: FaultKind;
+      attempts: number;
+      /**
+       * What actually went wrong, for logs. `FaultKind` is the decision surface and stays
+       * closed; discarding the evidence behind it is a separate mistake. Without this a
+       * missing API key, a 429, and a real outage are one indistinguishable `network`, and
+       * the carefully-named credential error from `client.ts` reaches nobody.
+       */
+      cause?: unknown;
+    };
 
 export interface RunCheckOptions<T> {
   client: GenAiClient;
@@ -67,9 +78,20 @@ export interface RunCheckOptions<T> {
 export interface RunCheckDeps {
   sleep?: (ms: number, signal: AbortSignal) => Promise<void>;
   now?: () => number;
+  /**
+   * The per-attempt ceiling, injectable purely so a test can prove it is wired in.
+   *
+   * Asserting the constant alone did not: multiplying it by 100 inside the Math.min left the
+   * whole suite green, and a hung call would then run to the 90-second submission deadline
+   * instead of timing out at 20 seconds and retrying — turning a publishable contribution
+   * into a processing failure. Waiting 20 real seconds in a unit test is not an option, so
+   * the value is asserted separately and the wiring is exercised at a value a test can wait
+   * out.
+   */
+  timeoutMs?: number;
 }
 
-type AttemptResult<T> = { ok: true; value: T } | { ok: false; fault: FaultKind };
+type AttemptResult<T> = { ok: true; value: T } | { ok: false; fault: FaultKind; cause?: unknown };
 
 /**
  * Exported for its own test. The abort path below is reachable only in the window between
@@ -113,6 +135,7 @@ export async function runCheck<T>(
   const { client, params, schema, signal, deadline } = options;
   const sleep = deps.sleep ?? defaultSleep;
   const now = deps.now ?? Date.now;
+  const timeoutMs = deps.timeoutMs ?? ATTEMPT_TIMEOUT_MS;
 
   let attempts = 0;
 
@@ -127,7 +150,7 @@ export async function runCheck<T>(
     }
 
     attempts++;
-    const result = await attemptOnce(client, params, schema, signal, remaining);
+    const result = await attemptOnce(client, params, schema, signal, remaining, timeoutMs);
 
     if (result.ok) {
       return { ok: true, value: result.value, attempts };
@@ -136,17 +159,23 @@ export async function runCheck<T>(
     // A caller-side abort or an expired deadline is terminal: nothing about waiting and
     // trying again improves either, and the audio is already being released.
     if (result.fault === 'aborted' || result.fault === 'deadline') {
-      return { ok: false, fault: result.fault, attempts };
+      return { ok: false, fault: result.fault, attempts, cause: result.cause };
     }
 
     if (attempt === MAX_ATTEMPTS - 1) {
-      return { ok: false, fault: result.fault, attempts };
+      return { ok: false, fault: result.fault, attempts, cause: result.cause };
     }
 
     try {
       await sleep(BACKOFF_MS[attempt], signal);
     } catch {
-      return { ok: false, fault: 'aborted', attempts };
+      // Only the caller's signal makes this terminal. A throw from an injected sleep, or a
+      // RangeError out of setTimeout, is a fault we can still retry — reporting it as
+      // 'aborted' would tell the gate the participant left, and it would render nothing for
+      // someone still sitting there.
+      return signal.aborted
+        ? { ok: false, fault: 'aborted', attempts }
+        : { ok: false, fault: 'network', attempts };
     }
   }
 
@@ -161,13 +190,14 @@ async function attemptOnce<T>(
   schema: z.ZodType<T>,
   signal: AbortSignal,
   remainingMs: number,
+  timeoutMs: number,
 ): Promise<AttemptResult<T>> {
   // Whichever comes first: this attempt's own 20s ceiling, or what is left of the submission
   // deadline. Clamping here means a retry can never outlive the budget it was granted.
-  const clampedToDeadline = remainingMs < ATTEMPT_TIMEOUT_MS;
+  const clampedToDeadline = remainingMs < timeoutMs;
   const attemptSignal = AbortSignal.any([
     signal,
-    AbortSignal.timeout(Math.min(ATTEMPT_TIMEOUT_MS, remainingMs)),
+    AbortSignal.timeout(Math.min(timeoutMs, remainingMs)),
   ]);
 
   let response: Awaited<ReturnType<GenAiClient['generateContent']>>;
@@ -181,18 +211,21 @@ async function attemptOnce<T>(
     });
   } catch (error) {
     if (signal.aborted) {
-      return { ok: false, fault: 'aborted' };
+      return { ok: false, fault: 'aborted', cause: error };
     }
     if (isTimeout(error)) {
       // A timeout caused by the deadline clamp is a deadline, not a slow provider. Reporting
       // it as 'timeout' would also burn a full backoff before the loop head noticed.
-      return { ok: false, fault: clampedToDeadline ? 'deadline' : 'timeout' };
+      return { ok: false, fault: clampedToDeadline ? 'deadline' : 'timeout', cause: error };
     }
-    return { ok: false, fault: 'network' };
+    return { ok: false, fault: 'network', cause: error };
   }
 
   if (!response.candidates || response.candidates.length === 0) {
-    return { ok: false, fault: 'no-candidate' };
+    // promptFeedback is the only field that distinguishes a core-harm block from a malformed
+    // prompt. It is never a verdict (FR-008b1), but discarding it as evidence leaves the two
+    // indistinguishable in logs.
+    return { ok: false, fault: 'no-candidate', cause: response.promptFeedback };
   }
 
   // `.text` is a getter typed `string | undefined`, and the spike saw it yield undefined on
@@ -200,12 +233,14 @@ async function attemptOnce<T>(
   // actually happened.
   const text = response.text;
   if (!text) {
-    return { ok: false, fault: 'no-text' };
+    return { ok: false, fault: 'no-text', cause: response.candidates[0]?.finishReason };
   }
 
   const parsed = parseResult(schema, text);
   if (parsed === null) {
-    return { ok: false, fault: 'invalid' };
+    // finishReason separates a truncated response from a malformed one. A MAX_TOKENS cut-off
+    // yields partial JSON that looks identical to a model ignoring the schema.
+    return { ok: false, fault: 'invalid', cause: response.candidates[0]?.finishReason };
   }
 
   return { ok: true, value: parsed };
