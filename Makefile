@@ -6,7 +6,7 @@
 .DEFAULT_GOAL := help
 
 .PHONY: help install dev format format-check format-files lint typecheck test build e2e perf \
-	secret-scan clean db-up schema seed db-shell ai-checks
+	secret-scan clean db-up migrate seed db-shell ai-checks
 
 ## ---- Required tooling gates (constitution: Required Tooling) ----
 
@@ -61,18 +61,21 @@ clean: ## Remove build artifacts and local caches
 
 ## ---- Project targets (Firebase SQL Connect / Data Connect) ----
 
-db-up: ## Start the Firebase emulator suite for SQL Connect
-	firebase emulators:start --only dataconnect
+db-up: ## Point at this git branch's Neon database (creates it if missing)
+	@neon branches create --name dev-$$(git branch --show-current) --parent main 2>/dev/null || true
+	@neon checkout dev-$$(git branch --show-current)
 
-schema: ## Deploy dataconnect/ and regenerate the typed SDK
-	firebase deploy --only dataconnect
-	firebase dataconnect:sdk:generate
+
+migrate: ## Apply pending migrations to the checked-out Neon branch
+	pnpm run migrate
+
 
 seed: ## Upsert seed/questions.json into the database (idempotent)
-	node seed/seed.ts
+	node --conditions=react-server seed/seed.ts
 
-db-shell: ## Open a psql shell against the connected Postgres instance
-	firebase dataconnect:sql:shell
+db-shell: ## psql against the checked-out Neon branch
+	neon connect
+
 
 ## ---- Composite gate ----
 ##

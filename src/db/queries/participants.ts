@@ -1,18 +1,10 @@
-import {
-  createParticipant as generatedCreateParticipant,
-  findParticipantById as generatedFindParticipantById,
-} from '@happen-to-have/dataconnect-generated';
 import { z } from 'zod';
-import { getConnector } from '../client.js';
+import { db } from '../client.js';
 
 /**
- * The only shape `getOrCreateParticipant` (src/session/session.ts) needs from
- * either operation is the participant's id — it never reads `can_ask` (T033
- * forbids it from ever reaching the session anyway) or `created_at`. Using
- * SQL Connect's generated Admin SDK operations (dataconnect/connector/*.gql,
- * re-exported from `src/db/client.ts`, owned by another agent) is therefore
- * sufficient per T031, with no native-SQL fallback needed: `createParticipant`
- * returns only `Participant_Key` (an id) regardless, and fetching columns
+ * The only shape `getOrCreateParticipant` (src/session/session.ts) needs from either
+ * operation is the participant's id. It never reads `can_ask` — T033 forbids that value
+ * from reaching the session at all — and never reads `created_at`. Selecting columns
  * nobody consumes would be exactly the speculative work Principle VI forbids.
  */
 export interface ParticipantsClient {
@@ -22,18 +14,24 @@ export interface ParticipantsClient {
 
 const participantIdSchema = z.object({ id: z.uuid() });
 
-/** The real implementation, backed by SQL Connect's generated Admin SDK operations. */
+/**
+ * Backed by parameterized SQL. The row is parsed before it leaves this module: a driver
+ * returning an unexpected shape must fail loudly rather than hand a malformed id to the
+ * session (Principle V).
+ */
 export const participantsClient: ParticipantsClient = {
   async findParticipantById(id) {
-    const { data } = await generatedFindParticipantById(getConnector(), { id });
-    if (!data.participant) {
-      return null;
-    }
-    return participantIdSchema.parse({ id: data.participant.id });
+    const { rows } = await db.query<{ id: string }>('SELECT id FROM participants WHERE id = $1', [
+      id,
+    ]);
+    const row = rows[0];
+    return row ? participantIdSchema.parse(row) : null;
   },
 
   async createParticipant() {
-    const { data } = await generatedCreateParticipant(getConnector());
-    return participantIdSchema.parse(data.participant_insert);
+    const { rows } = await db.query<{ id: string }>(
+      'INSERT INTO participants DEFAULT VALUES RETURNING id',
+    );
+    return participantIdSchema.parse(rows[0]);
   },
 };
