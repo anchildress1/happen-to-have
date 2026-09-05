@@ -1,18 +1,25 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
  * T006-T008, FR-008b. Three properties of the provider client that are easy to lose in a
  * later refactor and expensive to lose quietly.
  *
- * The module reads `GEMINI_API_KEY` lazily rather than at import, so every test here
- * re-imports it with `vi.resetModules()`-free dynamic import against a mutated env — the
- * same shape `tests/unit/session-authority.test.ts` uses for `SESSION_SECRET`, except that
- * one validates at module load and this one deliberately does not.
+ * The module reads `GEMINI_API_KEY` lazily rather than at import.
+ *
+ * `vi.resetModules()` runs before every test, and it is load-bearing rather than hygiene.
+ * A dynamic `import()` of the same specifier returns the cached namespace, so without the
+ * reset the module body never re-executes — mutating `process.env` first would have no
+ * effect, and the two tests below would pass whether or not the behaviour they name holds.
+ * That was the original defect here: one of them could not fail.
+ *
+ * The same reset also isolates the memoized SDK singleton, so no test can pass merely
+ * because an earlier one in this file happened not to construct it.
  */
 
 const REAL_KEY = process.env.GEMINI_API_KEY;
 
 beforeEach(() => {
+  vi.resetModules();
   process.env.GEMINI_API_KEY = 'test-key-not-a-real-credential';
 });
 
@@ -76,9 +83,29 @@ describe('review client — credential handling', () => {
   it('does not throw on import when GEMINI_API_KEY is absent', async () => {
     delete process.env.GEMINI_API_KEY;
 
-    // Importing must stay safe: a route that never reviews anything should not fail to boot
-    // because a key it will not use is missing. The failure belongs at first call.
+    // Only meaningful because vi.resetModules() forces the module body to re-execute with
+    // the key already gone. Importing must stay safe: a route that never reviews anything
+    // should not fail to boot over a key it will not use. The failure belongs at first call.
     await expect(import('../../src/review/client.js')).resolves.toBeDefined();
+  });
+
+  it('still throws at first call after a successful construction elsewhere', async () => {
+    // Guards the memoized singleton: the previous test could otherwise pass simply because
+    // no earlier test in the file had constructed the SDK, and adding one above it would
+    // turn this file green-but-meaningless.
+    const { makeGenAiClient } = await import('../../src/review/client.js');
+    const warm = makeGenAiClient();
+    await expect(
+      warm.generateContent({ model: 'gemini-3.5-flash-lite', contents: 'warm the singleton' }),
+    ).rejects.toThrow();
+
+    vi.resetModules();
+    delete process.env.GEMINI_API_KEY;
+    const { makeGenAiClient: freshFactory } = await import('../../src/review/client.js');
+
+    await expect(
+      freshFactory().generateContent({ model: 'gemini-3.5-flash-lite', contents: 'x' }),
+    ).rejects.toThrow(/GEMINI_API_KEY/);
   });
 
   it('names the missing variable when a review is attempted without a key', async () => {
