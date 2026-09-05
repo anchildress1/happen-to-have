@@ -143,7 +143,7 @@ tracked in [quickstart.md](quickstart.md).
 ```text
 specs/002-contribution-review/
 ├── plan.md              # This file
-├── research.md          # Phase 0 — 13 decisions, four settled by measurement
+├── research.md          # Phase 0 — 15 decisions, the load-bearing ones measured
 ├── data-model.md        # Phase 1 — in-request shapes, and the one persisted table
 ├── quickstart.md        # Phase 1 — run it, and what is still unproven
 ├── contracts/
