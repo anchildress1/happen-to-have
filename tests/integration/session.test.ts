@@ -56,7 +56,7 @@ const PARTICIPANT_B = '22222222-2222-4222-8222-222222222222';
 describe('getOrCreateParticipant — contracts/session.md branches', () => {
   it('no cookie: creates a new participant and writes a session cookie', async () => {
     const client = fakeClient({ createParticipant: async () => ({ id: PARTICIPANT_A }) });
-    const request = new Request('https://example.test/api/questions/next', { method: 'POST' });
+    const request = new Request('https://example.test/api/question', { method: 'POST' });
 
     const result = await getOrCreateParticipant(request, client);
 
@@ -70,7 +70,7 @@ describe('getOrCreateParticipant — contracts/session.md branches', () => {
       findParticipantById: async (id) => (id === PARTICIPANT_A ? { id } : null),
     });
     const cookie = await cookieHeaderFor(PARTICIPANT_A);
-    const request = new Request('https://example.test/api/questions/next', {
+    const request = new Request('https://example.test/api/question', {
       method: 'POST',
       headers: { cookie },
     });
@@ -87,7 +87,7 @@ describe('getOrCreateParticipant — contracts/session.md branches', () => {
       createParticipant: async () => ({ id: PARTICIPANT_B }),
     });
     const cookie = await cookieHeaderFor(PARTICIPANT_A); // references a row that no longer exists
-    const request = new Request('https://example.test/api/questions/next', {
+    const request = new Request('https://example.test/api/question', {
       method: 'POST',
       headers: { cookie },
     });
@@ -101,7 +101,7 @@ describe('getOrCreateParticipant — contracts/session.md branches', () => {
 
   it('tampered/undecryptable cookie: creates a new participant, no 500', async () => {
     const client = fakeClient({ createParticipant: async () => ({ id: PARTICIPANT_B }) });
-    const request = new Request('https://example.test/api/questions/next', {
+    const request = new Request('https://example.test/api/question', {
       method: 'POST',
       headers: { cookie: `${sessionOptions.cookieName}=not-a-real-seal` },
     });
@@ -114,7 +114,7 @@ describe('getOrCreateParticipant — contracts/session.md branches', () => {
 
   it('database unreachable with no cookie: throws rather than fabricating a participant', async () => {
     const client = throwingClient('connection refused');
-    const request = new Request('https://example.test/api/questions/next', { method: 'POST' });
+    const request = new Request('https://example.test/api/question', { method: 'POST' });
 
     await expect(getOrCreateParticipant(request, client)).rejects.toThrow('connection refused');
   });
@@ -122,7 +122,7 @@ describe('getOrCreateParticipant — contracts/session.md branches', () => {
   it('database unreachable with an existing cookie: throws rather than fabricating a participant', async () => {
     const client = throwingClient('connection refused');
     const cookie = await cookieHeaderFor(PARTICIPANT_A);
-    const request = new Request('https://example.test/api/questions/next', {
+    const request = new Request('https://example.test/api/question', {
       method: 'POST',
       headers: { cookie },
     });

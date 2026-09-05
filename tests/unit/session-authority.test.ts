@@ -44,7 +44,7 @@ describe('session authority — the cookie carries identity only', () => {
 
     const participantId = '11111111-1111-4111-8111-111111111111';
     const client = fakeClient({ createParticipant: async () => ({ id: participantId }) });
-    const request = new Request('https://example.test/api/questions/next', { method: 'POST' });
+    const request = new Request('https://example.test/api/question', { method: 'POST' });
 
     const result = await getOrCreateParticipant(request, client);
     const [setCookie] = result.headers.getSetCookie();

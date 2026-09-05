@@ -127,7 +127,7 @@ describe('question selection exclusions (real Postgres SQL via PGlite)', () => {
   });
 
   it('returns the same list for a participant id with no row as for a real one', async () => {
-    // The read path in app/api/questions/next/route.ts trusts the signed cookie and does
+    // The read path in app/api/question/route.ts trusts the signed cookie and does
     // not confirm the participant row still exists. That is only safe while this holds:
     // selection filters on `participant_id IS DISTINCT FROM $1` and `NOT EXISTS (their
     // answers)`, which an id with no rows satisfies exactly as a new participant does.

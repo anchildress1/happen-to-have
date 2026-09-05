@@ -233,7 +233,7 @@ it is thirty lines of security-relevant code written under time pressure.
 
 The authenticated cookie binds identity; every eligibility decision reads current Postgres
 state. Tampered cookies are rejected. Initial identity creation and cookie writes occur in
-`POST /api/questions/next`, invoked by the client selection shell, never in a Server Component.
+`POST /api/question`, invoked by the client selection shell, never in a Server Component.
 
 **Accepted limitation**: session-scoped identity means clearing cookies produces a new
 participant with no history and no earned ask. Documented in the spec, accepted by the

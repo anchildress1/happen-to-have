@@ -36,7 +36,7 @@ export async function listEligibleQuestions(
 }
 
 /**
- * The wire shape of one question, as `/api/questions/next` returns it.
+ * The wire shape of one question, as `/api/question` returns it.
  *
  * Carries no answer data — not even a count. The count orders the queue here on the server
  * and stops; anything answer-derived reaching the browser is what would make "answer one to

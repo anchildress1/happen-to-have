@@ -6,7 +6,7 @@ import { createTestDb, type TestDb } from '../helpers/pglite.js';
 /**
  * FR-029 (contracts/routes.md, tasks.md T073): a participant whose pool has run dry gets
  * the same 200 response shape as anyone else — `{ question: null, queue: [] }` — never a
- * 500. `app/api/questions/next/route.ts` computes `question = eligible[0] ? {...} : null`
+ * 500. `app/api/question/route.ts` computes `question = eligible[0] ? {...} : null`
  * with no separate "empty" branch, so an empty array out of `listEligibleQuestions` is
  * exactly, and only, what makes that contract hold; this exercises the three ways the real
  * exclusion rules (exclusions.test.ts) can jointly empty the pool for one participant.

@@ -13,7 +13,7 @@ export const metadata: Metadata = {
 
 /**
  * Arrival (`/`). Server Component — it mints no participant. Identity is
- * created by `POST /api/questions/next`, which the selection screen calls
+ * created by `POST /api/question`, which the selection screen calls
  * once `Find me a question` is followed.
  */
 export default function ArrivalPage() {

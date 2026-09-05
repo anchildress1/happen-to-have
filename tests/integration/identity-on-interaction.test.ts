@@ -36,7 +36,7 @@ beforeAll(async () => {
   // After the mock and secret, so these bind to PGlite rather than a Neon pool.
   ({ default: ArrivalPage } = await import('../../app/page'));
   ({ default: AnswerPage } = await import('../../app/answer/page'));
-  ({ POST } = await import('../../app/api/questions/next/route'));
+  ({ POST } = await import('../../app/api/question/route'));
 });
 
 afterEach(async () => {
@@ -73,11 +73,11 @@ describe('identity is created on interaction, never on render (FR-001, T094)', (
     expect(await countParticipants()).toBe(0);
   });
 
-  it('creates exactly one participant row when POST /api/questions/next is called', async () => {
+  it('creates exactly one participant row when POST /api/question is called', async () => {
     expect(await countParticipants()).toBe(0);
 
     const response = await POST(
-      new Request('https://example.test/api/questions/next', { method: 'POST' }),
+      new Request('https://example.test/api/question', { method: 'POST' }),
     );
 
     expect(response.status).toBe(200);
@@ -87,15 +87,13 @@ describe('identity is created on interaction, never on render (FR-001, T094)', (
   });
 
   it('reuses the participant when the cookie from that first POST is sent back', async () => {
-    const first = await POST(
-      new Request('https://example.test/api/questions/next', { method: 'POST' }),
-    );
+    const first = await POST(new Request('https://example.test/api/question', { method: 'POST' }));
     const cookie = first.headers.get('set-cookie');
     expect(cookie).toBeTruthy();
     expect(await countParticipants()).toBe(1);
 
     const second = await POST(
-      new Request('https://example.test/api/questions/next', {
+      new Request('https://example.test/api/question', {
         method: 'POST',
         // Strip the attributes — a browser sends back only `name=value`.
         headers: { cookie: (cookie as string).split(';')[0] },

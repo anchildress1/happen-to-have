@@ -6,7 +6,7 @@ import { createTestDb, type TestDb } from '../helpers/pglite.js';
 
 /**
  * FR-022 through FR-024: there is no `/api/questions/skip`. `handleTryAnother` only
- * advances a pointer into the queue already returned by `POST /api/questions/next`, so
+ * advances a pointer into the queue already returned by `POST /api/question`, so
  * these run that pointer arithmetic over a real queue and prove the database is untouched
  * and no question repeats immediately. The browser half is tests/e2e/skip.spec.ts.
  */
@@ -80,7 +80,7 @@ function advance(pointer: number, queueLength: number): number {
 let participantId: string;
 
 beforeEach(async () => {
-  const request = new Request('https://example.test/api/questions/next', { method: 'POST' });
+  const request = new Request('https://example.test/api/question', { method: 'POST' });
   ({ participantId } = await getOrCreateParticipant(request, makeParticipantsClient(db)));
 });
 

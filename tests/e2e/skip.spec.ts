@@ -4,7 +4,7 @@ import { copy } from '../../src/copy.js';
 /**
  * `/answer` (User Story 2, FR-020 through FR-025, SC-003). Per contracts/routes.md
  * ("Skipping is not an endpoint"), `Try another question` advances a pointer into the
- * `queue` returned by `POST /api/questions/next` (src/ui/QuestionCard.tsx
+ * `queue` returned by `POST /api/question` (src/ui/QuestionCard.tsx
  * `handleTryAnother`). Advancing inside a pass never leaves the tab; running off the end
  * refreshes the eligible list, which FR-025 requires and which is the one request a
  * traversal is allowed to make.
@@ -15,7 +15,7 @@ import { copy } from '../../src/copy.js';
  */
 
 const TRY_ANOTHER = 'Try another question';
-const NEXT_QUESTION_URL = '**/api/questions/next';
+const NEXT_QUESTION_URL = '**/api/question';
 
 interface QueuedQuestion {
   id: string;
@@ -113,7 +113,7 @@ test.describe('skip (User Story 2, FR-020–FR-025, SC-003)', () => {
     await page.goto('/answer');
 
     const tryAnother = page.getByRole('button', { name: TRY_ANOTHER });
-    // Wait for the initial `POST /api/questions/next` to resolve before watching for
+    // Wait for the initial `POST /api/question` to resolve before watching for
     // traffic, so it is never mistaken for a skip's request.
     await expect(tryAnother).toBeVisible();
 
@@ -133,7 +133,7 @@ test.describe('skip (User Story 2, FR-020–FR-025, SC-003)', () => {
     // half is proven in tests/integration/skip-writes-nothing.test.ts.
     await tryAnother.click();
     await expect
-      .poll(() => requestUrls.filter((url) => url.includes('/api/questions/next')).length)
+      .poll(() => requestUrls.filter((url) => url.includes('/api/question')).length)
       .toBe(1);
   });
 

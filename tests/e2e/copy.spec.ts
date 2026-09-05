@@ -13,7 +13,7 @@ const ROUTES = ['/', '/answer', '/answer/record', '/yours'] as const;
 
 /**
  * `/answer` renders a question only once its client-side POST to
- * `/api/questions/next` resolves (src/ui/QuestionCard.tsx). Intercepting it
+ * `/api/question` resolves (src/ui/QuestionCard.tsx). Intercepting it
  * makes the ready state deterministic here rather than depending on
  * whatever the shared seeded pool happens to hold.
  */
@@ -22,7 +22,7 @@ async function mockReadyQuestion(page: Page): Promise<void> {
     id: 'copy-compliance-test-question',
     displayText: 'Copy compliance test question?',
   };
-  await page.route('**/api/questions/next', (route) =>
+  await page.route('**/api/question', (route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',

@@ -42,7 +42,7 @@ export function QuestionCard() {
     setIsOnlyQuestion(false);
     if (!options?.keepVisible) setStatus('loading');
 
-    fetch('/api/questions/next', { method: 'POST' })
+    fetch('/api/question', { method: 'POST' })
       .then((res) => {
         if (!res.ok) throw new Error('selection_failed');
         return res.json() as Promise<NextResponse>;

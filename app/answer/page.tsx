@@ -11,7 +11,7 @@ export const dynamic = 'force-dynamic';
 /**
  * Server Component shell for the question-selection screen. It renders no
  * question and creates no participant — QuestionCard's client-side POST to
- * `/api/questions/next` does both on mount (contracts/session.md, T054).
+ * `/api/question` does both on mount (contracts/session.md, T054).
  */
 export default function AnswerPage() {
   return (

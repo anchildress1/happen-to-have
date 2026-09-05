@@ -127,10 +127,10 @@ browser, and confirm the landing screen and a question both render correctly.
 - [x] T048 [US1] Build the landing screen in `app/page.tsx` — status dot, H1, tagline, primary action, helper; desktop adds the footer line and the `1fr 1fr` grid with a 520px copy column
 - [x] T049 [US1] Write the native-SQL selection query in `src/db/queries/questions.ts` exactly as specified in [data-model.md](data-model.md). Use `IS DISTINCT FROM` for the own-question exclusion — plain `<>` silently drops every seeded row, whose `participant_id` is `NULL`. This is the easiest bug in the feature to write
 - [x] T050 [US1] Compute published-answer counts relationally with `COUNT` in `src/db/queries/questions.ts`. Introducing a denormalized counter is forbidden by the constitution: it drifts, and a drifted count silently corrupts both the fewer-answers bias and 004's closure rule
-- [x] T051 [US1] Implement `POST /api/questions/next` in `app/api/questions/next/route.ts` per [contracts/routes.md](contracts/routes.md), returning `{ question }` or `{ question: null }`, and `export const dynamic = 'force-dynamic'`
+- [x] T051 [US1] Implement `POST /api/question` in `app/api/question/route.ts` per [contracts/routes.md](contracts/routes.md), returning `{ question }` or `{ question: null }`, and `export const dynamic = 'force-dynamic'`
 - [x] T052 [US1] Build `src/ui/QuestionCard.tsx` — question text and both actions, **with no eyebrow label above it** (research D15)
 - [x] T053 [US1] Build the selection screen in `app/answer/page.tsx` using QuestionCard; desktop uses the `minmax(0,1.4fr) minmax(0,1fr)` grid with the actions in a `--green-06` panel
-- [x] T054 [US1] Create identity through `POST /api/questions/next`, not during Server Component rendering, per [contracts/session.md](contracts/session.md)
+- [x] T054 [US1] Create identity through `POST /api/question`, not during Server Component rendering, per [contracts/session.md](contracts/session.md)
 - [x] T055 [US1] Point `I can answer this` at a disabled or placeholder target for `/answer/record`; 003 delivers it, and it must never request microphone permission from this feature's code
 
 **Checkpoint**: US1 is independently demoable. This is the MVP.
@@ -184,7 +184,7 @@ never appear, the third still does.
 - [x] T069 [US3] Apply the own-question and published-answer exclusions in `src/db/queries/questions.ts`
 - [x] T070 [US3] Apply the closed-question exclusion in `src/db/queries/questions.ts`, reading the `status` that 004 owns and writes
 - [x] T071 [US3] Order by published-answer count ascending with a tiebreak in `src/db/queries/questions.ts`, per research D10 — a bias, not a strict ordering, so concurrent participants do not collide
-- [x] T072 [US3] Enforce every exclusion server-side in `app/api/questions/next/route.ts` regardless of what the interface allowed
+- [x] T072 [US3] Enforce every exclusion server-side in `app/api/question/route.ts` regardless of what the interface allowed
 
 **Checkpoint**: Selection is correct under all exclusion rules.
 
@@ -209,7 +209,7 @@ state renders rather than an error, a blank screen, or an ineligible question.
 - [x] T076 [P] [US4] Empty state renders inside `src/ui/QuestionCard.tsx` rather than a separate `EmptyPool.tsx`. The pool is empty only when the client's fetch returns `queue: []`, so the state belongs with the component that knows that. No design exists for it — authored copy, flagged for a design pass
 - [x] T077 [P] [US4] Loading state renders inside `src/ui/QuestionCard.tsx`. A route-level `app/answer/loading.tsx` would never appear: `/answer` is a Server Component that awaits nothing, so no Suspense boundary ever suspends. Adding one would be a file that cannot execute
 - [x] T078 [P] [US4] Two failure paths, deliberately. `src/ui/QuestionCard.tsx` handles the selection request failing — client-side and recoverable in place. `app/answer/error.tsx` is the route boundary for the Server Component itself throwing, which would otherwise surface as Next's default error page
-- [x] T079 [US4] Return `{ error: "selection_failed" }` with a 500 from `app/api/questions/next/route.ts` on query failure — never a stack trace, never a database message
+- [x] T079 [US4] Return `{ error: "selection_failed" }` with a 500 from `app/api/question/route.ts` on query failure — never a stack trace, never a database message
 
 **Checkpoint**: All four user stories complete.
 
@@ -320,10 +320,10 @@ writing product code. The documented fallback is TypeScript 6.0.3, which also re
 
 - [ ] T091 Reach the 15-question floor in `seed/questions.json`; it currently holds six. Seeds MUST be human-authored per `TODO(SEED_CONTENT)` — do not generate substitutes or claim seed readiness has passed per FR-026, SC-008 (partial)
 - [x] T092 Add the fixed string `This is the only question waiting right now.` to `src/copy.ts` and render it in `src/ui/QuestionCard.tsx` when `queue.length === 1`, so the sole eligible question stays visible with an explanation instead of silently re-rendering per FR-024, US2/AC6 (missing)
-- [x] T093 Re-fetch `POST /api/questions/next` when the pointer wraps past the end in `src/ui/QuestionCard.tsx`, so each new pass starts from a refreshed, re-sorted eligible list; reconcile the "never re-request" bullet in `specs/001-participant-and-pool/contracts/routes.md` with the requirement per FR-025, US2/AC5, plan: tab-local traversal refreshes on wrap (partial)
-- [x] T094 Write `tests/integration/identity-on-interaction.test.ts` asserting that loading `/` creates no `participants` row and that `POST /api/questions/next` does per FR-001 (missing)
+- [x] T093 Re-fetch `POST /api/question` when the pointer wraps past the end in `src/ui/QuestionCard.tsx`, so each new pass starts from a refreshed, re-sorted eligible list; reconcile the "never re-request" bullet in `specs/001-participant-and-pool/contracts/routes.md` with the requirement per FR-025, US2/AC5, plan: tab-local traversal refreshes on wrap (partial)
+- [x] T094 Write `tests/integration/identity-on-interaction.test.ts` asserting that loading `/` creates no `participants` row and that `POST /api/question` does per FR-001 (missing)
 - [x] T095 Extend `tests/e2e/skip.spec.ts` to traverse and wrap against one-question and two-question pools, not only the seeded pool per SC-003 (missing)
-- [ ] T096 Cap the queue `POST /api/questions/next` returns in `src/db/queries/questions.ts`, and re-fetch as the pointer nears the end. Deliberately deferred: the seeded pool is small enough that sending it whole is fine, and a cap written before the pool is large is a guess. Do not build until the pool makes it matter per plan: tab-local traversal, FR-025 (partial)
+- [ ] T096 Cap the queue `POST /api/question` returns in `src/db/queries/questions.ts`, and re-fetch as the pointer nears the end. Deliberately deferred: the seeded pool is small enough that sending it whole is fine, and a cap written before the pool is large is a guess. Do not build until the pool makes it matter per plan: tab-local traversal, FR-025 (partial)
 - [x] T097 Run the E2E suite against a disposable Neon branch created and deleted by `make e2e`, never the branch in `.env` per FR-005b (missing)
 - [x] T098 Add `sweepContributionlessParticipants` and `make db-sweep` for the 30-day retention rule per FR-005a (missing)
 - [ ] T099 Schedule the FR-005a sweep so it runs without anyone remembering to. `make db-sweep` exists but nothing calls it per FR-005a (partial)

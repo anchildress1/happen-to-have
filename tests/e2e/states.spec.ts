@@ -3,7 +3,7 @@ import { copy } from '../../src/copy.js';
 
 /**
  * `/answer`'s non-happy-path render states (User Story 4, FR-029, T074/T075). These stub
- * `POST /api/questions/next` with `page.route` rather than shaping real database rows: the
+ * `POST /api/question` with `page.route` rather than shaping real database rows: the
  * empty and failure states are a UI contract on whatever JSON that endpoint returns, and
  * `src/ui/QuestionCard.tsx` doesn't care how the response was produced. The zero-eligible
  * database path itself is proven at the query layer in
@@ -11,7 +11,7 @@ import { copy } from '../../src/copy.js';
  * pool — a browser has no way to assert on `listEligibleQuestions`.
  */
 
-const NEXT_QUESTION_URL = '**/api/questions/next';
+const NEXT_QUESTION_URL = '**/api/question';
 
 async function fulfillJson(route: Route, status: number, body: unknown): Promise<void> {
   await route.fulfill({

@@ -2,7 +2,7 @@
 
 **Feature**: 001-participant-and-pool | **Date**: 2026-09-04
 
-Two pages, one route handler. Only `/api/questions/next` may create a participant through
+Two pages, one route handler. Only `/api/question` may create a participant through
 `getOrCreateParticipant` ([session.md](session.md)); skipping is client-side and requires no
 session. Neither Server Component creates participants or sets cookies.
 
@@ -38,7 +38,7 @@ Server component. Renders fixed copy from [copy.md](copy.md): product name, tagl
 ### `GET /answer` — Presented question
 
 Server component renders a client selection shell. On mount, that shell calls
-`POST /api/questions/next`; the handler establishes the session and returns the first question
+`POST /api/question`; the handler establishes the session and returns the first question
 plus the ordered eligible ids. No cookie mutation occurs during Server Component rendering.
 The shell renders these request states:
 
@@ -79,7 +79,17 @@ to nothing is the most visible possible bug on the landing screen.
 
 ## Route handlers
 
-### `POST /api/questions/next`
+Flat and singular, one path segment per resource. There is no `/api/questions/` collection:
+POST is already the verb, and nesting a collection around a single endpoint is structure that
+has not been earned. Later specs add siblings, not children.
+
+| Route | Returns | Spec |
+| - | - | - |
+| `POST /api/question` | one question + the eligible queue | **001** |
+| `POST /api/answer` | submission result for a recorded answer | 003 |
+| `POST /api/ask` | the created question, consuming the unlock | 004 |
+
+### `POST /api/question`
 
 Start a pass for the current participant, strictly ordered by answer count, creation time, and id.
 Return one question's text plus the eligible ids for tab-local traversal; the list is not a
@@ -117,7 +127,7 @@ public browse API. The browser stores the list and pointer only in page memory.
 
 ### Skipping is not an endpoint
 
-There is no `/api/questions/skip`. `POST /api/questions/next` returns the full ordered `queue`
+There is no `/api/questions/skip`. `POST /api/question` returns the full ordered `queue`
 of eligible questions, and the tab holds that list plus a pointer in page memory. `Try another
 question` advances the pointer and wraps at the end.
 

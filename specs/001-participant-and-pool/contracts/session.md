@@ -56,7 +56,7 @@ advances that pointer, never mutates the cookie, and never stores an exclusion h
 ## Get-or-create
 
 Only a Route Handler or a client-invoked Server Action may call the mutating get-or-create helper.
-`GET /answer` renders a selection shell; its client starts `POST /api/questions/next`, which
+`GET /answer` renders a selection shell; its client starts `POST /api/question`, which
 creates the participant and returns `Set-Cookie` before any contribution action is enabled.
 Server Components may read an existing session but MUST NOT create or save one during rendering.
 
@@ -75,7 +75,7 @@ getOrCreateParticipant(request) -> { participantId, isNew }
 Step 3's missing-row branch is a required behavior, not an edge case: it is what stops a
 cookie left over from a database reset producing a 500 on the next write.
 
-**Read paths do not call this.** `POST /api/questions/next` uses `readParticipantId`, which
+**Read paths do not call this.** `POST /api/question` uses `readParticipantId`, which
 decrypts the cookie and touches no database, then runs selection against whatever id it
 finds. Selection filters on `participant_id IS DISTINCT FROM $1` and `NOT EXISTS (their
 answers)`, so an id with no row returns exactly what a brand-new participant would — proven
