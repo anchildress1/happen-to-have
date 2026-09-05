@@ -59,6 +59,7 @@ e2e: ## Run the Playwright end-to-end suite against a disposable Neon branch
 	neon branches create --name "$$BRANCH" --parent main --no-secrets >/dev/null; \
 	set -a; [ -f .env ] && . ./.env; set +a; \
 	DATABASE_URL="$$(neon connection-string "$$BRANCH")"; export DATABASE_URL; \
+	DATABASE_URL_UNPOOLED="$$DATABASE_URL"; export DATABASE_URL_UNPOOLED; \
 	pnpm run migrate >/dev/null; \
 	node --conditions=react-server seed/seed.ts >/dev/null; \
 	pnpm run e2e
@@ -89,6 +90,9 @@ db-up: ## Point at this git branch's Neon database (creates it if missing)
 	@echo "Neon branch: dev-$$(git branch --show-current) (DATABASE_URL written to .env)"
 
 
+## Runs over DATABASE_URL_UNPOOLED (see package.json), which `neon checkout` writes
+## alongside DATABASE_URL. The pooled endpoint is PgBouncer in transaction mode and
+## cannot hold the advisory lock node-pg-migrate takes; the server keeps the pooled one.
 migrate: ## Apply pending migrations to the checked-out Neon branch
 	$(LOAD_ENV) pnpm run migrate
 

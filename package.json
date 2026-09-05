@@ -18,8 +18,8 @@
     "test": "vitest run --project unit",
     "test:integration": "vitest run --project integration",
     "e2e": "playwright test",
-    "migrate": "node-pg-migrate -m migrations -j sql up",
-    "migrate:down": "node-pg-migrate -m migrations -j sql down",
+    "migrate": "node-pg-migrate -m migrations -d DATABASE_URL_UNPOOLED up",
+    "migrate:down": "node-pg-migrate -m migrations -d DATABASE_URL_UNPOOLED down",
     "seed": "node --conditions=react-server seed/seed.ts",
     "prepare": "lefthook install"
   },
