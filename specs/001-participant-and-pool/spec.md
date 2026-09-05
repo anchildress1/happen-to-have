@@ -22,6 +22,14 @@ No recording, no review, no asking. This spec ends at the moment a participant s
 **Consumed by**: [003-answer-and-unlock](../003-answer-and-unlock/spec.md) picks up where this
 spec's `I can answer this` leaves off.
 
+## Clarifications
+
+### Session 2026-09-05
+
+- Q: Where should the E2E suite's database live? → A: An ephemeral, per-run database created and torn down by the E2E target; it never reads the developer's `DATABASE_URL`
+- Q: Should participant rows with no contribution accumulate forever? → A: No — sweep them after a 30-day quiet period
+- Q: What should happen to the 434 contribution-less rows already stored? → A: Delete them, using the same predicate as the sweep
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Arrive and get a question (Priority: P1)
@@ -125,6 +133,7 @@ empty state renders rather than an error, a blank screen, or an ineligible quest
 - **Seeded questions**: Ashley supplies the pool before launch; seeds follow the same selection and closure rules but have no participant history owner.
 - **Every question already answered by this participant**: treated as an empty pool, not as a reason to re-present a question they have a published answer to. Withheld attempts leave no stored row and do not affect this case.
 - **Question closed mid-session**: a participant is looking at a question that reaches its answer limit before they act. Their in-progress attempt is allowed to proceed; the closure affects future routing only.
+- **Automated traffic**: a test run, uptime probe, or scraper interacts with the selection flow. Each fresh browser context is a new participant by design, so volume is bounded by isolating test databases (FR-005b) and sweeping contribution-less rows (FR-005a), never by refusing to mint identity.
 - **Very long question text**: the question renders in full without truncating away its meaning, and the layout does not break at phone width.
 
 ## Requirements *(mandatory)*
@@ -138,6 +147,8 @@ empty state renders rather than an error, a blank screen, or an ineligible quest
 - **FR-003**: A participant MUST have no public profile, no public username, no follower graph, and no expertise credential.
 - **FR-004**: The system MUST recognize a returning visitor within the same browser session as the same participant, preserving their contributions and ask eligibility.
 - **FR-005**: The system MUST hold participant ask eligibility server-side. Client-supplied identity or eligibility MUST be treated as advisory only.
+- **FR-005a**: A participant row that has authored no question and holds no published answer MUST be deleted once it has been inactive for 30 days. Session cookies expire at 30 days, so no reachable participant is removed.
+- **FR-005b**: Automated traffic MUST NOT create participants in a database anyone develops or demos against. Test suites that exercise the selection flow MUST run against a database provisioned and destroyed by the test run.
 
 #### Landing
 
@@ -184,7 +195,7 @@ empty state renders rather than an error, a blank screen, or an ineligible quest
 
 ### Key Entities
 
-- **Participant**: An anonymous, session-scoped person. Holds ask eligibility. Related to the questions they authored and the answers they gave. Carries no name or public presence.
+- **Participant**: An anonymous, session-scoped person. Holds ask eligibility. Related to the questions they authored and the answers they gave. Carries no name or public presence. Retained only while it has a contribution or recent activity (FR-005a).
 - **Question**: A published question available to be answered. For this spec it carries only its display text, its author, its published-answer count, and whether it is still open for routing. Its creation, review, and closure rules belong to other specs.
 
 ## Success Criteria *(mandatory)*
@@ -198,6 +209,7 @@ empty state renders rather than an error, a blank screen, or an ineligible quest
 - **SC-005**: Zero microphone permission prompts occur anywhere in this flow.
 - **SC-006**: The landing screen and question screen render correctly on a current iPhone browser and a current Android browser with no horizontal scrolling.
 - **SC-007**: The empty, loading, and failure states each render correctly when induced, with zero blank or errored screens.
+- **SC-009**: A full E2E run adds zero rows to the database a developer is pointed at, and the participant count there stays within one per real browser session used.
 - **SC-008**: The pool contains enough seeded questions that a single participant can skip through the demo without exhausting it.
 
 ## Assumptions

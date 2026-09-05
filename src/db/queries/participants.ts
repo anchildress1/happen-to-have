@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { db, type SqlClient } from '../client';
+import { SWEEP_CONTRIBUTIONLESS_PARTICIPANTS_SQL } from './sweep-sql';
 
 /**
  * The only shape `getOrCreateParticipant` (src/session/session.ts) needs from either
@@ -44,3 +45,20 @@ export function makeParticipantsClient(client: SqlClient = db): ParticipantsClie
 
 /** The production instance, bound to the Neon pool. */
 export const participantsClient: ParticipantsClient = makeParticipantsClient();
+
+/**
+ * Deletes participants with no authored question and no published answer, untouched for
+ * `olderThanDays` (FR-005a). Returns how many went.
+ *
+ * 30 days matches the session cookie's lifetime: past it no browser can still present the
+ * row's id, so nobody's history is being discarded.
+ */
+export async function sweepContributionlessParticipants(
+  olderThanDays = 30,
+  client: SqlClient = db,
+): Promise<number> {
+  const { rows } = await client.query<{ id: string }>(SWEEP_CONTRIBUTIONLESS_PARTICIPANTS_SQL, [
+    olderThanDays,
+  ]);
+  return rows.length;
+}

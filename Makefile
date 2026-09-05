@@ -12,7 +12,7 @@
 LOAD_ENV := set -a; [ -f .env ] && . ./.env; set +a;
 
 .PHONY: help install dev format format-check format-files lint typecheck test build e2e perf \
-	secret-scan clean db-up migrate seed db-shell ai-checks
+	secret-scan clean db-up migrate seed db-sweep db-shell ai-checks
 
 ## ---- Required tooling gates (constitution: Required Tooling) ----
 
@@ -47,8 +47,21 @@ test: ## Run unit and integration tests
 build: ## Production Next.js build
 	pnpm run build
 
-e2e: ## Run the Playwright end-to-end suite
-	$(LOAD_ENV) pnpm run e2e
+## Never the branch in .env (FR-005b). Every browser context is a new participant by design
+## (FR-001), so a suite run against a shared branch adds hundreds of rows to a database
+## someone develops and demos against — 434 of them before this target existed. The trap
+## fires on failure and Ctrl-C too, so an aborted run cannot leak the branch.
+e2e: ## Run the Playwright end-to-end suite against a disposable Neon branch
+	@set -e; \
+	BRANCH="e2e-$$(date +%s)-$$$$"; \
+	trap 'neon branches delete "$$BRANCH" >/dev/null 2>&1 || true' EXIT INT TERM; \
+	echo "Creating throwaway Neon branch $$BRANCH..."; \
+	neon branches create --name "$$BRANCH" --parent main --no-secrets >/dev/null; \
+	set -a; [ -f .env ] && . ./.env; set +a; \
+	DATABASE_URL="$$(neon connection-string "$$BRANCH")"; export DATABASE_URL; \
+	pnpm run migrate >/dev/null; \
+	node --conditions=react-server seed/seed.ts >/dev/null; \
+	pnpm run e2e
 
 perf: ## Report production bundle sizes (First Load JS per route)
 	pnpm build
@@ -82,6 +95,12 @@ migrate: ## Apply pending migrations to the checked-out Neon branch
 
 seed: ## Upsert seed/questions.json into the database (idempotent)
 	$(LOAD_ENV) node --conditions=react-server seed/seed.ts
+
+## FR-005a. DAYS=0 sweeps every eligible row, which is how the pre-isolation test debris
+## was cleared; the default matches the 30-day session cookie, past which no browser can
+## still present the id.
+db-sweep: ## Delete contribution-less participants inactive for DAYS (default 30)
+	$(LOAD_ENV) node --conditions=react-server scripts/sweep-participants.ts $(DAYS)
 
 db-shell: ## psql against the checked-out Neon branch
 	neon connect

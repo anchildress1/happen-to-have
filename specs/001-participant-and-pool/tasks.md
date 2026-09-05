@@ -324,3 +324,6 @@ writing product code. The documented fallback is TypeScript 6.0.3, which also re
 - [x] T094 Write `tests/integration/identity-on-interaction.test.ts` asserting that loading `/` creates no `participants` row and that `POST /api/questions/next` does per FR-001 (missing)
 - [x] T095 Extend `tests/e2e/skip.spec.ts` to traverse and wrap against one-question and two-question pools, not only the seeded pool per SC-003 (missing)
 - [ ] T096 Cap the queue `POST /api/questions/next` returns in `src/db/queries/questions.ts`, and re-fetch as the pointer nears the end. Deliberately deferred: the seeded pool is small enough that sending it whole is fine, and a cap written before the pool is large is a guess. Do not build until the pool makes it matter per plan: tab-local traversal, FR-025 (partial)
+- [x] T097 Run the E2E suite against a disposable Neon branch created and deleted by `make e2e`, never the branch in `.env` per FR-005b (missing)
+- [x] T098 Add `sweepContributionlessParticipants` and `make db-sweep` for the 30-day retention rule per FR-005a (missing)
+- [ ] T099 Schedule the FR-005a sweep so it runs without anyone remembering to. `make db-sweep` exists but nothing calls it per FR-005a (partial)
