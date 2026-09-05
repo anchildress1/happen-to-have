@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   contentResultSchema,
-  judgmentResultSchema,
+  judgmentResultSchemaFor,
   parseResult,
 } from '../../src/review/schemas.js';
 
@@ -21,6 +21,9 @@ const VALID_CONTENT = {
   emotion: null,
   contentReason: null,
 };
+
+const answerSchema = judgmentResultSchemaFor('answer');
+const questionSchema = judgmentResultSchemaFor('question');
 
 const VALID_JUDGMENT = {
   crisisCanPublish: true,
@@ -64,10 +67,30 @@ describe('contentResultSchema', () => {
     expect(contentResultSchema.safeParse(tooLong).success).toBe(false);
   });
 
-  it('rejects an empty displayText', () => {
-    expect(contentResultSchema.safeParse({ ...VALID_CONTENT, displayText: '' }).success).toBe(
-      false,
-    );
+  it('rejects an empty displayText only when the result claims to be publishable', () => {
+    const publishableButEmpty = { ...VALID_CONTENT, displayText: '' };
+
+    expect(contentResultSchema.safeParse(publishableButEmpty).success).toBe(false);
+  });
+
+  it('accepts an empty displayText on a refusal — silence has nothing to transcribe', () => {
+    // The natural, correct output for a silent recording. Rejecting it would turn the exact
+    // case FR-021 wants withheld into three faults and a processing failure, and the
+    // participant would read "we couldn't check that" instead of "we couldn't hear anything".
+    const silent = {
+      ...VALID_CONTENT,
+      canPublish: false,
+      contentReason: 'silence',
+      displayText: '',
+    };
+
+    expect(contentResultSchema.safeParse(silent).success).toBe(true);
+  });
+
+  it('rejects a refusal that does not say which heading to render', () => {
+    const noReason = { ...VALID_CONTENT, canPublish: false, contentReason: null };
+
+    expect(contentResultSchema.safeParse(noReason).success).toBe(false);
   });
 
   it('rejects a contentReason outside the three headings copy.md defines', () => {
@@ -79,13 +102,26 @@ describe('contentResultSchema', () => {
 
 describe('judgmentResultSchema', () => {
   it('accepts three verdicts plus the named reason and audio quality', () => {
-    expect(judgmentResultSchema.safeParse(VALID_JUDGMENT).success).toBe(true);
+    expect(answerSchema.safeParse(VALID_JUDGMENT).success).toBe(true);
   });
 
-  it('accepts a null relevance verdict, which is what a question returns', () => {
+  it('accepts a null relevance verdict for a question, where it does not apply', () => {
     const question = { ...VALID_JUDGMENT, relevanceCanPublish: null };
 
-    expect(judgmentResultSchema.safeParse(question).success).toBe(true);
+    expect(questionSchema.safeParse(question).success).toBe(true);
+  });
+
+  it('rejects a null relevance verdict on an ANSWER — absence is not permission', () => {
+    // Null is correct for a question and ABSENT for an answer. One schema accepting both
+    // would let a dropped relevance verdict publish an off-topic answer, at the only layer
+    // positioned to catch it (FR-019).
+    const answer = { ...VALID_JUDGMENT, relevanceCanPublish: null };
+
+    expect(answerSchema.safeParse(answer).success).toBe(false);
+  });
+
+  it('rejects a boolean relevance verdict on a QUESTION, which never evaluates it', () => {
+    expect(questionSchema.safeParse(VALID_JUDGMENT).success).toBe(false);
   });
 
   it('rejects a missing crisis verdict — absence is not permission', () => {
@@ -93,27 +129,70 @@ describe('judgmentResultSchema', () => {
     // to explicitly permit (FR-019), so an absent verdict has to fail the parse and retry.
     const { crisisCanPublish: _crisis, ...withoutCrisis } = VALID_JUDGMENT;
 
-    expect(judgmentResultSchema.safeParse(withoutCrisis).success).toBe(false);
+    expect(answerSchema.safeParse(withoutCrisis).success).toBe(false);
   });
 
   it('rejects a primaryReason the gate has no copy for', () => {
     const unknownReason = { ...VALID_JUDGMENT, primaryReason: 'vibes' };
 
-    expect(judgmentResultSchema.safeParse(unknownReason).success).toBe(false);
+    expect(answerSchema.safeParse(unknownReason).success).toBe(false);
+  });
+
+  it('rejects content as a primaryReason — this call never judges content', () => {
+    // Accepting it would hand the gate `reason: 'content'` with no contentReason, and
+    // WithheldPage branches on that field to pick among three headings.
+    const contentReason = { ...VALID_JUDGMENT, primaryReason: 'content' };
+
+    expect(answerSchema.safeParse(contentReason).success).toBe(false);
+  });
+
+  it('rejects a refusal that claims no reason', () => {
+    // Parses cleanly without the coherence check, and the gate takes withheld.reason
+    // straight from primaryReason — leaving it nowhere to go.
+    const incoherent = { ...VALID_JUDGMENT, crisisCanPublish: false, primaryReason: 'none' };
+
+    expect(answerSchema.safeParse(incoherent).success).toBe(false);
+  });
+
+  it('rejects a reason that names a signal which did not refuse', () => {
+    const mismatched = { ...VALID_JUDGMENT, illegalCanPublish: false, primaryReason: 'crisis' };
+
+    expect(answerSchema.safeParse(mismatched).success).toBe(false);
+  });
+
+  it('accepts a coherent refusal', () => {
+    const refusal = {
+      ...VALID_JUDGMENT,
+      crisisCanPublish: false,
+      primaryReason: 'crisis',
+      reasonDetail: 'speaker expresses suicidal ideation',
+    };
+
+    expect(answerSchema.safeParse(refusal).success).toBe(true);
   });
 
   it('rejects an audioQuality outside the three values FR-008h defines', () => {
     const unknownQuality = { ...VALID_JUDGMENT, audioQuality: 'muffled' };
 
-    expect(judgmentResultSchema.safeParse(unknownQuality).success).toBe(false);
+    expect(answerSchema.safeParse(unknownQuality).success).toBe(false);
   });
 
-  it('rejects a reasonDetail long enough to hide a transcript', () => {
-    // reasonDetail is an operator log line. Unbounded, it is somewhere a model can put the
-    // recording it was told not to repeat — and nothing downstream would notice.
-    const essay = { ...VALID_JUDGMENT, reasonDetail: 'x'.repeat(501) };
+  it('truncates an over-long reasonDetail instead of discarding the verdict', () => {
+    // Rejecting here would throw away a real refusal over a field that renders nowhere and
+    // decides nothing: a crisis verdict with a chatty detail would arrive at the participant
+    // as a processing failure. Clipping still denies a model somewhere to hide the
+    // transcript it was told not to repeat.
+    const essay = {
+      ...VALID_JUDGMENT,
+      crisisCanPublish: false,
+      primaryReason: 'crisis',
+      reasonDetail: 'x'.repeat(900),
+    };
 
-    expect(judgmentResultSchema.safeParse(essay).success).toBe(false);
+    const parsed = answerSchema.safeParse(essay);
+
+    expect(parsed.success).toBe(true);
+    expect(parsed.success && parsed.data.reasonDetail.length).toBe(500);
   });
 });
 
@@ -134,11 +213,11 @@ describe('parseResult — malformed output is a fault, not a verdict', () => {
   it('returns null for JSON that parses but fails the schema', () => {
     // Schema-valid generation and semantically valid output are different things. This is
     // the case `responseSchema` alone would let through.
-    expect(parseResult(judgmentResultSchema, '{"crisisCanPublish":"maybe"}')).toBeNull();
+    expect(parseResult(answerSchema, '{"crisisCanPublish":"maybe"}')).toBeNull();
   });
 
   it('returns the parsed value for a well-formed body', () => {
-    const parsed = parseResult(judgmentResultSchema, JSON.stringify(VALID_JUDGMENT));
+    const parsed = parseResult(answerSchema, JSON.stringify(VALID_JUDGMENT));
 
     expect(parsed?.primaryReason).toBe('none');
     expect(parsed?.audioQuality).toBe('clear');

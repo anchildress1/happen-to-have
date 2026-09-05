@@ -27,15 +27,32 @@ export const contentReasonSchema = z.enum(['silence', 'unintelligible', 'unpubli
  * a fault and retries, rather than reaching 003 and dying on a database constraint after
  * the ask has already been granted.
  */
-export const contentResultSchema = z.object({
-  canPublish: z.boolean(),
-  displayText: z.string().min(1).max(2000),
-  sourceLanguage: z.string().min(1),
-  // Nullable, never optional: the model must state that it found no reliable direction
-  // rather than omitting the field, so a missing key stays a schema failure.
-  emotion: z.string().nullable(),
-  contentReason: contentReasonSchema.nullable(),
-});
+export const contentResultSchema = z
+  .object({
+    canPublish: z.boolean(),
+    // Capped, never floored. A silent or unintelligible recording has nothing to transcribe,
+    // so `displayText: ''` is its natural and CORRECT output — rejecting it would turn the
+    // exact case FR-021 wants withheld into three faults and a processing failure, and the
+    // participant would read "we couldn't check that" instead of "we couldn't hear anything".
+    displayText: z.string().max(2000),
+    sourceLanguage: z.string().min(1),
+    // Nullable, never optional: the model must state that it found no reliable direction
+    // rather than omitting the field, so a missing key stays a schema failure.
+    emotion: z.string().nullable(),
+    contentReason: contentReasonSchema.nullable(),
+  })
+  // The 1-character floor belongs only to text that will actually be published. That is the
+  // bound `questions.display_text` enforces, and it only ever sees permitted transcripts.
+  .refine((result) => !result.canPublish || result.displayText.length >= 1, {
+    message: 'a publishable result must carry non-empty displayText',
+    path: ['displayText'],
+  })
+  // A refusal that does not say why leaves WithheldPage nothing to select among the three
+  // content headings copy.md requires.
+  .refine((result) => result.canPublish || result.contentReason !== null, {
+    message: 'a content refusal must carry a contentReason',
+    path: ['contentReason'],
+  });
 
 /**
  * The judgment call (FR-008a1, FR-008e, FR-008h).
@@ -43,19 +60,68 @@ export const contentResultSchema = z.object({
  * `reasonDetail` is capped because it is an operator log line, not prose. An unbounded
  * string here is somewhere a model can put the transcript it was told not to repeat.
  */
-export const judgmentResultSchema = z.object({
+const judgmentShape = {
   crisisCanPublish: z.boolean(),
   illegalCanPublish: z.boolean(),
-  // Null for a question: relevance does not apply, and the judgment call returns null
-  // rather than the system making a third call (FR-003).
-  relevanceCanPublish: z.boolean().nullable(),
   audioQuality: audioQualitySchema,
-  primaryReason: z.enum(['none', 'crisis', 'illegal', 'relevance', 'content']),
-  reasonDetail: z.string().max(500),
-});
+  // Exactly the four values contracts/review.md defines and the judgment prompt is told it
+  // may return. `content` is deliberately absent: this call never judges content, and
+  // accepting it would hand the gate a withheld reason with no contentReason to render.
+  primaryReason: z.enum(['none', 'crisis', 'illegal', 'relevance']),
+  // Truncated, never rejected. It is an operator log line that renders nowhere and decides
+  // nothing (FR-027), so failing the parse over its length would discard a real refusal —
+  // a crisis verdict would arrive as a processing failure. Clipping still denies a model
+  // somewhere to hide the transcript it was told not to repeat.
+  reasonDetail: z.string().transform((detail) => detail.slice(0, 500)),
+};
+
+/**
+ * Built per contribution kind so `null` cannot mean two things.
+ *
+ * For a question, `relevanceCanPublish: null` is correct — relevance does not apply
+ * (FR-003). For an answer the same null is an ABSENT verdict, and absence is not permission
+ * (FR-019). One schema accepting both would let an omitted relevance verdict publish an
+ * off-topic answer at the only layer positioned to catch it.
+ */
+export function judgmentResultSchemaFor(kind: 'answer' | 'question') {
+  return z
+    .object({
+      ...judgmentShape,
+      relevanceCanPublish: kind === 'answer' ? z.boolean() : z.null(),
+    })
+    .refine(
+      (result) => {
+        const verdicts = [
+          result.crisisCanPublish,
+          result.illegalCanPublish,
+          result.relevanceCanPublish,
+        ].filter((verdict): verdict is boolean => verdict !== null);
+        const allPermit = verdicts.every(Boolean);
+        return allPermit === (result.primaryReason === 'none');
+      },
+      {
+        // `{ crisisCanPublish: false, primaryReason: 'none' }` parses cleanly without this,
+        // and the gate takes withheld.reason straight from primaryReason — leaving it
+        // nowhere to go. An incoherent verdict is a fault to retry, not a coin flip.
+        message: 'primaryReason must be none exactly when every applicable verdict permits',
+        path: ['primaryReason'],
+      },
+    )
+    .refine(
+      (result) =>
+        result.primaryReason === 'none' ||
+        (result.primaryReason === 'crisis' && !result.crisisCanPublish) ||
+        (result.primaryReason === 'illegal' && !result.illegalCanPublish) ||
+        (result.primaryReason === 'relevance' && result.relevanceCanPublish === false),
+      {
+        message: 'primaryReason must name a signal that actually refused',
+        path: ['primaryReason'],
+      },
+    );
+}
 
 export type ContentResult = z.infer<typeof contentResultSchema>;
-export type JudgmentResult = z.infer<typeof judgmentResultSchema>;
+export type JudgmentResult = z.infer<ReturnType<typeof judgmentResultSchemaFor>>;
 
 /**
  * Parses a provider response body that has already been read as text.

@@ -54,8 +54,13 @@ export interface JudgmentPayload {
   /** `null` for a question — relevance does not apply (FR-003). */
   relevanceCanPublish: boolean | null;
   audioQuality: AudioQuality;
-  /** The failing signal, named by the judge rather than inferred from a boolean (FR-008e). */
-  primaryReason: 'none' | WithheldReason;
+  /**
+   * The failing signal, named by the judge rather than inferred from a boolean (FR-008e).
+   *
+   * `content` is excluded: this call never judges content, and a withheld reason of
+   * `content` without a `contentReason` gives WithheldPage nothing to render.
+   */
+  primaryReason: 'none' | Exclude<WithheldReason, 'content'>;
   /** One clause, for operators. MUST NOT be rendered — FR-027 fixes every visible string. */
   reasonDetail: string;
 }
