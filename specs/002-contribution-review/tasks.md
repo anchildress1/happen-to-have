@@ -57,9 +57,9 @@ endpoints that call this module ([research D10](research.md)).
 
 ### Validation
 
-- [ ] T009 [P] Create `src/review/schemas.ts` with `contentResultSchema` (`canPublish`, `displayText` 1–2000, `sourceLanguage`, nullable `emotion`, `contentReason` enum required whenever `canPublish` is false), `crisisResultSchema` (`inTrouble`, `signal`) and `verdictResultSchema` (`canPublish`, `detail`) shared by the illegal and relevance calls, per [data-model.md](data-model.md) — FR-036 requires every field validated before use
-- [ ] T010 [P] Define the `CheckResult`, `ContentPayload`, `CrisisPayload`, `VerdictPayload`, `ActiveSubmission`, and `ReviewOutcome` types in `src/review/types.ts` as discriminated unions, so a caller cannot read `displayText` off a rejection
-- [ ] T011 [P] Unit-test `src/review/schemas.ts` in `tests/unit/review-schemas.test.ts`: valid payloads parse, `emotion: null` is accepted, over-length `displayText` and missing `canPublish` are rejected
+- [x] T009 [P] Create `src/review/schemas.ts` with `contentResultSchema` (`canPublish`, `displayText` 1–2000, `sourceLanguage`, nullable `emotion`, `contentReason` enum required whenever `canPublish` is false), `crisisResultSchema` (`inTrouble`, `signal`) and `verdictResultSchema` (`canPublish`, `detail`) shared by the illegal and relevance calls, per [data-model.md](data-model.md) — FR-036 requires every field validated before use
+- [x] T010 [P] Define the `CheckResult`, `ContentPayload`, `CrisisPayload`, `VerdictPayload`, `ActiveSubmission`, and `ReviewOutcome` types in `src/review/types.ts` as discriminated unions, so a caller cannot read `displayText` off a rejection
+- [x] T011 [P] Unit-test `src/review/schemas.ts` in `tests/unit/review-schemas.test.ts`: valid payloads parse, `emotion: null` is accepted, over-length `displayText` and missing `canPublish` are rejected
 
 ### Bounded retry and deadline
 
