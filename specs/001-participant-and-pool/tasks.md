@@ -45,7 +45,7 @@ product code exists.
 - [x] T010 [P] Configure Lefthook in `lefthook.yml`: pre-commit (format, lint, secret scan, actionlint), commit-msg (commitlint), pre-push (typecheck, unit, e2e)
 - [x] T011 [P] Configure commitlint 21.2.2 in `commitlint.config.js` with the RAI attribution plugin
 - [x] T012 [P] Create `.env.example` with `SESSION_SECRET`, `FIREBASE_PROJECT_ID`, and `DATACONNECT_EMULATOR_HOST` placeholders; never a real value
-- [x] T013 [P] Add `.github/workflows/ci.yml` running install, format-check, lint, typecheck, test, build, and the SonarCloud scan; job-level permissions, timeouts, concurrency group, and `paths-ignore`
+- [x] T013 [P] Add `.github/workflows/ci.yml` running install, format-check, lint, typecheck, test, integration test, and build; job-level permissions, timeouts, concurrency group, and `paths-ignore`
 - [x] T014 [P] Add `.github/workflows/codeql.yml` and `.github/workflows/release-please.yml`
 - [x] T015 [P] Add `.github/dependabot.yml` grouping npm and github-actions with `open-pull-requests-limit: 2` and `cooldown.default-days: 7`
 - [x] T016 [P] Add `.github/CODEOWNERS` containing `* @anchildress1`

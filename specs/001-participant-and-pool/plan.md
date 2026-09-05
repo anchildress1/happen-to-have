@@ -94,7 +94,7 @@ Principle II amendment — result unchanged.
 | pnpm | **PASS** | pnpm 11.25.0. |
 | Makefile exposes the 12 required targets | **PASS** | Phase 1 structure. |
 | Lefthook pre-commit / commit-msg / pre-push | **PASS** | Phase 1 structure. |
-| CI with SonarCloud, CodeQL, Release Please, Dependabot | **PASS** | Phase 1 structure. Dependabot max 2 open PRs, 7-day cooldown. |
+| CI with CodeQL, Release Please, Dependabot | **PASS** | Phase 1 structure. Dependabot max 2 open PRs, 7-day cooldown. SonarCloud removed on direction; see Complexity Tracking. |
 | Every dependency version verified against a current source | **PASS** | All versions verified against the npm registry on 2026-09-04, recorded in research.md. |
 | Warnings are hard errors | **PASS** | This is precisely why ESLint was dropped — see Complexity Tracking. |
 
@@ -201,7 +201,18 @@ the remaining four specs extend rather than restructure.
 
 | Violation | Why Needed | Simpler Alternative Rejected Because |
 | - | - | - |
+| SonarCloud removed from CI, against the constitution's Required Tooling clause | Removed on direction. The scan failed every run with `Not authorized or project not found` for `anchildress1_happen-to-have`, and it was the only red check on a stack that was otherwise green — a permanently failing gate teaches everyone to ignore the gate. | Creating the SonarCloud project or fixing `SONAR_TOKEN` would restore it, and remains available. Rejected for now because nothing in the pipeline consumed its output: no coverage report was generated, so `sonar.javascript.lcov.reportPaths` pointed at a file that never existed. The constitution still requires it — see below. |
 | Biome replaces ESLint + Prettier, dropping `eslint-config-next` and all Next-specific lint rules | Running TypeScript 7 (explicit user direction to use latest) makes `typescript-eslint` unusable at every published version — `8.69.0` and canary `8.69.1-alpha.0` both peer `typescript >=4.8.4 <6.1.0`. `eslint-config-next@16.3.4` hard-depends on it. Biome never loads the TypeScript API, so it is unaffected. | Keeping ESLint would leave a permanent unmet peer-dependency warning under pnpm, which the constitution classifies as a hard error. Downgrading to TypeScript 6.0.3 would restore ESLint but contradicts the directive to run latest. Documented fallback if TS 7 misbehaves against dependency type definitions. |
+
+### Constitution conflict — open
+
+`Required Tooling` states: *"CI MUST include SonarCloud inside the CI workflow, a CodeQL
+workflow, Release Please, and Dependabot."* Removing the scan puts CI in violation of that MUST.
+
+This plan does not amend the constitution. Under its own versioning policy, narrowing a
+normative requirement is a MAJOR change, and that is a governance decision rather than a
+planning one. Recorded here so the violation is visible rather than silent: either the clause
+drops SonarCloud, or the scan comes back once the project and token exist.
 
 ### Constitution amendment — resolved
 
