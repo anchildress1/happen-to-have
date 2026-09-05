@@ -35,7 +35,7 @@ it. Lint and format move to Biome. Full reasoning in [research.md](research.md) 
 
 **Primary Dependencies**: Next.js 16.3.4 (App Router), React 19.2.8,
 `@neondatabase/serverless` 1.1.0, `node-pg-migrate` 9.0.0, `iron-session` 9.0.1, Zod 4.5.4,
-`next/font/google` (Paprika + sister face)
+`next/font/google` (Paprika + Source Sans 3)
 
 **Storage**: Neon serverless Postgres 18 (`aws-us-east-2`), project
 `silent-meadow-11692011`. Schema owned by committed migrations. Every git branch gets its own

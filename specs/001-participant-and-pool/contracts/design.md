@@ -85,7 +85,7 @@ Define once as CSS custom properties on `:root`. Values verbatim from the design
 | Role | Family | Weight |
 | - | - | - |
 | Product name, headings, display chrome | **Paprika** | 400 — the only weight it ships |
-| Participant content, body, UI, buttons, meta | *sister face* — TODO(SISTER_FONT) | 400 / 500 |
+| Participant content, body, UI, buttons, meta | **Source Sans 3** | variable, 400 / 500 in use |
 
 Paprika is a Google **Display** face: built for headlines, not for paragraphs or interface
 text. It carries the product's voice at large sizes and nothing else.
@@ -100,7 +100,17 @@ honest weight.
 34px mobile / 44px desktop, which is display-sized, but it is *participant writing* and 002
 translates contributions into the display language. Paprika ships latin and latin-ext only —
 no Cyrillic, no Vietnamese, no CJK. Setting translated content in it would break for languages
-the product explicitly supports. The sister face carries every string a participant wrote.
+the product explicitly supports. Source Sans 3 carries every string a participant wrote.
+
+Source Sans 3 was chosen for reach: **latin, latin-ext, cyrillic, cyrillic-ext, greek,
+greek-ext, vietnamese** — well past what 002 translates into, and far past Paprika's two.
+
+**The recorder timer needs no `tabular-nums`.** Source Sans 3's digits are already monospaced —
+every glyph `0`–`9` advances 472 units in the Google-served font. This is load-bearing, because
+Google Fonts **strips GSUB features from its subsets**: the served face has no OpenType features
+at all, so `font-variant-numeric: tabular-nums` is a silent no-op. The default figures do the job
+the declaration would have. Do not "fix" a timer jitter by adding that declaration; if digits ever
+jitter, the font changed.
 
 Load both through `next/font/google`. Nothing else. An E2E test asserts no request for any
 third family.
@@ -108,12 +118,12 @@ third family.
 | Role | Mobile | Desktop |
 | - | - | - |
 | Display XL (product name, unlock) — **Paprika** | `50–58px / .98–1`, w400, `-.025em` | `80–84px / .95–.96`, w400, `-.03em` |
-| Display L (question, result heading) — **sister** | `34px / 1.1–1.15`, w400, `-.02em` | `44px / 1.12`, `-.025em` |
-| Display M (crisis heading, section) — **sister** | `30px / 1.14`, w400, `-.02em` | `30px`, w400, `-.02em` |
+| Display L (question, result heading) — **Source Sans 3** | `34px / 1.1–1.15`, w400, `-.02em` | `44px / 1.12`, `-.025em` |
+| Display M (crisis heading, section) — **Source Sans 3** | `30px / 1.14`, w400, `-.02em` | `30px`, w400, `-.02em` |
 | Heading S (question in recorder) | `20px / 1.3`, `-.01em` | `34px / 1.18`, `-.02em` |
 | Question in history | `24px / 1.2`, `-.015em` | `34px / 1.15`, `-.02em` |
 | Tagline | `22px / 1.3`, w400 | `28px / 1.3` |
-| Timer — **sister** | `56px`, w400, `-.03em`, `tabular-nums` | `64px` |
+| Timer — **Source Sans 3** | `56px`, w400, `-.03em` (digits monospaced by default) | `64px` |
 | Body | `16px / 1.45` | `16–17px / 1.45` |
 | Helper | `15px / 1.5` or `13px / 1.5` | `15–18px / 1.5` |
 | Header / nav | `15px`, w500 | same |
@@ -121,8 +131,7 @@ third family.
 | Button — ghost | `17px`, w500 | same |
 | Meta / caption | `13–14px` | `13–14px` |
 
-All display text uses `text-wrap: pretty`. Timers use `font-variant-numeric: tabular-nums` so
-digits do not jitter as they count.
+All display text uses `text-wrap: pretty`. Timer digits need no declaration — see above.
 
 ### Layout
 
@@ -537,7 +546,7 @@ Withheld reasons appear only on the active flow's shared Withheld page, never in
 | - | - | - |
 | No device or browser frame renders anywhere | E2E | 001 |
 | Tokens resolve; no hard-coded hex outside the token block | Unit — scan compiled CSS | 001 |
-| Only Paprika and the sister face are requested; zero requests for any other family | E2E — assert network | 001 |
+| Only Paprika and Source Sans 3 are requested; zero requests for any other family | E2E — assert network | 001 |
 | Paprika renders the product name and display chrome only; no participant content is set in it | E2E | 001 |
 | Primary ≥56px, ghost ≥52px, header ≥44px, play ≥32px | E2E | 001 |
 | Every interactive element has a visible `:focus-visible` ring | E2E | 001 |

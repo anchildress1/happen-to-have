@@ -88,7 +88,7 @@ and every later spec builds on. **No user story can start until this phase compl
 
 ### Design system
 
-- [ ] T034 [P] Load **Paprika** (display) and the sister face via `next/font/google` in `app/layout.tsx`, and nothing else. Paprika ships weight 400 only — the design's 300-weight display treatment is gone, and must not be faked with a lighter colour or a synthetic stroke (research D13). Blocked on TODO(SISTER_FONT)
+- [ ] T034 [P] Load **Paprika** (display, weight 400) and **Source Sans 3** (everything else, variable) via `next/font/google` in `app/layout.tsx`, and nothing else. Do not add `font-variant-numeric: tabular-nums` to the timer — Google strips GSUB features from its subsets, so it is a no-op, and Source Sans 3's digits are already monospaced (research D13)
 - [ ] T035 [P] Define every colour and type token from [contracts/design.md](contracts/design.md) as CSS custom properties on `:root` in `src/ui/tokens.css`
 - [ ] T036 [P] Build `src/ui/Button.tsx` with `primary` and `ghost` variants at 56px and 52px min-height, and a **visible `:focus-visible` ring** — `all: unset` strips the default outline and that is the one accessibility regression this design introduces if copied literally
 - [ ] T037 [P] Build `src/ui/AppHeader.tsx` with contextual left and right slots, rendering the Arrival-mobile (right only) and default (name + `Yours`) variants
@@ -218,7 +218,7 @@ state renders rather than an error, a blank screen, or an ineligible question.
 ## Phase 7: Polish & Cross-Cutting Concerns
 
 - [ ] T080 [P] E2E test in `tests/e2e/design.spec.ts`: **no device or browser frame** renders anywhere — those exist only in the design canvas
-- [ ] T081 [P] E2E test in `tests/e2e/design.spec.ts`: only Paprika and the sister face are requested; zero network requests for any other family, and no participant content is set in Paprika
+- [ ] T081 [P] E2E test in `tests/e2e/design.spec.ts`: only Paprika and Source Sans 3 are requested; zero network requests for any other family, and no participant content is set in Paprika
 - [ ] T082 [P] E2E test in `tests/e2e/design.spec.ts`: no uppercase eyebrow label renders on any screen
 - [ ] T083 [P] E2E test in `tests/e2e/a11y.spec.ts`: every interactive element shows a visible `:focus-visible` ring; primary ≥56px, ghost ≥52px, header ≥44px
 - [ ] T084 [P] E2E test in `tests/e2e/a11y.spec.ts`: the watermark and status dot are `aria-hidden`

@@ -333,11 +333,11 @@ are required (FR-029, FR-030, FR-031). Copy for them is authored in
 
 ---
 
-## D13: Fonts — Paprika for display, a sister face for everything else
+## D13: Fonts — Paprika for display, Source Sans 3 for everything else
 
-**Decision**: **Paprika** sets the product name and display chrome. A second face —
-TODO(SISTER_FONT), still being chosen — sets participant content, body, UI, and meta. Both load
-through `next/font/google`. Nothing else loads.
+**Decision**: **Paprika** sets the product name and display chrome. **Source Sans 3** sets
+participant content, body, UI, and meta. Both load through `next/font/google`. Nothing else
+loads.
 
 **Rationale**: Paprika carries the product's voice at large sizes. It is a Google **Display**
 family, built for headlines rather than paragraphs, so pairing it is not a preference — it is
@@ -361,7 +361,7 @@ weight, so the design changes rather than the rendering.
 **Paprika cannot carry participant content.** Question and answer text renders at display sizes,
 but it is participant writing, and 002 translates contributions into the display language.
 Paprika has no Cyrillic, no Vietnamese, no CJK. A translated contribution set in it would fall
-back mid-sentence or render as tofu. The sister face takes every string a participant wrote,
+back mid-sentence or render as tofu. Source Sans 3 takes every string a participant wrote,
 regardless of size — the split is by *origin*, not by type scale.
 
 `next/font/google` self-hosts at build time, removing the render-blocking round trip to
@@ -376,8 +376,19 @@ regardless of size — the split is by *origin*, not by type scale.
 - **A system-font stack** — free and fast, but the product name at 58–84px is the whole first
   impression, and system faces do not carry it.
 
-**Open**: TODO(SISTER_FONT). It needs 400 and 500, `tabular-nums` for the recorder timer, and
-subset coverage at least as wide as the languages 002 translates into.
+**Source Sans 3, verified on 2026-09-04**: variable `wght` axis spanning 200–900, so 400 and 500
+both come from one file. Subsets: latin, latin-ext, cyrillic, cyrillic-ext, greek, greek-ext,
+vietnamese — seven against Paprika's two, and wider than the Bricolage Grotesque it replaces.
+
+**A finding worth keeping**: Google Fonts **strips GSUB features from its subsets**. The served
+Source Sans 3 has *no* OpenType features, so `font-variant-numeric: tabular-nums` — which the
+imported design specified for the recorder timer — is a silent no-op. It would have looked
+correct in review and done nothing.
+
+It does not matter, because Source Sans 3's digits are **monospaced by default**: every glyph
+`0`–`9` advances 472 units in the served font, measured directly from the woff2. The timer will
+not jitter. But the declaration is removed rather than left in as decoration, and the reason is
+recorded so nobody adds it back to fix a bug it cannot fix.
 
 ---
 
@@ -424,7 +435,7 @@ token existed only for this label and is removed with it.
 | Full route map | from the design's URL props (D12) |
 | Breakpoint | 768px, from the design's own preview range (D12) |
 | Selection route path | `/answer`, from the design's URL bar (D12) |
-| Font loading | Paprika for display + a sister face, self-hosted (D13) |
+| Font loading | Paprika for display + Source Sans 3, self-hosted (D13) |
 | Question exclusion after a withheld attempt | no stored row; stays eligible; fresh recording offered including crisis (D14) |
 | Eyebrow labels | removed product-wide (D15) |
 
