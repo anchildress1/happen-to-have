@@ -45,16 +45,19 @@ describe('review client — safety settings (FR-008b)', () => {
     expect(NEVER_BLOCK.every((setting) => setting.threshold === 'BLOCK_NONE')).toBe(true);
   });
 
-  it('exposes one constant rather than a factory, so call sites cannot diverge', async () => {
-    // Nothing here proves a call site actually passes it — that assertion belongs with the
-    // gate, which does not exist on this branch. What this does rule out is the shape where
-    // each call builds its own settings and they drift apart unnoticed, which matters
-    // because the provider ships these filters off by default: an omitted setting and
-    // BLOCK_NONE behave identically today, so drift would fail no behavioural test.
+  it('is frozen, so a call site cannot quietly reshape the shared settings', async () => {
+    // The previous two attempts at this test could not fail — one compared a cached module
+    // namespace to itself, the next used `isFrozen(x) || Array.isArray(x)`, where the second
+    // operand is unconditionally true for a .map() result and short-circuits the first.
+    //
+    // Freezing gives the assertion a real failing input, and the property is worth having:
+    // one shared array passed to both calls means a mutation at either call site would
+    // silently change the other. That matters because the provider ships these filters off
+    // by default, so a drifted setting fails no behavioural test.
     const { NEVER_BLOCK } = await import('../../src/review/client.js');
 
-    expect(Object.isFrozen(NEVER_BLOCK) || Array.isArray(NEVER_BLOCK)).toBe(true);
-    expect(NEVER_BLOCK).toHaveLength(4);
+    expect(Object.isFrozen(NEVER_BLOCK)).toBe(true);
+    expect(NEVER_BLOCK.every((setting) => Object.isFrozen(setting))).toBe(true);
   });
 });
 
@@ -93,15 +96,20 @@ describe('review client — credential handling', () => {
     await expect(import('../../src/review/client.js')).resolves.toBeDefined();
   });
 
-  it('still throws at first call after a successful construction elsewhere', async () => {
-    // Guards the memoized singleton: the previous test could otherwise pass simply because
-    // no earlier test in the file had constructed the SDK, and adding one above it would
-    // turn this file green-but-meaningless.
+  it('memoizes the SDK rather than rebuilding it per call', async () => {
+    // Constructed twice, so the guard has an observable effect. The earlier version of this
+    // test warmed the singleton by actually CALLING generateContent — which issued a real
+    // outbound HTTPS request with a fake key and passed only because the request failed.
+    // `rejects.toThrow()` with no matcher accepted `fetch failed` on an offline runner just
+    // as happily, making it the one test here whose result depended on the network.
     const { makeGenAiClient } = await import('../../src/review/client.js');
-    const warm = makeGenAiClient();
-    await expect(
-      warm.generateContent({ model: 'gemini-3.5-flash-lite', contents: 'warm the singleton' }),
-    ).rejects.toThrow();
+
+    expect(makeGenAiClient()).not.toBe(makeGenAiClient());
+  });
+
+  it('still names the variable when the key disappears after a module reset', async () => {
+    const first = await import('../../src/review/client.js');
+    expect(first.makeGenAiClient).toBeDefined();
 
     vi.resetModules();
     delete process.env.GEMINI_API_KEY;

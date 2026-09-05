@@ -51,12 +51,14 @@ export const REVIEW_MODELS = {
  * 16 fixtures is not a guarantee about every future response — the rule holds because a rating
  * this system did not compute is not a verdict it may act on, which is true regardless.
  */
-export const NEVER_BLOCK: SafetySetting[] = [
-  HarmCategory.HARM_CATEGORY_HARASSMENT,
-  HarmCategory.HARM_CATEGORY_HATE_SPEECH,
-  HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
-  HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
-].map((category) => ({ category, threshold: HarmBlockThreshold.BLOCK_NONE }));
+export const NEVER_BLOCK: readonly SafetySetting[] = Object.freeze(
+  [
+    HarmCategory.HARM_CATEGORY_HARASSMENT,
+    HarmCategory.HARM_CATEGORY_HATE_SPEECH,
+    HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
+    HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
+  ].map((category) => Object.freeze({ category, threshold: HarmBlockThreshold.BLOCK_NONE })),
+);
 
 /**
  * The only shape the review needs from the provider SDK. Declaring it lets tests supply a
