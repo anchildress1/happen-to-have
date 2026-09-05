@@ -93,10 +93,9 @@ public browse API. The browser stores the list and pointer only in page memory.
 {
   "question": {
     "id": "b6f1c2e8-....",
-    "displayText": "How do you tell a friend their business idea has a hole in it?",
-    "publishedAnswers": 1
+    "displayText": "How do you tell a friend their business idea has a hole in it?"
   },
-  "queue": [{ "id": "b6f1c2e8-....", "displayText": "...", "publishedAnswers": 1 }]
+  "queue": [{ "id": "b6f1c2e8-....", "displayText": "..." }]
 }
 ```
 
@@ -180,8 +179,14 @@ message.
 
 ## What is deliberately absent
 
-No endpoint returns a public catalogue or more than one question's text. The private ordered-id
-list includes only that participant's eligible questions; each requested id is checked again.
+No **screen** offers a catalogue: no browse, no search, no tags, no list of all questions. That
+is a product-scope rule, not a wire-format one — `/next` does return every eligible question's
+text, because traversal is tab-local and a skip must not hit the server (T060).
+
+What the response never carries is **answer data**, not even a count. Answer counts order the
+queue on the server and stop there. A client that could see them could infer its way around
+"answer one to ask one"; answering goes through its own request so the server stays the only
+thing that decides.
 
 ---
 

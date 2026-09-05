@@ -20,14 +20,12 @@ const NEXT_QUESTION_URL = '**/api/questions/next';
 interface QueuedQuestion {
   id: string;
   displayText: string;
-  publishedAnswers: number;
 }
 
 function question(n: number): QueuedQuestion {
   return {
     id: `skip-fixture-${n}`,
     displayText: `Skip fixture question ${n}?`,
-    publishedAnswers: 0,
   };
 }
 

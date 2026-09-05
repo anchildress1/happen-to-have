@@ -48,7 +48,6 @@ test.describe('failure state (T075, FR-029)', () => {
     const question = {
       id: 'states-spec-recovered-question',
       displayText: 'states.spec.ts recovered question',
-      publishedAnswers: 0,
     };
 
     let requestCount = 0;

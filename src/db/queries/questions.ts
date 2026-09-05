@@ -35,10 +35,16 @@ export async function listEligibleQuestions(
   return rows;
 }
 
-/** The wire shape of one question, as `/api/questions/next` returns it. */
+/**
+ * The wire shape of one question, as `/api/questions/next` returns it.
+ *
+ * Carries no answer data — not even a count. The count orders the queue here on the server
+ * and stops; anything answer-derived reaching the browser is what would make "answer one to
+ * ask one" inferable client-side instead of enforced.
+ */
 export interface SelectionPayload {
-  question: { id: string; displayText: string; publishedAnswers: number } | null;
-  queue: { id: string; displayText: string; publishedAnswers: number }[];
+  question: { id: string; displayText: string } | null;
+  queue: { id: string; displayText: string }[];
 }
 
 /**
@@ -52,7 +58,6 @@ export function toSelectionPayload(eligible: EligibleQuestion[]): SelectionPaylo
   const queue = eligible.map((q) => ({
     id: q.id,
     displayText: q.display_text,
-    publishedAnswers: q.published_answers,
   }));
   return { question: queue[0] ?? null, queue };
 }

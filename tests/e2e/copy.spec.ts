@@ -21,7 +21,6 @@ async function mockReadyQuestion(page: Page): Promise<void> {
   const question = {
     id: 'copy-compliance-test-question',
     displayText: 'Copy compliance test question?',
-    publishedAnswers: 0,
   };
   await page.route('**/api/questions/next', (route) =>
     route.fulfill({

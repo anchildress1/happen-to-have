@@ -9,7 +9,6 @@ import styles from './QuestionCard.module.css';
 interface Question {
   id: string;
   displayText: string;
-  publishedAnswers: number;
 }
 
 interface NextResponse {
