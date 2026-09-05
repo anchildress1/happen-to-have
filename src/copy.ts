@@ -1,8 +1,8 @@
 /**
  * Every participant-facing string in one place, so Principle VII is verifiable by reading
- * one file rather than grepping components. The five strings under `product` and `action`
- * are fixed by the handoff and asserted verbatim in E2E tests — a typo in the tagline is a
- * failing test, not a nit.
+ * one file rather than grepping components. The strings under `product` and `action` are
+ * fixed by the handoff and asserted verbatim — a typo in the tagline is a failing test, not
+ * a nit.
  *
  * See specs/001-participant-and-pool/contracts/copy.md, which also carries the forbidden
  * terms: no "who answers" framing, no marketplace or expert language, nothing describing
@@ -65,7 +65,7 @@ export const copy = {
   },
 
   /**
-   * 002. The four states the review renders, from
+   * The states the review renders, from
    * specs/002-contribution-review/contracts/copy.md.
    *
    * Every string here is fixed. FR-027 forbids explaining, justifying or debating a
@@ -81,8 +81,8 @@ export const copy = {
     },
 
     /**
-     * One page for every rejection reason (FR-024). The sub-line is identical across all
-     * five; only the heading changes.
+     * One page for every rejection reason (FR-024). One shared sub-line; only the heading
+     * changes, whichever reason fired.
      */
     withheld: {
       sub: "It wasn't shared. Nothing else changes.",
@@ -90,7 +90,10 @@ export const copy = {
       relevance: "That response doesn't appear to answer this question. Try another.",
       /** Fixed verbatim by FR-026. Not to be reworded. */
       illegal: "That response can't be shared here. Try another.",
-      /** Selected by the content call's `contentReason` (FR-008h). */
+      /**
+       * Selected by the content call's `contentReason`. Where it refused without one, the
+       * judgment call's `audioQuality` chooses instead — which is what FR-008h is for.
+       */
       content: {
         silence: "We couldn't hear anything. Try recording again.",
         unintelligible: "We couldn't make out the recording. Try recording again.",

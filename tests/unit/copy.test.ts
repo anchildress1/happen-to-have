@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { copy } from '../../src/copy.js';
 
 /**
- * T022. Two obligations that a code review cannot reliably enforce.
+ * Obligations a code review cannot reliably enforce.
  *
  * FR-025 and FR-026 fix two strings verbatim. A typo in either is a failing test, not a nit,
  * because the spec quotes them character for character.
@@ -43,12 +43,15 @@ describe('review copy — the strings the spec fixes verbatim', () => {
     expect(copy.review.withheld.sub).toBe("It wasn't shared. Nothing else changes.");
   });
 
-  it('carries a distinct heading for each of the three content reasons', () => {
-    // Without three distinct strings the contentReason field has nothing to select between,
-    // and FR-021's required distinctions collapse into one message.
+  it('maps each content reason to the heading that describes it', () => {
+    // Distinctness alone was not enough: swapping the silence and unintelligible strings
+    // left the old assertion green, and a silent recording would then read "We couldn't make
+    // out the recording." Each is now pinned to its own text.
     const { silence, unintelligible, unpublishable } = copy.review.withheld.content;
 
-    expect(new Set([silence, unintelligible, unpublishable]).size).toBe(3);
+    expect(silence).toBe("We couldn't hear anything. Try recording again.");
+    expect(unintelligible).toBe("We couldn't make out the recording. Try recording again.");
+    expect(unpublishable).toBe("That recording can't be shared here. Try recording again.");
   });
 });
 
@@ -80,25 +83,34 @@ describe('review copy — crisis routing (FR-032 – FR-034)', () => {
     expect(qualifiers.some((qualifier) => qualifier.includes('International'))).toBe(true);
   });
 
-  it('claims no intervention and offers no counseling', () => {
-    // FR-034. The body routes outward; it must not imply this product will act.
-    const body = copy.review.crisis.body.toLowerCase();
-
-    expect(body).not.toContain('we will');
-    expect(body).not.toContain('help is on the way');
-    expect(body).not.toContain('contacted');
+  it('routes outward and claims nothing about acting (FR-034)', () => {
+    // Greps for phrases that were never going to appear proved nothing: replacing the body
+    // with "We've already alerted our team and someone will reach out shortly" passed the
+    // previous version of this test. Pinned verbatim instead — this is the one page where a
+    // reassuring rewrite is a safety defect rather than a copy change.
+    expect(copy.review.crisis.body).toBe(
+      "This isn't the right place for that, but these people are, any hour.",
+    );
+    expect(copy.review.crisis.heading).toBe(
+      'It sounds like you might be going through something serious right now.',
+    );
   });
 });
 
 describe('review copy — processing failure (FR-040)', () => {
-  it('puts the fault on this system rather than the participant', () => {
-    expect(copy.review.failed.helper).toContain('on our side');
+  it('is pinned verbatim, because substring checks accept blame', () => {
+    // `toContain('on our side')` and `toContain('discarded')` were both satisfied by "Your
+    // recording was unusable and was discarded on our side. Try speaking more clearly." —
+    // which blames the participant for a failure that was not theirs, exactly what FR-040
+    // forbids. Substring assertions cannot express "and nothing else".
+    expect(copy.review.failed.helper).toBe(
+      "Something on our side didn't finish. Your recording was discarded. You can record again.",
+    );
   });
 
-  it('says the recording is gone rather than promising to recover it', () => {
-    // FR-040 forbids promising recovery of the previous audio. "Try again" without this
-    // sentence would imply the recording is still somewhere.
-    expect(copy.review.failed.helper).toContain('discarded');
+  it('names the contribution the participant actually made', () => {
+    expect(copy.review.failed.headingAnswer).toBe("We couldn't check your answer.");
+    expect(copy.review.failed.headingQuestion).toBe("We couldn't check your question.");
   });
 });
 
