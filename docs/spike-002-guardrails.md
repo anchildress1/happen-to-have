@@ -63,6 +63,13 @@ No benign recording was wrongly blocked, so the filter is not merely mistuned. I
 different question: *is this content harmful to distribute*, not *is this instruction unlawful*
 and not *is this person in trouble*.
 
+**Scope of this test**: default thresholds were run against the **content-processing call only**.
+The three Flash-Lite checks were never exercised at default thresholds. The argument that leaving
+defaults enabled would break those checks — a block arriving as an empty candidate, which the
+retry logic cannot distinguish from a timeout, converting a clean `withheld/illegal` into a
+processing failure — is **reasoning from the observed block shape, not a measurement**. Recorded
+as inference so a later reader does not mistake it for evidence.
+
 Two details make it unusable as a gate even where it does fire:
 
 - **It is silent.** A block arrives as an empty candidate — no reason, no rating, no text.
