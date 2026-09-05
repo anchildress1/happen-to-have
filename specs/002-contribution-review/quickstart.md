@@ -53,9 +53,9 @@ If both come back the same, the illegal check is measuring topic instead of lega
 ## Test suites
 
 ```bash
-make test              # unit — schemas, gate precedence, retry bounds, rate-limit window
-make test-integration  # fan-out with a faked provider; abort and release behaviour
-make e2e               # the four screens, their copy and their actions
+make test    # unit + integration — schemas, gate precedence, retry bounds, rate-limit window,
+             # and the fan-out against a faked provider including abort and release
+make e2e     # the four screens, their copy and their actions
 ```
 
 None of these calls the provider ([research D12](research.md)) — `make ai-checks` stays
