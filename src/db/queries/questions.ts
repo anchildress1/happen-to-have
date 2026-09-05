@@ -38,3 +38,29 @@ export async function listEligibleQuestions(
   );
   return rows;
 }
+
+/** The wire shape of one question, as `/api/questions/next` returns it. */
+export interface SelectionPayload {
+  question: { id: string; displayText: string; publishedAnswers: number } | null;
+  queue: { id: string; displayText: string; publishedAnswers: number }[];
+}
+
+/**
+ * Shape eligible rows into the response body.
+ *
+ * Extracted from the route handler so it can be tested directly. Left inline, a test could
+ * only re-implement the transform and assert its own copy — which passes forever, including
+ * after someone changes the real one.
+ *
+ * An empty list yields `question: null`, which is the FR-029 empty state and **not** an
+ * error. The whole ordered list travels as `queue` so traversal stays tab-local: skipping
+ * advances a pointer in page memory and never returns to the server (research D11).
+ */
+export function toSelectionPayload(eligible: EligibleQuestion[]): SelectionPayload {
+  const queue = eligible.map((q) => ({
+    id: q.id,
+    displayText: q.display_text,
+    publishedAnswers: q.published_answers,
+  }));
+  return { question: queue[0] ?? null, queue };
+}
