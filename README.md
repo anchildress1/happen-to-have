@@ -114,7 +114,7 @@ Deliberately absent: ElevenLabs in any role, and any framing of the pipeline as 
 
 Built against a two-day window for the DEV Weekend Challenge: Generosity Edition.
 
-- [ ] **Kill spike** — prove audio review latency and cost before any interface work. Gates everything.
+- [x] **Kill spike** — guardrail checks measured; the provider's own filter proved insufficient ([results](docs/spike-002-guardrails.md)). Cost and 60-second latency still open.
 - [ ] **001** — participant identity, landing, seeded pool, selection, skip
 - [ ] **002** — the review: guardrails, crisis routing, retry, audio lifecycle
 - [ ] **003** — answer recording and the ask unlock
