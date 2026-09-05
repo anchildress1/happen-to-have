@@ -333,34 +333,29 @@ are required (FR-029, FR-030, FR-031). Copy for them is authored in
 
 ---
 
-## D13: Fonts — Paprika for display, Source Sans 3 for everything else
+## D13: Fonts — Sour Gummy for display, Source Sans 3 for everything else
 
-**Decision**: **Paprika** sets the product name and display chrome. **Source Sans 3** sets
+**Decision**: **Sour Gummy at weight 600** sets the product name and display chrome. **Source Sans 3** sets
 participant content, body, UI, and meta. Both load through `next/font/google`. Nothing else
 loads.
 
-**Rationale**: Paprika carries the product's voice at large sizes. It is a Google **Display**
-family, built for headlines rather than paragraphs, so pairing it is not a preference — it is
-how the face is meant to be used.
+**Rationale**: Sour Gummy carries the product's voice at large sizes. Its subset coverage is
+too narrow for body or participant text, so pairing it is not a preference — it is what the
+family can and cannot do.
 
-**Verified against the Google Fonts metadata API on 2026-09-04**:
-
-| | Paprika | Bricolage Grotesque (replaced) |
-| - | - | - |
-| Weights | **400 only** | 200–800 |
-| Category | Display | Sans Serif |
-| Subsets | latin, latin-ext | latin, latin-ext, vietnamese |
+**Verified against the Google Fonts metadata API**: Sour Gummy is a variable family with
+`wght` 100–900 and `wdth` 100–125, subsets latin and latin-ext. Only weight 600 is requested,
+so a single instance ships and the width axis is unused.
 
 **Two consequences worth stating plainly, because neither is reversible by tuning:**
 
 **Weight 300 is gone.** The imported design set every display element at 300, and that thinness
-was the identity. Paprika ships one weight. Display type will read heavier and denser than the
-mockups. Faking 300 with a lighter colour or a synthetic stroke looks worse than the honest
+was the identity. Display type is now 600 and reads heavier and denser than the mockups. Faking 300 with a lighter colour or a synthetic stroke looks worse than the honest
 weight, so the design changes rather than the rendering.
 
-**Paprika cannot carry participant content.** Question and answer text renders at display sizes,
+**Sour Gummy cannot carry participant content.** Question and answer text renders at display sizes,
 but it is participant writing, and 002 translates contributions into the display language.
-Paprika has no Cyrillic, no Vietnamese, no CJK. A translated contribution set in it would fall
+Sour Gummy has no Cyrillic, no Greek, no Vietnamese, no CJK. A translated contribution set in it would fall
 back mid-sentence or render as tofu. Source Sans 3 takes every string a participant wrote,
 regardless of size — the split is by *origin*, not by type scale.
 
@@ -369,16 +364,17 @@ regardless of size — the split is by *origin*, not by type scale.
 
 **Alternatives considered**:
 
+- **Paprika** — an earlier pick, replaced by direction. Display category, weight 400 only.
 - **Bricolage Grotesque** — the imported design's face, replaced by direction. It had the 300
   weight and a wider subset range; the tradeoff is accepted deliberately.
-- **Paprika for everything** — a Display face at 16px body is a legibility problem, and the
+- **Sour Gummy for everything** — a Display face at 16px body is a legibility problem, and the
   subset gap becomes a correctness problem the moment a non-English contribution publishes.
 - **A system-font stack** — free and fast, but the product name at 58–84px is the whole first
   impression, and system faces do not carry it.
 
 **Source Sans 3, verified on 2026-09-04**: variable `wght` axis spanning 200–900, so 400 and 500
 both come from one file. Subsets: latin, latin-ext, cyrillic, cyrillic-ext, greek, greek-ext,
-vietnamese — seven against Paprika's two, and wider than the Bricolage Grotesque it replaces.
+vietnamese — seven against Sour Gummy's two, and wider than the Bricolage Grotesque it replaces.
 
 **A finding worth keeping**: Google Fonts **strips GSUB features from its subsets**. The served
 Source Sans 3 has *no* OpenType features, so `font-variant-numeric: tabular-nums` — which the
@@ -435,7 +431,7 @@ token existed only for this label and is removed with it.
 | Full route map | from the design's URL props (D12) |
 | Breakpoint | 768px, from the design's own preview range (D12) |
 | Selection route path | `/answer`, from the design's URL bar (D12) |
-| Font loading | Paprika for display + Source Sans 3, self-hosted (D13) |
+| Font loading | Sour Gummy 600 for display + Source Sans 3, self-hosted (D13) |
 | Question exclusion after a withheld attempt | no stored row; stays eligible; fresh recording offered including crisis (D14) |
 | Eyebrow labels | removed product-wide (D15) |
 

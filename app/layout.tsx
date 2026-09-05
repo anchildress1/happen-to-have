@@ -1,21 +1,21 @@
 import type { Metadata } from 'next';
-import { Paprika, Source_Sans_3 } from 'next/font/google';
+import { Sour_Gummy, Source_Sans_3 } from 'next/font/google';
 import type { ReactNode } from 'react';
 import '../src/ui/tokens.css';
 
-// Paprika carries the product name and display chrome only. It is a Google
-// Display face and ships weight 400 alone — the imported design's 300-weight
-// treatment is gone, and must not be faked with a lighter colour or a
-// synthetic stroke (research D13).
+// Sour Gummy carries the product name and display chrome, at weight 600.
 //
-// Participant content is deliberately NOT set in Paprika, even at display
-// sizes: 002 translates contributions, and Paprika has no Cyrillic, Vietnamese,
-// or CJK. The sister face carries every string a participant wrote.
+// Participant content is deliberately NOT set in it, even at display sizes: 002
+// translates contributions, and Sour Gummy ships latin and latin-ext only — no
+// Cyrillic, Greek, Vietnamese, or CJK. Source Sans 3 carries every string a
+// participant wrote, whatever its size. The split is by origin, not type scale.
 //
-const paprika = Paprika({
+// It is a variable family (wght 100-900, wdth 100-125). Only 600 is requested, so
+// only that instance ships; the width axis goes unused.
+const sourGummy = Sour_Gummy({
   subsets: ['latin'],
-  weight: '400',
-  variable: '--font-paprika',
+  weight: '600',
+  variable: '--font-sour-gummy',
   display: 'swap',
 });
 
@@ -40,7 +40,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="en" className={`${paprika.variable} ${sourceSans.variable}`}>
+    <html lang="en" className={`${sourGummy.variable} ${sourceSans.variable}`}>
       <body>{children}</body>
     </html>
   );

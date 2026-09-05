@@ -84,26 +84,30 @@ Define once as CSS custom properties on `:root`. Values verbatim from the design
 
 | Role | Family | Weight |
 | - | - | - |
-| Product name, headings, display chrome | **Paprika** | 400 — the only weight it ships |
+| Product name, headings, display chrome | **Sour Gummy** | 600 |
 | Participant content, body, UI, buttons, meta | **Source Sans 3** | variable, 400 / 500 in use |
 
-Paprika is a Google **Display** face: built for headlines, not for paragraphs or interface
-text. It carries the product's voice at large sizes and nothing else.
+Sour Gummy is a variable family (`wght` 100–900, `wdth` 100–125). Only weight 600 is
+requested, so only that instance ships and the width axis goes unused.
 
-**Weight 300 is gone.** The imported design set every display element at weight 300, which was
-the source of its thin, airy feel. Paprika has one weight. Display type will read heavier and
-denser than the mockups — that is inherent to the choice, not a defect to tune around. Do not
-attempt to fake 300 with a lighter colour or a synthetic stroke; both look worse than the
-honest weight.
+**Weight 300 is gone.** The imported design set every display element at weight 300, and
+that thinness was its identity. Display type is now 600 — heavier and denser than the
+mockups, deliberately. Do not try to recover the original feel with a lighter colour or a
+synthetic stroke; both look worse than an honest weight.
 
-**Participant content does not use Paprika, even at display sizes.** Question text renders at
+**The watermark moved with it.** The decorative `?` reads `--weight-display`, so it renders at
+600 rather than 300. At 520–760px and 9% opacity that is a visibly heavier glyph. If it
+overpowers the screen, give the watermark its own weight token and load a second instance —
+do not thin it with opacity, which changes the colour relationship the tokens define.
+
+**Participant content does not use Sour Gummy, even at display sizes.** Question text renders at
 34px mobile / 44px desktop, which is display-sized, but it is *participant writing* and 002
-translates contributions into the display language. Paprika ships latin and latin-ext only —
+translates contributions into the display language. Sour Gummy ships latin and latin-ext only —
 no Cyrillic, no Vietnamese, no CJK. Setting translated content in it would break for languages
 the product explicitly supports. Source Sans 3 carries every string a participant wrote.
 
 Source Sans 3 was chosen for reach: **latin, latin-ext, cyrillic, cyrillic-ext, greek,
-greek-ext, vietnamese** — well past what 002 translates into, and far past Paprika's two.
+greek-ext, vietnamese** — well past what 002 translates into, and far past Sour Gummy's two.
 
 **The recorder timer needs no `tabular-nums`.** Source Sans 3's digits are already monospaced —
 every glyph `0`–`9` advances 472 units in the Google-served font. This is load-bearing, because
@@ -117,7 +121,7 @@ third family.
 
 | Role | Mobile | Desktop |
 | - | - | - |
-| Display XL (product name, unlock) — **Paprika** | `50–58px / .98–1`, w400, `-.025em` | `80–84px / .95–.96`, w400, `-.03em` |
+| Display XL (product name, unlock) — **Sour Gummy** | `50–58px / .98–1`, w600, `-.025em` | `80–84px / .95–.96`, w600, `-.03em` |
 | Display L (question, result heading) — **Source Sans 3** | `34px / 1.1–1.15`, w400, `-.02em` | `44px / 1.12`, `-.025em` |
 | Display M (crisis heading, section) — **Source Sans 3** | `30px / 1.14`, w400, `-.02em` | `30px`, w400, `-.02em` |
 | Heading S (question in recorder) | `20px / 1.3`, `-.01em` | `34px / 1.18`, `-.02em` |
@@ -546,8 +550,8 @@ Withheld reasons appear only on the active flow's shared Withheld page, never in
 | - | - | - |
 | No device or browser frame renders anywhere | E2E | 001 |
 | Tokens resolve; no hard-coded hex outside the token block | Unit — scan compiled CSS | 001 |
-| Only Paprika and Source Sans 3 are requested; zero requests for any other family | E2E — assert network | 001 |
-| Paprika renders the product name and display chrome only; no participant content is set in it | E2E | 001 |
+| Only Sour Gummy and Source Sans 3 are requested; zero requests for any other family | E2E — assert network | 001 |
+| Sour Gummy renders the product name and display chrome only; no participant content is set in it | E2E | 001 |
 | Primary ≥56px, ghost ≥52px, header ≥44px, play ≥32px | E2E | 001 |
 | Every interactive element has a visible `:focus-visible` ring | E2E | 001 |
 | Watermark, waveform, dots are `aria-hidden` | E2E | 001 |

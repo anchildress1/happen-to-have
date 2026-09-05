@@ -31,20 +31,20 @@
   /*
    * Type — two families, split by origin rather than by size.
    *
-   * --font-display is Paprika, loaded in app/layout.tsx. It sets the product
-   * name and display chrome. Weight 400 is the only weight it ships.
+   * --font-display is Sour Gummy at weight 600, loaded in app/layout.tsx. It sets
+   * the product name and display chrome.
    *
    * --font-sans carries every string a participant wrote, at any size, because
-   * Paprika has no Cyrillic, Vietnamese, or CJK and 002 publishes translated
+   * Sour Gummy has no Cyrillic, Greek, Vietnamese, or CJK and 002 publishes translated
    * contributions.
    *
    * Source Sans 3's digits are monospaced by default, so the recorder timer does
    * not need `tabular-nums` — which would be a no-op anyway, since Google Fonts
    * strips GSUB features from its subsets.
    */
-  --font-display: var(--font-paprika), system-ui, sans-serif;
+  --font-display: var(--font-sour-gummy), system-ui, sans-serif;
   --font-sans: var(--font-source-sans), system-ui, sans-serif;
-  --weight-display: 400;
+  --weight-display: 600;
   --weight-medium: 500;
 }
 
