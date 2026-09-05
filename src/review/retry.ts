@@ -13,14 +13,23 @@ import { parseResult } from './schemas';
  * the payload means.
  */
 
-/** FR-039. At most three invocations *including* the first. */
-export const MAX_ATTEMPTS = 3;
+/** FR-039. Waits before the second and third invocations. */
+const BACKOFF_SCHEDULE = [1_000, 2_000] as const;
+
+/**
+ * FR-039. At most three invocations *including* the first.
+ *
+ * Derived from the backoff schedule rather than declared beside it. Declared independently,
+ * raising this to 4 would index past the schedule, hand `setTimeout` an undefined delay, and
+ * silently drop the backoff — with no test failing, because both constants are asserted
+ * separately.
+ */
+export const MAX_ATTEMPTS = BACKOFF_SCHEDULE.length + 1;
 
 /** FR-039. Per invocation, not per submission. */
 export const ATTEMPT_TIMEOUT_MS = 20_000;
 
-/** FR-039. Waits before the second and third invocations. */
-export const BACKOFF_MS = [1_000, 2_000] as const;
+export const BACKOFF_MS = BACKOFF_SCHEDULE;
 
 /**
  * Why a call did not produce a usable result.
@@ -62,7 +71,20 @@ export interface RunCheckDeps {
 
 type AttemptResult<T> = { ok: true; value: T } | { ok: false; fault: FaultKind };
 
-function defaultSleep(ms: number, signal: AbortSignal): Promise<void> {
+/**
+ * Exported for its own test. The abort path below is reachable only in the window between
+ * an attempt failing and the backoff starting, which is not a window a test can land in
+ * deterministically through `runCheck` — so it is verified directly instead of through a
+ * test that would claim to cover it and quietly not.
+ */
+export function defaultSleep(ms: number, signal: AbortSignal): Promise<void> {
+  // An 'abort' listener added to an ALREADY-aborted signal never fires. Without this guard a
+  // caller that aborts between the attempt failing and the backoff starting would sit out the
+  // full 1s or 2s before anyone noticed — delaying the audio release FR-045 requires.
+  if (signal.aborted) {
+    return Promise.reject(new Error('aborted'));
+  }
+
   return new Promise((resolve, reject) => {
     const onAbort = () => {
       clearTimeout(timer);
@@ -140,9 +162,9 @@ async function attemptOnce<T>(
   signal: AbortSignal,
   remainingMs: number,
 ): Promise<AttemptResult<T>> {
-  // Bounded by whichever comes first: this attempt's own 20s ceiling, the submission
-  // deadline, or the caller aborting. Combining them here means a retry can never outlive
-  // the budget it was granted.
+  // Whichever comes first: this attempt's own 20s ceiling, or what is left of the submission
+  // deadline. Clamping here means a retry can never outlive the budget it was granted.
+  const clampedToDeadline = remainingMs < ATTEMPT_TIMEOUT_MS;
   const attemptSignal = AbortSignal.any([
     signal,
     AbortSignal.timeout(Math.min(ATTEMPT_TIMEOUT_MS, remainingMs)),
@@ -161,7 +183,12 @@ async function attemptOnce<T>(
     if (signal.aborted) {
       return { ok: false, fault: 'aborted' };
     }
-    return { ok: false, fault: isTimeout(error) ? 'timeout' : 'network' };
+    if (isTimeout(error)) {
+      // A timeout caused by the deadline clamp is a deadline, not a slow provider. Reporting
+      // it as 'timeout' would also burn a full backoff before the loop head noticed.
+      return { ok: false, fault: clampedToDeadline ? 'deadline' : 'timeout' };
+    }
+    return { ok: false, fault: 'network' };
   }
 
   if (!response.candidates || response.candidates.length === 0) {

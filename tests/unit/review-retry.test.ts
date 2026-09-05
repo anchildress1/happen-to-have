@@ -1,8 +1,15 @@
 import type { GenerateContentParameters, GenerateContentResponse } from '@google/genai';
 import { describe, expect, it } from 'vitest';
 import type { GenAiClient } from '../../src/review/client.js';
-import { BACKOFF_MS, MAX_ATTEMPTS, runCheck } from '../../src/review/retry.js';
-import { judgmentResultSchema } from '../../src/review/schemas.js';
+import {
+  ATTEMPT_TIMEOUT_MS,
+  BACKOFF_MS,
+  defaultSleep,
+  MAX_ATTEMPTS,
+  type RunCheckDeps,
+  runCheck,
+} from '../../src/review/retry.js';
+import { judgmentResultSchemaFor } from '../../src/review/schemas.js';
 
 /**
  * T012-T015, FR-038 and FR-039. The retry budget, and the classification that decides
@@ -15,6 +22,8 @@ import { judgmentResultSchema } from '../../src/review/schemas.js';
  *
  * Sleep and the clock are injected, so proving a three-second backoff takes no seconds.
  */
+
+const answerSchema = judgmentResultSchemaFor('answer');
 
 const VALID_JUDGMENT = {
   crisisCanPublish: true,
@@ -43,12 +52,16 @@ function response(overrides: Partial<Record<string, unknown>> = {}): GenerateCon
 function scriptedClient(results: Array<GenerateContentResponse | Error>): {
   client: GenAiClient;
   calls: () => number;
+  seen: GenerateContentParameters[];
 } {
   let index = 0;
+  const seen: GenerateContentParameters[] = [];
   return {
     calls: () => index,
+    seen,
     client: {
-      async generateContent() {
+      async generateContent(params) {
+        seen.push(params);
         const next = results[index++];
         if (next === undefined) {
           throw new Error(`scriptedClient: no result scripted for call ${index}`);
@@ -76,12 +89,12 @@ function recordingSleep() {
 const FAR_FUTURE = () => 0;
 const DEADLINE = 90_000;
 
-function run(client: GenAiClient, deps: Parameters<typeof runCheck>[1] = {}) {
+function run(client: GenAiClient, deps: RunCheckDeps = {}) {
   return runCheck(
     {
       client,
       params: PARAMS,
-      schema: judgmentResultSchema,
+      schema: answerSchema,
       signal: new AbortController().signal,
       deadline: DEADLINE,
     },
@@ -229,7 +242,7 @@ describe('runCheck — abort and deadline are terminal', () => {
       {
         client,
         params: PARAMS,
-        schema: judgmentResultSchema,
+        schema: answerSchema,
         signal: controller.signal,
         deadline: DEADLINE,
       },
@@ -249,7 +262,7 @@ describe('runCheck — abort and deadline are terminal', () => {
       {
         client,
         params: PARAMS,
-        schema: judgmentResultSchema,
+        schema: answerSchema,
         signal: new AbortController().signal,
         deadline: 1_000,
       },
@@ -268,7 +281,7 @@ describe('runCheck — abort and deadline are terminal', () => {
       {
         client,
         params: PARAMS,
-        schema: judgmentResultSchema,
+        schema: answerSchema,
         signal: controller.signal,
         deadline: DEADLINE,
       },
@@ -308,5 +321,131 @@ describe('runCheck — two calls in parallel do not interfere', () => {
 
     expect(a.ok === true && a.value.reasonDetail).toBe('slow');
     expect(b.ok === true && b.value.reasonDetail).toBe('fast');
+  });
+});
+
+describe('runCheck — the attempt timeout (FR-039)', () => {
+  it('classifies a per-attempt timeout as a timeout fault', async () => {
+    // The only FaultKind with no other route into the suite. Without this the 20s ceiling is
+    // a constant nobody asserts.
+    const timedOut = Object.assign(new Error('The operation was aborted due to timeout'), {
+      name: 'TimeoutError',
+    });
+    const { client } = scriptedClient([timedOut, timedOut, timedOut]);
+
+    const outcome = await run(client, { sleep: async () => {} });
+
+    expect(outcome.ok === false && outcome.fault).toBe('timeout');
+  });
+
+  it('reports a deadline rather than a timeout when the clamp is what fired', async () => {
+    // With less than 20s of budget left, the attempt signal is clamped to the deadline.
+    // Calling that a timeout would burn a full backoff before the loop head noticed, and
+    // would blame the provider for our own budget running out.
+    const timedOut = Object.assign(new Error('aborted'), { name: 'TimeoutError' });
+    const { client } = scriptedClient([timedOut]);
+
+    const outcome = await runCheck(
+      {
+        client,
+        params: PARAMS,
+        schema: answerSchema,
+        signal: new AbortController().signal,
+        deadline: 5_000,
+      },
+      { now: () => 0, sleep: async () => {} },
+    );
+
+    expect(outcome.ok === false && outcome.fault).toBe('deadline');
+  });
+
+  it('passes an abort signal through to the provider on every attempt', async () => {
+    // Nothing else proves the wiring: delete the abortSignal line in retry.ts and every
+    // other test in this file still passes.
+    const { client, seen } = scriptedClient([new Error('a'), response()]);
+
+    await run(client, { sleep: async () => {} });
+
+    expect(seen).toHaveLength(2);
+    for (const params of seen) {
+      expect(params.config?.abortSignal).toBeDefined();
+    }
+  });
+
+  it('keeps the caller params intact rather than mutating them', async () => {
+    // A retry must not accumulate config from the attempt before it.
+    const { client } = scriptedClient([response()]);
+
+    await run(client, { sleep: async () => {} });
+
+    expect(PARAMS).toEqual({ model: 'gemini-3.5-flash-lite', contents: 'judge this' });
+  });
+});
+
+describe('defaultSleep — the abort guard', () => {
+  it('rejects at once for an already-aborted signal, without waiting', async () => {
+    // An 'abort' listener added to an already-aborted signal NEVER fires, so without the
+    // guard this waits out the full backoff before anyone notices — delaying the audio
+    // release FR-045 requires by up to two seconds per in-flight call.
+    //
+    // Tested directly rather than through runCheck: the reachable window is between an
+    // attempt failing and the backoff starting, which a test cannot land in
+    // deterministically. Going through runCheck would produce a test that passes with the
+    // guard removed, which is worse than no test.
+    const controller = new AbortController();
+    controller.abort();
+
+    const started = Date.now();
+    await expect(defaultSleep(5_000, controller.signal)).rejects.toThrow('aborted');
+    expect(Date.now() - started).toBeLessThan(100);
+  });
+
+  it('rejects when a live signal aborts mid-wait', async () => {
+    const controller = new AbortController();
+    const waiting = defaultSleep(5_000, controller.signal);
+    setTimeout(() => controller.abort(), 10);
+
+    const started = Date.now();
+    await expect(waiting).rejects.toThrow('aborted');
+    expect(Date.now() - started).toBeLessThan(1_000);
+  });
+
+  it('resolves after the requested wait when never aborted', async () => {
+    const started = Date.now();
+    await defaultSleep(30, new AbortController().signal);
+
+    expect(Date.now() - started).toBeGreaterThanOrEqual(25);
+  });
+});
+
+describe('runCheck — the real sleep (no injected clock)', () => {
+  it('actually waits when the signal is live, using the real timer', async () => {
+    // Exercises defaultSleep, which every other test injects around — which is how the
+    // already-aborted defect survived review in the first place.
+    const { client } = scriptedClient([new Error('transient'), response()]);
+
+    const started = Date.now();
+    const outcome = await runCheck(
+      {
+        client,
+        params: PARAMS,
+        schema: answerSchema,
+        signal: new AbortController().signal,
+        deadline: DEADLINE,
+      },
+      { now: FAR_FUTURE },
+    );
+
+    expect(outcome.ok).toBe(true);
+    expect(Date.now() - started).toBeGreaterThanOrEqual(BACKOFF_MS[0] - 50);
+  });
+});
+
+describe('retry constants stay coupled (FR-039)', () => {
+  it('keeps one backoff for every retry after the first attempt', () => {
+    // Raising MAX_ATTEMPTS without extending the schedule would index past it, hand
+    // setTimeout an undefined delay, and silently drop the backoff.
+    expect(BACKOFF_MS).toHaveLength(MAX_ATTEMPTS - 1);
+    expect(ATTEMPT_TIMEOUT_MS).toBe(20_000);
   });
 });
