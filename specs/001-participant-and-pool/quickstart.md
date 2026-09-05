@@ -252,5 +252,13 @@ the swap in `research.md` if you take it.
 ./deploy.sh    # build, push to Artifact Registry, deploy to Cloud Run ($REGION, default us-east1)
 ```
 
-Requires `SESSION_SECRET` and `DATABASE_URL` in Secret Manager, the Neon project reachable,
-and migrations applied against `main`.
+Secret Manager ids are prefixed, because the project's Secret Manager is shared:
+
+| Env var | Secret id | Required by |
+| - | - | - |
+| `SESSION_SECRET` | `hth-session-secret` | 001 |
+| `DATABASE_URL` | `hth-database-url` | 001 |
+| `GEMINI_API_KEY` | `hth-gemini-api-key` | 002/003 — bound when it exists, skipped when it does not |
+
+`deploy.sh` checks the first two before building and names any that are missing. Also
+requires the Neon project reachable and migrations applied against `main`.
