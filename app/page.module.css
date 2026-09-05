@@ -174,7 +174,7 @@
   font-family: var(--font-sans);
   font-size: 15px;
   line-height: 1.5;
-  color: var(--ink-55);
+  color: var(--ink-65);
 }
 
 .footer {
@@ -187,6 +187,6 @@
     margin: 0;
     font-family: var(--font-sans);
     font-size: 14px;
-    color: var(--ink-45);
+    color: var(--ink-65);
   }
 }

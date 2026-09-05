@@ -29,6 +29,12 @@
   --ink-70: rgba(20, 32, 26, 0.7);
   --ink-65: rgba(20, 32, 26, 0.65);
   --ink-60: rgba(20, 32, 26, 0.6);
+  /*
+   * design.md assigns --ink-55 to helper and secondary text, and --ink-45 to the desktop
+   * footer. Both fail WCAG AA on --bg at body sizes: 3.77:1 and 2.80:1 against a required
+   * 4.5:1, confirmed by Lighthouse. Those elements use --ink-65 (5.16:1) instead. The
+   * tokens stay defined at the design's values for anything large enough to pass.
+   */
   --ink-55: rgba(20, 32, 26, 0.55);
   --ink-50: rgba(20, 32, 26, 0.5);
   --ink-45: rgba(20, 32, 26, 0.45);
