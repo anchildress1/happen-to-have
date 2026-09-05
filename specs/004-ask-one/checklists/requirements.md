@@ -44,6 +44,7 @@
 | I. Human Contribution Is The Product | FR-009, FR-010 |
 | II. Server-Authoritative Reciprocity | FR-001 – FR-004, FR-016 – FR-027, SC-002 – SC-005, SC-008 |
 | III. Aggregate Guardrail Gate | FR-011 – FR-013 |
+| V. Structured Output Or Failure | FR-014, FR-021 |
 
 ## Validation Notes
 

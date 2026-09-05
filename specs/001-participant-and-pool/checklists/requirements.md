@@ -41,6 +41,7 @@
 | Principle | Covered by |
 |-----------|------------|
 | II. Server-Authoritative Reciprocity | FR-005, FR-015 – FR-025, FR-016a, SC-002, SC-003 |
+| V. Structured Output Or Failure | FR-005a, FR-016a, SC-002 |
 | VI. Scope Discipline | Out of Scope, FR-002 |
 | VII. Voice And Provenance | FR-006 – FR-012 |
 
