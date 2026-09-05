@@ -262,3 +262,7 @@ Secret Manager ids are prefixed, because the project's Secret Manager is shared:
 
 `deploy.sh` checks the first two before building and names any that are missing. Also
 requires the Neon project reachable and migrations applied against `main`.
+
+After a successful deploy it prunes to the newest `KEEP_DEPLOYS` (default 3) Cloud Run
+revisions and Artifact Registry images. A revision serving traffic is never deleted, even
+when it is older than the cutoff — that is what a rollback looks like.

@@ -12,6 +12,8 @@ SERVICE_NAME="${SERVICE_NAME:-happen-to-have}"
 REGION="${REGION:-us-east1}"
 REPOSITORY="${REPOSITORY:-$SERVICE_NAME}"
 IMAGE_TAG="${IMAGE_TAG:-$(git rev-parse --short HEAD 2>/dev/null || date +%s)}"
+# Deploys to retain, newest first, counting the one this run just created.
+KEEP_DEPLOYS="${KEEP_DEPLOYS:-3}"
 # Secret Manager secret IDs, never values — no secret appears here or in any log line
 # this script produces. Prefixed because this Secret Manager is shared with other
 # services, where a bare `session-secret` would collide.
@@ -104,6 +106,45 @@ SERVICE_URL=$(gcloud run services describe "${SERVICE_NAME}" \
   --project "${PROJECT_ID}" \
   --region "${REGION}" \
   --format "value(status.url)")
+
+# Prune to the newest ${KEEP_DEPLOYS}. Runs only after a successful deploy, so a failed
+# run never deletes the revision still serving traffic.
+#
+# Revisions before images: a retained revision pins the image it runs, and deleting that
+# image out from under it breaks rollback, which is the only reason to retain it at all.
+echo "Pruning to the newest ${KEEP_DEPLOYS} deploys..."
+
+SERVING=$(gcloud run services describe "${SERVICE_NAME}" \
+  --project "${PROJECT_ID}" --region "${REGION}" \
+  --format "value(status.traffic[].revisionName)" 2>/dev/null | tr ';,' '\n' | sed '/^$/d')
+
+STALE_REVISIONS=$(gcloud run revisions list \
+  --service "${SERVICE_NAME}" --project "${PROJECT_ID}" --region "${REGION}" \
+  --sort-by "~metadata.creationTimestamp" \
+  --format "value(metadata.name)" 2>/dev/null | tail -n "+$((KEEP_DEPLOYS + 1))")
+
+for REVISION in ${STALE_REVISIONS}; do
+  # A revision can hold traffic without being newest — a rollback, or a pinned split.
+  if grep -qxF "${REVISION}" <<<"${SERVING}"; then
+    echo "  keeping ${REVISION} (serving traffic)"
+    continue
+  fi
+  echo "  deleting revision ${REVISION}"
+  gcloud run revisions delete "${REVISION}" \
+    --project "${PROJECT_ID}" --region "${REGION}" --quiet || true
+done
+
+STALE_IMAGES=$(gcloud artifacts docker images list "${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPOSITORY}/${SERVICE_NAME}" \
+  --project "${PROJECT_ID}" \
+  --sort-by "~CREATE_TIME" \
+  --format "value(version)" 2>/dev/null | tail -n "+$((KEEP_DEPLOYS + 1))")
+
+for DIGEST in ${STALE_IMAGES}; do
+  echo "  deleting image ${DIGEST:0:19}..."
+  gcloud artifacts docker images delete \
+    "${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPOSITORY}/${SERVICE_NAME}@${DIGEST}" \
+    --project "${PROJECT_ID}" --delete-tags --quiet || true
+done
 
 echo "${SEPARATOR}"
 echo "Deployed: ${SERVICE_URL}"
