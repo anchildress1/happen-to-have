@@ -55,8 +55,8 @@ only — an API key in a browser bundle is a leaked key.
 
 | Call | Model | Safety | Returns |
 | - | - | - | - |
-| Content processing | `gemini-3.8-flash` | `BLOCK_NONE` | text, language, emotion, publishable, contentReason |
-| Judgment | `gemini-3.5-flash-lite` | provider defaults | crisis, illegal, relevance, primaryReason, audioQuality |
+| Content processing | `gemini-3.8-flash` | `BLOCK_NONE`, explicit | text, language, emotion, publishable, contentReason |
+| Judgment | `gemini-3.5-flash-lite` | `BLOCK_NONE`, explicit | crisis, illegal, relevance, primaryReason, audioQuality |
 
 Measured 2026-09-05: content ~2.4 s median, judgment ~1.15 s median. Two calls cost ~23% less than
 four at the 60-second ceiling with no latency change, since the fan-out is gated by content
@@ -125,7 +125,8 @@ after Phase 1 design; result unchanged.
 | Crisis catches understated phrasing | **PASS** | FR-008f carried into the system instruction ([research D4](research.md)). ⚠️ prompt is fitted to its own failing case — see Complexity Tracking. |
 | Relevance does not judge safety | **PASS** | FR-008g, [research D5](research.md). |
 | Empty candidate treated as fault, not verdict | **PASS** | FR-008b1, [research D3](research.md). |
-| Provider filter left on where it can only be conservative | **PASS** | FR-008b — `BLOCK_NONE` on content processing only; the three boolean checks keep default thresholds, where a block can withhold a permit but never grant one ([research D3](research.md)). |
+| Adjustable filters set explicitly, not assumed | **PASS** | FR-008b — the provider documents them as off by default, so the setting is written rather than inherited ([research D3](research.md)). |
+| Non-adjustable blocks handled as faults, not verdicts | **PASS** | FR-008b1 — they survive every configurable setting and carry no reason. |
 | Fan-out dispatched in parallel | **PASS** | [research D13](research.md) — sequential, two exhausting calls would exceed the 90 s deadline. |
 | Gemini via official SDK, server-side only | **PASS** | `server-only` import, matching `src/db/client.ts`. |
 | No Live API model | **PASS** | All four pinned models are `generateContent`-callable and GA. |

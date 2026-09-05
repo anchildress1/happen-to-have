@@ -209,7 +209,8 @@ Recorded here so nobody spends a morning re-deriving them.
 | - | - | - |
 | Does the provider return safety ratings? | No, at any threshold | 16 fixtures, 3 configs |
 | Are the provider's default guardrails sufficient alone? | No — 7 of 8 must-not-publish recordings passed | 16 fixtures |
-| Do default thresholds block the three boolean checks? | No — 6 observations, no blocks, identical verdicts to `BLOCK_NONE` | isolated A/B |
+| Are the provider's adjustable filters on by default? | **No — off by default for these models.** Earlier "defaults vs BLOCK_NONE" comparisons measured the same setting twice | provider docs |
+| What blocks at `BLOCK_NONE`, then? | The non-adjustable core-harm protections, which no setting disables | 16 fixtures |
 | Does Safari's `audio/mp4` work despite being undocumented? | Yes; `audio/m4a` also works for identical bytes | direct test |
 | Does a 60-second recording fit inline? | Yes — 250–530 KB against a 20 MB ceiling | measured |
 | Does raising the model tier fix the crisis miss? | No. The wording is the lever | tested on Flash |

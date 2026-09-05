@@ -140,12 +140,7 @@ recording as text and is the call the filter trips; the judgment call emits bool
 never been observed blocking. Merging them means one block destroys every verdict
 ([research D2](../research.md)).
 
-### Safety configuration — not uniform across calls
-
-The two kinds of call fail in opposite directions, so they are configured differently
-([research D3](../research.md)).
-
-**Content processing — never block:**
+### Safety configuration — identical on both calls
 
 ```ts
 safetySettings: [
@@ -156,18 +151,17 @@ safetySettings: [
 ].map(category => ({ category, threshold: HarmBlockThreshold.BLOCK_NONE }))
 ```
 
-Its output reproduces the recording as text, so it is the call the filter actually trips — the
-spike saw it return an empty candidate on two fixtures even at `BLOCK_NONE`. A block returns no
-reason and no ratings, and retry cannot recover it, so a false positive would make a lawful
-recording permanently unpublishable.
+Set **explicitly on both calls**, not omitted. The provider documents these four adjustable
+filters as off by default for the models in use, so this changes nothing today — it stops the
+gate moving if that default ever changes ([research D3](../research.md)).
 
-**The judgment call — pass no `safetySettings` at all.** The provider's defaults stay in force.
-Across 22 observations at both settings, including on the two recordings that block content
-processing every time, it has never returned an empty candidate. The threshold has no measured
-effect there, so the setting is omitted rather than asserted.
+**This does not stop every block.** The provider's non-adjustable protections against core harms
+stay active at every setting this system can send, and empty candidates were observed on two
+fixtures *at* `BLOCK_NONE`. That is not something to configure away; it is handled as a fault
+(FR-008b1) and is the reason the two calls are split at all ([research D2](../research.md)).
 
-**Neither configuration produces safety ratings.** No code may read `candidate.safetyRatings`; the
-field does not exist on this path at any threshold ([research D3](../research.md)).
+**No safety ratings are produced at any configuration.** No code may read
+`candidate.safetyRatings`; the field does not exist on this path.
 
 Both calls set `temperature: 0` and a `responseSchema`.
 
@@ -224,7 +218,8 @@ evidence rather than a latency argument (constitution, Application Stack).
 
 One call, three verdicts, plus the failing signal and an audio-quality report. Receives the
 question text alongside the audio for an answer (FR-006); for a question, relevance is returned
-as `null` rather than the system making another call (FR-003).
+as `null` rather than the system making another call (FR-003). Same safety configuration as
+content processing — see above.
 
 Response schema:
 
@@ -297,7 +292,7 @@ defeated an earlier wording and that a higher model tier did **not** fix
 relevance rejected on-topic answers for being unlawful, which selects the wrong Withheld copy.
 
 **Measured**: 15/16 on the three verdicts, **16/16 on `primaryReason`**, zero blocked responses,
-1148 ms median. The one miss was a relevance false-negative on a recording the illegal judgment
+1148 ms median — including on the two recordings that block content processing every time. The one miss was a relevance false-negative on a recording the illegal judgment
 already refused, so the outcome and the copy were both still correct.
 
 ⚠️ `audioQuality` returned `clear` on all 16 fixtures because all 16 are clear recordings. Its
@@ -318,7 +313,7 @@ A `fault` is any of:
 | - | - |
 | Network error or non-2xx | provider outage is not a participant rejection (FR-038) |
 | Timeout at 20 s | same |
-| Response with **no candidate** | measured as inconsistent for identical audio; a gate that flips on provider weather is not a gate ([research D3](../research.md)) |
+| Response with **no candidate** | the provider's non-adjustable core-harm protections stay active at every configurable setting, so this is permanent rather than tunable. It carries no reason, so reading a verdict from it manufactures one from silence ([research D3](../research.md)) |
 | `response.text` undefined | observed twice in the spike |
 | JSON parse failure | FR-036 |
 | Zod validation failure | FR-037 — unvalidated output reaches neither storage nor interface |

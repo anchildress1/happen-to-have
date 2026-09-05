@@ -165,7 +165,7 @@ Verified 2026-09-04:
   Gemini safety filter accepts HARM_CATEGORY_{HARASSMENT,HATE_SPEECH,SEXUALLY_EXPLICIT,
   DANGEROUS} as request-side thresholds. No self-harm or crisis category exists.
   CORRECTED 2026-09-05 by live measurement: it does NOT return ratings. `safetyRatings` is
-  absent from the response at BLOCK_NONE, at default thresholds, and with no safety config.
+  absent from the response at BLOCK_NONE and with no safety config supplied.
   The 2026-09-04 entry was read from documentation and never called.
   Node 24 (Krypton) Active LTS through 2026-10-20, maintenance to 2028-04-30.
 
@@ -233,8 +233,10 @@ wrong about crisis too, so that result MUST NOT remove the participant's ability
     reports audio quality and names the failing signal.
   A question runs the same two calls; relevance is null rather than a third call.
 - The provider's own safety signal MUST NOT be treated as one of these checks. It returns no
-  ratings to read, and at its default thresholds it passed 7 of 8 must-not-publish recordings
-  in the 002 spike. It is not a guardrail this product may rely on.
+  ratings to read, and its four adjustable filters are off by default for the models in use, so
+  nothing screens a contribution unless this product screens it. The non-adjustable core-harm
+  protections that remain active are silent, unconfigurable, and cannot be read as a verdict.
+  None of it is a guardrail this product may rely on.
 - A provider response carrying no candidate MUST be treated as a fault that retries under the
   rule above, never as a rejection and never resolved from another check's verdict. Reading a
   decision out of an absent response manufactures a verdict from silence, and the same audio

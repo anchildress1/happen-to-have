@@ -107,38 +107,48 @@ trusted — tracked in [quickstart.md](quickstart.md).
 
 ---
 
-## D3 — `BLOCK_NONE` on content processing; provider defaults on the judgment call
+## D3 — `BLOCK_NONE` explicitly on both calls, and an empty candidate is always a fault
 
-**Decision**: content processing sets all four harm categories to `BLOCK_NONE`. The judgment call
-passes no `safetySettings` and runs at the provider's defaults. Any response with no candidate is
-a fault and retries under D6 — never a verdict.
+**Decision**: both calls set all four adjustable harm categories to `BLOCK_NONE`, explicitly. Any
+response with no candidate is a fault and retries under D6 — never a verdict.
 
-**Rationale**: the two calls fail in opposite directions, which is the same reason D2 splits them.
+**Rationale**: this decision was rewritten after review caught that its premise was wrong.
 
-*Content processing* reproduces the recording as text, so it is the call the filter trips. It
-returned an empty candidate on two fixtures **even at `BLOCK_NONE`**. A block returns no reason
-and no ratings and retry cannot recover it, so a false positive would make a lawful recording
-permanently unpublishable. Never-block is the only setting that keeps a lawful recording reachable
-by this system's own judgment.
+Google documents the four adjustable filters as **off by default** for Gemini 2.5 and 3
+(<https://ai.google.dev/gemini-api/docs/safety-settings>). Earlier drafts of this document argued
+a split configuration — `BLOCK_NONE` on content processing, "provider defaults" on the judgment
+call — and cited measurements showing no difference between them. Of course there was none:
+**they are the same configuration.** Passing no `safetySettings` does not select a lenient filter;
+it selects no filter. The comparison measured nothing.
 
-*The judgment call* emits booleans and a short reason. Across 22 observations at both default
-thresholds and `BLOCK_NONE` — including on the two recordings that block content processing every
-time — **it has never once returned an empty candidate**. The threshold setting has no measured
-effect on it, so defaults are kept: costless, and conservative if the provider's behaviour ever
-changes, since a block there can only withhold a permit and never grant one.
+With that understood the design simplifies. There is one sensible setting, it is the same on both
+calls, and it is written **explicitly** rather than relied on as a default: a default that is
+documented today can change, and this product's gate should not move when it does.
+
+**The blocking that remains is not ours to configure.** `firearm-no-permit` and `drug-synthesis`
+returned empty candidates *at* `BLOCK_NONE`. That cannot be an adjustable filter, because those
+were off. Google documents non-adjustable protections against core harms as permanently active
+regardless of settings. So an empty candidate is a permanent possibility that no configuration
+removes, which is exactly why FR-008b1 handles it as a fault rather than trying to tune it away —
+and why D2 splits content processing from the judgment call in the first place.
 
 **Alternatives considered**:
 
-- *`BLOCK_NONE` everywhere* — defensible and equally safe. Rejected only because it is a setting
-  with no measured effect on that call, and one config line fewer is one fewer thing to explain.
-- *Defaults everywhere* — costs content processing its transcript on recordings this system is
-  required to judge, with no reason returned and no retry path.
-- *Treat an empty candidate as illegal* — attractive, and wrong. The same audio produced a
-  candidate on one run and not on another.
+- *A split configuration* — what this decision previously said. Rejected: the two halves of the
+  split were identical, so it was complexity describing a distinction that does not exist.
+- *Omitting `safetySettings` entirely* — identical behaviour today, and silently different if
+  Google changes the default. Explicit costs one constant.
+- *Enabling the adjustable filters* (`BLOCK_MEDIUM_AND_ABOVE` or similar) — **never tested**. It
+  would make the judgment call block on exactly the recordings it is meant to judge, converting a
+  clean refusal into an empty candidate that exhausts into processing failure. Actively harmful
+  for this design, so it was not pursued.
+- *Treat an empty candidate as illegal* — attractive, and wrong. It carries no reason, and a
+  non-adjustable protection firing is not a verdict this system made.
 
-**Correction**: an earlier draft justified defaults on the judgment call as "a free backstop
-against our own false negative." That was wrong — the filter never fires there, so it backstops
-nothing. Defaults are kept because they are inert, not because they protect anything.
+**Corrections recorded**: two earlier claims in this decision were wrong and are retracted rather
+than quietly edited. The first said provider defaults gave "a free backstop against our own false
+negative" — they gave nothing, because nothing was on. The second presented defaults and
+`BLOCK_NONE` as a measured trade-off — they are the same setting.
 
 ---
 
