@@ -11,6 +11,12 @@
   --bg: #fafaf7;
   --ink: #14201a;
   --green: #2e7d4f;
+  /*
+   * Display headings only. --green reads too light at 58-84px and competes with the
+   * primary button, which is the same value; --ink at 16:1 reads as a black slab.
+   * 7.14:1 on --bg, so it clears AA for normal text, not just large.
+   */
+  --green-deep: #24603c;
   --green-hover: #286f46;
   --green-85: rgba(46, 125, 79, 0.85);
   --green-18: rgba(46, 125, 79, 0.18);
@@ -31,7 +37,7 @@
   /*
    * Type — two families, split by origin rather than by size.
    *
-   * --font-display is Sour Gummy at weight 600, loaded in app/layout.tsx. It sets
+   * --font-display is Sour Gummy at weight 500, loaded in app/layout.tsx. It sets
    * the product name and display chrome.
    *
    * --font-sans carries every string a participant wrote, at any size, because
@@ -44,7 +50,13 @@
    */
   --font-display: var(--font-sour-gummy), system-ui, sans-serif;
   --font-sans: var(--font-source-sans), system-ui, sans-serif;
-  --weight-display: 600;
+  --weight-display: 500;
+  /*
+   * Sour Gummy's wdth axis (100-125), applied wherever --font-display is set. Widening
+   * the axis is not the same as loosening letter-spacing: this stretches the letterforms,
+   * rather than leaving thin glyphs adrift in extra gaps.
+   */
+  --width-display: 115%;
   --weight-medium: 500;
 }
 

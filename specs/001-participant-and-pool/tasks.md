@@ -88,7 +88,7 @@ and every later spec builds on. **No user story can start until this phase compl
 
 ### Design system
 
-- [ ] T034 [P] Load **Sour Gummy** (display, weight 600) and **Source Sans 3** (everything else, variable) via `next/font/google` in `app/layout.tsx`, and nothing else. Do not add `font-variant-numeric: tabular-nums` to the timer — Google strips GSUB features from its subsets, so it is a no-op, and Source Sans 3's digits are already monospaced (research D13)
+- [ ] T034 [P] Load **Sour Gummy** (display, variable wght + wdth) and **Source Sans 3** (everything else, variable) via `next/font/google` in `app/layout.tsx`, and nothing else. Do not add `font-variant-numeric: tabular-nums` to the timer — Google strips GSUB features from its subsets, so it is a no-op, and Source Sans 3's digits are already monospaced (research D13)
 - [ ] T035 [P] Define every colour and type token from [contracts/design.md](contracts/design.md) as CSS custom properties on `:root` in `src/ui/tokens.css`
 - [ ] T036 [P] Build `src/ui/Button.tsx` with `primary` and `ghost` variants at 56px and 52px min-height, and a **visible `:focus-visible` ring** — `all: unset` strips the default outline and that is the one accessibility regression this design introduces if copied literally
 - [ ] T037 [P] Build `src/ui/AppHeader.tsx` with contextual left and right slots, rendering the Arrival-mobile (right only) and default (name + `Yours`) variants

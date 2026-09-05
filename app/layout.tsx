@@ -3,18 +3,21 @@ import { Sour_Gummy, Source_Sans_3 } from 'next/font/google';
 import type { ReactNode } from 'react';
 import '../src/ui/tokens.css';
 
-// Sour Gummy carries the product name and display chrome, at weight 600.
+// Sour Gummy carries the product name and display chrome, at weight 500.
 //
 // Participant content is deliberately NOT set in it, even at display sizes: 002
 // translates contributions, and Sour Gummy ships latin and latin-ext only — no
 // Cyrillic, Greek, Vietnamese, or CJK. Source Sans 3 carries every string a
 // participant wrote, whatever its size. The split is by origin, not type scale.
 //
-// It is a variable family (wght 100-900, wdth 100-125). Only 600 is requested, so
-// only that instance ships; the width axis goes unused.
+// It is a variable family (wght 100-900, wdth 100-125). Both axes ship live: `axes`
+// is rejected unless weight is 'variable', and the width axis is worth it — it widens
+// the glyphs themselves, where letter-spacing only pushes them apart. --weight-display
+// and --width-display pick the instance in tokens.css.
 const sourGummy = Sour_Gummy({
   subsets: ['latin'],
-  weight: '600',
+  weight: 'variable',
+  axes: ['wdth'],
   variable: '--font-sour-gummy',
   display: 'swap',
 });

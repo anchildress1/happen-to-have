@@ -59,6 +59,7 @@ Define once as CSS custom properties on `:root`. Values verbatim from the design
 | `--bg` | `#FAFAF7` | Page background, every screen |
 | `--ink` | `#14201A` | Primary text |
 | `--green` | `#2E7D4F` | Primary action, accent, watermark |
+| `--green-deep` | `#24603c` | Display headings (7.14:1 on `--bg`) |
 | `--green-hover` | `#286f46` | Primary button hover |
 | `--green-85` | `rgba(46,125,79,.85)` | Tagline |
 | `--green-18` | `rgba(46,125,79,.18)` | Strong divider, resource-list rules |
@@ -84,21 +85,31 @@ Define once as CSS custom properties on `:root`. Values verbatim from the design
 
 | Role | Family | Weight |
 | - | - | - |
-| Product name, headings, display chrome | **Sour Gummy** | 600 |
+| Product name, headings, display chrome | **Sour Gummy** | 500, width 115% |
 | Participant content, body, UI, buttons, meta | **Source Sans 3** | variable, 400 / 500 in use |
 
-Sour Gummy is a variable family (`wght` 100–900, `wdth` 100–125). Only weight 600 is
-requested, so only that instance ships and the width axis goes unused.
+Sour Gummy is a variable family (`wght` 100–900, `wdth` 100–125), loaded with **both axes
+live** — `next/font/google` rejects `axes` unless `weight` is `variable`. The instance is
+picked in CSS by `--weight-display` (500) and `--width-display` (115%), so changing either is
+a token edit, not a font reload.
 
-**Weight 300 is gone.** The imported design set every display element at weight 300, and
-that thinness was its identity. Display type is now 600 — heavier and denser than the
-mockups, deliberately. Do not try to recover the original feel with a lighter colour or a
-synthetic stroke; both look worse than an honest weight.
+**Widen on the axis, never with letter-spacing.** `font-stretch` stretches the letterforms
+themselves; tracking only pushes thin glyphs further apart, which reads as loose rather than
+wide. Every element that sets `--font-display` sets `font-stretch: var(--width-display)`.
 
-**The watermark moved with it.** The decorative `?` reads `--weight-display`, so it renders at
-600 rather than 300. At 520–760px and 9% opacity that is a visibly heavier glyph. If it
-overpowers the screen, give the watermark its own weight token and load a second instance —
-do not thin it with opacity, which changes the colour relationship the tokens define.
+**Weight 300 is gone.** The imported design set every display element at weight 300, and that
+thinness was its identity. Display type is 500 — heavier than the mockups, deliberately. Do
+not try to recover the original feel with a synthetic stroke.
+
+**Display headings are `--green-deep`, not `--ink`.** At 58–84px, near-black ink reads as a
+black slab (16:1 on `--bg`); `--green` is too light at that size and collides with the primary
+button, which is the same value. `--green-deep` sits between them at 7.14:1 — clearing AA for
+normal text, not just large.
+
+**The watermark tracks the same tokens.** The decorative `?` reads `--weight-display` and
+`--width-display`, so it moves with display type by design. At 520–760px and 9% opacity it is
+the largest thing on the screen; if it ever overpowers, give it its own tokens — do not thin it
+with opacity, which changes the colour relationship the tokens define.
 
 **Participant content does not use Sour Gummy, even at display sizes.** Question text renders at
 34px mobile / 44px desktop, which is display-sized, but it is *participant writing* and 002
@@ -121,7 +132,7 @@ third family.
 
 | Role | Mobile | Desktop |
 | - | - | - |
-| Display XL (product name, unlock) — **Sour Gummy** | `50–58px / .98–1`, w600, `-.025em` | `80–84px / .95–.96`, w600, `-.03em` |
+| Display XL (product name, unlock) — **Sour Gummy** | `50–58px / .98–1`, w500, wdth 115%, `-.025em` | `80–84px / .95–.96`, w500, wdth 115%, `-.03em` |
 | Display L (question, result heading) — **Source Sans 3** | `34px / 1.1–1.15`, w400, `-.02em` | `44px / 1.12`, `-.025em` |
 | Display M (crisis heading, section) — **Source Sans 3** | `30px / 1.14`, w400, `-.02em` | `30px`, w400, `-.02em` |
 | Heading S (question in recorder) | `20px / 1.3`, `-.01em` | `34px / 1.18`, `-.02em` |

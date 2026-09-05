@@ -86,11 +86,12 @@
   margin: 0;
   font-family: var(--font-display);
   font-weight: var(--weight-display);
+  font-stretch: var(--width-display);
   font-size: 58px;
   line-height: 0.98;
   letter-spacing: -0.025em;
   text-wrap: pretty;
-  color: var(--ink);
+  color: var(--green-deep);
 }
 
 @media (min-width: 768px) {

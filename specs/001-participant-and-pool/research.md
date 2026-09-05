@@ -335,7 +335,7 @@ are required (FR-029, FR-030, FR-031). Copy for them is authored in
 
 ## D13: Fonts — Sour Gummy for display, Source Sans 3 for everything else
 
-**Decision**: **Sour Gummy at weight 600** sets the product name and display chrome. **Source Sans 3** sets
+**Decision**: **Sour Gummy at weight 500, width 115%** sets the product name and display chrome. **Source Sans 3** sets
 participant content, body, UI, and meta. Both load through `next/font/google`. Nothing else
 loads.
 
@@ -344,8 +344,10 @@ too narrow for body or participant text, so pairing it is not a preference — i
 family can and cannot do.
 
 **Verified against the Google Fonts metadata API**: Sour Gummy is a variable family with
-`wght` 100–900 and `wdth` 100–125, subsets latin and latin-ext. Only weight 600 is requested,
-so a single instance ships and the width axis is unused.
+`wght` 100–900 and `wdth` 100–125, subsets latin and latin-ext. Both axes are loaded live —
+`next/font/google` rejects `axes` unless `weight` is `variable` — and the instance is chosen
+in CSS by `--weight-display` (500) and `--width-display` (115%). Verified in the built
+stylesheet: the `@font-face` carries `font-weight: 100 900; font-stretch: 100% 125%`.
 
 **Two consequences worth stating plainly, because neither is reversible by tuning:**
 
