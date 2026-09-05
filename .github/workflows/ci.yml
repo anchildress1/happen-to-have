@@ -8,10 +8,12 @@ on:
       - "docs/**"
   pull_request:
     types: [opened, reopened, synchronize, ready_for_review]
-    branches: [main]
     paths-ignore:
       - "**/*.md"
       - "docs/**"
+  # Manual runs ignore paths-ignore, which is the point: a docs-only push skips CI, and
+  # this is how you re-run the gate against that commit anyway.
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
