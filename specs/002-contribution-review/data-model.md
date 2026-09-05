@@ -36,7 +36,7 @@ The spec's Key Entity, realised as a request-scoped object.
 
 | Field | Type | Notes |
 | - | - | - |
-| `kind` | `'answer' \| 'question'` | decides the fan-out width (4 vs 3) |
+| `kind` | `'answer' \| 'question'` | the fan-out is two calls either way; this decides only whether `relevanceCanPublish` is evaluated or null |
 | `audio` | `Uint8Array` | the original recording; never copied outside the request |
 | `mimeType` | `string` | as recorded by the browser |
 | `questionText` | `string \| null` | required for `answer`, `null` for `question` (FR-006) |

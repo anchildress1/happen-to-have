@@ -15,8 +15,10 @@ under this document's own policy regardless of the evidence behind it.
     - The merge prohibition is removed for the judgments and RETAINED for content processing.
       The line is the provider's fault behaviour, not a category scheme.
     - NEW: the judgment call MUST name the failing signal rather than leaving it inferred.
-    - NEW: a lost transcript may borrow the judgment call's audio-quality report to select
-      Withheld copy, but can never publish.
+    - NEW: the judgment call's audio-quality report may select Withheld copy where content
+      processing refused without a reason. A lost content result is a processing failure, never
+      a Withheld — the participant is not told their recording was unusable because the provider
+      blocked it.
 
 Evidence (docs/spike-002-guardrails.md, 002 fixture set, 2026-09-05):
   - A single fully merged call scored 14/16 but lost ALL judgments on the two recordings the
@@ -260,9 +262,10 @@ wrong about crisis too, so that result MUST NOT remove the participant's ability
   and suppress further retries and late results. Publication waits for every applicable YES.
 - A YES is kept for the active submission. Only a timed-out, failed, or schema-invalid call
   retries independently, and only while no signal has rejected the submission.
-- Where content processing is lost to a provider block but the judgment call returned, the
-  judgment call's audio-quality report MAY select the Withheld copy. Publication still requires
-  content processing to have succeeded — a lost transcript can never publish.
+- Where content processing refuses without stating why, the judgment call's audio-quality report
+  MAY select which Withheld copy renders. It MUST NOT convert a lost content result into a
+  Withheld outcome: if content processing never returns and nothing else refused, the outcome is
+  processing failure. Blaming the participant for a provider-side block is forbidden.
 - Withheld is one outcome with a reason: crisis, illegal/dangerous, relevance, or content.
   If multiple rejections are already known at resolution, use that precedence for presentation;
   do not delay Withheld to wait for unfinished checks.

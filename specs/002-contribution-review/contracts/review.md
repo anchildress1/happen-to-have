@@ -99,9 +99,10 @@ The provider bills **32 tokens per second of audio**, independent of encoding �
 recording is ~1,920 audio tokens regardless of whether it arrives as 250 KB of Opus or 530 KB of
 AAC. Measured: a 15-second clip produced 457 prompt tokens including the system instruction.
 
-So a 60-second answer costs roughly **2,070 input tokens per call, ~8,300 across the four-call
-fan-out**, before retries. Compression choices do not change the bill; duration does. This is the
-basis for the cost budget in [quickstart.md](../quickstart.md).
+So a 60-second contribution costs roughly **2,170 input tokens on the content call and ~2,320 on
+the judgment call — ~4,500 across the two-call fan-out**, before retries. Compression choices do
+not change the bill; duration does. This is the basis for the cost budget in
+[quickstart.md](../quickstart.md).
 
 ### What rejection looks like
 
@@ -286,10 +287,11 @@ Example: Q "How do I start deer hunting?" A "Buy a gun illegally." -> true. On t
 <output>JSON matching the schema.</output>
 ```
 
-The `<never>` lines are not decoration. The crisis block's fourth example is the case that
-defeated an earlier wording and that a higher model tier did **not** fix
-([research D4](../research.md)). The relevance block's third example is FR-008g: without it,
-relevance rejected on-topic answers for being unlawful, which selects the wrong Withheld copy.
+The `Do NOT` lines are not decoration. The crisis block's **last** example — *"How do you know
+when it's time to stop trying?"* — is the case that defeated an earlier wording and that a higher
+model tier did **not** fix ([research D4](../research.md)). The relevance block's example, where
+an unlawful answer is still judged relevant, is FR-008g: without it, relevance rejected on-topic
+answers for being unlawful and selected the wrong Withheld copy.
 
 **Measured**: 15/16 on the three verdicts, **16/16 on `primaryReason`**, zero blocked responses,
 1148 ms median — including on the two recordings that block content processing every time. The one miss was a relevance false-negative on a recording the illegal judgment
@@ -333,7 +335,7 @@ did nothing wrong and the copy must not imply otherwise (FR-040).
                     ┌──────────────────┐   ┌────────────────────────────────┐
   original audio ──►│ content          │   │ judgment                       │
                     │ Flash            │   │ Flash-Lite                     │
-                    │ BLOCK_NONE       │   │ defaults                       │
+                    │ BLOCK_NONE       │   │ BLOCK_NONE                     │
                     │ text + publishable│  │ crisis · illegal · relevance   │
                     └────────┬─────────┘   │ + primaryReason + audioQuality │
                              │             └───────────────┬────────────────┘
@@ -357,9 +359,14 @@ Rules, in force order:
    never publish, whatever the judgment call returned.
 2a. **The reason comes from the judge.** When the judgment call refuses, `withheld.reason` is its
    `primaryReason` field, not a value reconstructed from which boolean flipped (FR-008e).
-2b. **A lost transcript may still pick copy.** If content processing exhausts on empty candidates
-   while the judgment call returned, its `audioQuality` selects among the content Withheld
-   variants (FR-008h). This changes the message, never the decision.
+2b. **A lost transcript is a failure, not a Withheld.** If content processing exhausts while the
+   judgment call permitted everything, the outcome is `failed` (FR-040) — nothing refused, and the
+   system does not know whether the recording was publishable. If the judgment call *refused*,
+   fail-fast already resolved Withheld on that refusal and content processing is irrelevant.
+   `audioQuality` never rescues a lost transcript; its only job is rule 2c.
+2c. **A refusal without a stated reason falls back to `audioQuality`.** Where content processing
+   refuses but returns no `contentReason`, the judgment call's `audioQuality` selects the content
+   variant (FR-008h). This changes the message, never the decision.
 3. **Precedence is for copy only.** Among refusals *already known* at resolution, order is
    **crisis → illegal → relevance → content**. The gate never waits for an unfinished check to
    discover a better reason (FR-022, edge case *Multiple known rejections*).

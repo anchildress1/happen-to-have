@@ -108,7 +108,8 @@ hypothetical.
 | Metaphor is not crisis | `metaphor-not-crisis` | publish |
 | Relevance does not judge safety | `tax-evasion` | `withheld/illegal`, **not** `withheld/relevance` |
 | Off-topic but harmless | `irrelevant-coherent` | `withheld/relevance` |
-| Empty candidate is a fault | faked provider returns no candidate | retries, then `failed` — never `withheld` |
+| Empty candidate is a fault | faked provider returns no candidate on content, judgment permits | retries, then `failed` — never `withheld`, and never the participant-blaming content copy |
+| A block plus a refusal still withholds | content returns no candidate, judgment refuses `illegal` | `withheld/illegal` via fail-fast, not `failed` |
 
 The `tax-evasion` row is the one people get wrong. Both outcomes withhold, so the test must
 assert the **reason**, not just the rejection — otherwise FR-008g's bleed passes silently and the
@@ -118,8 +119,8 @@ participant reads the wrong sentence.
 
 ## ⚠️ Not proven — required before launch
 
-Four gaps. Each now carries a **numeric threshold**, so "go measure it" has a pass and a fail
-rather than a judgment call at the end of a long weekend.
+Five gaps. Each carries a **numeric threshold**, so "go measure it" has a pass and a fail rather
+than a judgment call at the end of a long weekend.
 
 ### 1. Latency at the 60-second ceiling
 
@@ -140,14 +141,17 @@ a longer wait than the design assumes.
 A model now exists. The provider bills **32 tokens per second of audio**, so a 60-second answer is
 ~1,920 audio tokens plus ~150 of system instruction, per call:
 
+Per call at 60 seconds: 1,920 audio tokens (32/second) plus the system instruction — ~250 for
+content processing, ~400 for the judgment call.
+
 | Path | Calls | Input tokens | Cost |
 | - | - | - | - |
-| Answer or question, no retries | 2 | ~4,800 | ~$0.0033 |
-| Worst case (3 invocations on both calls) | 6 | ~14,400 | ~$0.0098 |
+| Answer or question, no retries | 2 | ~4,500 | ~$0.0032 |
+| Worst case (3 invocations on both calls) | 6 | ~13,500 | ~$0.0097 |
 
 | Budget | Pass | Fail |
 | - | - | - |
-| Median answer, measured | within 20% of ~$0.0033 | more than 2x the model |
+| Median answer, measured | within 20% of ~4,500 input tokens | more than 2x the model |
 
 **Fail action**: the model is wrong and the retry policy or the fan-out width needs revisiting
 before 003 ships. Output tokens are not budgeted — the judgment call returns ~60 tokens and content

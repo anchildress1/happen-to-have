@@ -29,7 +29,7 @@ Must announce via `aria-live` (design.md accessibility, and its 002 test obligat
 
 ---
 
-## Withheld — the five content variants (FR-024, FR-025, FR-026)
+## Withheld — the five reason variants (FR-024, FR-025, FR-026)
 
 One shared page for every rejection reason (FR-024). The sub-line is identical across all five;
 only the heading changes.
@@ -59,14 +59,19 @@ can distinguish them, which is why the field exists rather than being inferred a
 A rejection that arrives without a `contentReason` — a schema-valid model response that omitted it
 — falls back to `unpublishable`, which is true of all three.
 
-**When content processing was lost to a provider block**, there is no `contentReason` at all. The
-judgment call's `audioQuality` selects instead (FR-008h): `silent` → the first row,
-`unintelligible` → the second, `clear` → the third. This changes the message only; a lost
-transcript never publishes.
+**When content processing refused but returned no `contentReason`**, the judgment call's
+`audioQuality` selects instead (FR-008h): `silent` → the first row, `unintelligible` → the second,
+`clear` → the third. This changes the message only.
 
-⚠️ That mapping is unexercised — every fixture is a clear recording, so `silent` and
-`unintelligible` have never been produced. Until they are, prefer the third row
-([quickstart.md](../quickstart.md)).
+**A lost content result is not this case.** Where content processing never returned at all — a
+provider block that exhausted its retries — the outcome is *processing failed*, not Withheld. Its
+copy is in the Processing failed section below, and it correctly puts the fault on this system's
+side. Rendering `That recording can't be shared here` for a provider-side block would blame the
+participant for something they did not do, which FR-040 forbids.
+
+⚠️ The `silent` and `unintelligible` values are unexercised — every fixture is a clear recording,
+so neither has ever been produced. Until they are, a refusal without a `contentReason` renders the
+third row ([quickstart.md](../quickstart.md)).
 
 FR-027 governs tone: short, non-argumentative, and never explaining, justifying, or debating the
 decision. None of these strings tells the participant what they did.

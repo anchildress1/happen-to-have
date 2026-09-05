@@ -90,14 +90,14 @@ records MP4/AAC and Chrome records WebM/Opus, and `audio/mp4` was verified as ac
 being absent from the provider's published list. Rejects below 1 KB or above 5 MB; a 60-second
 recording measures 250–530 KB against a 20 MB inline ceiling.
 
-**Runtime** ([research D14](research.md)): ~3 MB of audio in flight per submission across the
-four copies, so Cloud Run per-instance concurrency must be bounded against instance memory. The
+**Runtime** ([research D14](research.md)): ~1.5 MB of audio in flight per submission across the
+two copies, so Cloud Run per-instance concurrency must be bounded against instance memory. The
 service's request timeout must exceed the 90 s deadline and is asserted in `deploy.sh`, not
 assumed. A provider `429` is a fault that retries — never this system's own rate limit, and never
 that message.
 
-**Scale/Scope**: weekend challenge scale. One module, four screens, one table, four provider
-calls per answer and three per question.
+**Scale/Scope**: weekend challenge scale. One module, four screens, one table, two provider
+calls per contribution.
 
 ## Constitution Check
 
@@ -121,7 +121,7 @@ after Phase 1 design; result unchanged.
 | Content processing never merged into the judgment call | **PASS** | FR-008a — it is the call the provider blocks ([research D2](research.md)). |
 | The judgment call names the failing signal | **PASS** | FR-008e — measured 16/16, not reconstructed from booleans. |
 | Illegal-or-dangerous is judged, never read from provider metadata | **PASS** | FR-008c as amended; the free-ratings premise was falsified. |
-| Crisis check exists regardless of moderation | **PASS** | FR-008d, and the spike showed defaults passing every crisis case. |
+| Crisis judgment exists regardless of moderation | **PASS** | FR-008d — no provider category covers self-harm, adjustable or otherwise, and every crisis fixture transcribed clean. |
 | Crisis catches understated phrasing | **PASS** | FR-008f carried into the system instruction ([research D4](research.md)). ⚠️ prompt is fitted to its own failing case — see Complexity Tracking. |
 | Relevance does not judge safety | **PASS** | FR-008g, [research D5](research.md). |
 | Empty candidate treated as fault, not verdict | **PASS** | FR-008b1, [research D3](research.md). |
@@ -129,10 +129,10 @@ after Phase 1 design; result unchanged.
 | Non-adjustable blocks handled as faults, not verdicts | **PASS** | FR-008b1 — they survive every configurable setting and carry no reason. |
 | Fan-out dispatched in parallel | **PASS** | [research D13](research.md) — sequential, two exhausting calls would exceed the 90 s deadline. |
 | Gemini via official SDK, server-side only | **PASS** | `server-only` import, matching `src/db/client.ts`. |
-| No Live API model | **PASS** | All four pinned models are `generateContent`-callable and GA. |
+| No Live API model | **PASS** | Both pinned models are `generateContent`-callable and GA. |
 | Secrets from Secret Manager / gitignored `.env` | **PASS** | `HTH_GEMINI_API_KEY`; `GEMINI_API_KEY` already in `.env.example`. |
 
-**Result: gates pass; three measurements outstanding.** These are planning checks. Latency at
+**Result: gates pass; five measurements outstanding.** These are planning checks. Latency at
 60 s, cost per contribution, and the crisis prompt against untuned recordings are unproven and
 tracked in [quickstart.md](quickstart.md).
 

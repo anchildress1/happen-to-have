@@ -36,7 +36,7 @@
 - [x] Provider names, schemas, and column lists deliberately excluded (constitution + plan own those)
 - [x] Shared ownership is identified; cross-flow enforcement references its owning spec
 
-## Constitution Alignment (v2.2.0)
+## Constitution Alignment (v3.0.0)
 
 | Principle | Covered by |
 |-----------|------------|

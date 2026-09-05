@@ -53,12 +53,12 @@ endpoints that call this module ([research D10](research.md)).
 
 - [ ] T006 Create `src/review/client.ts` with `import 'server-only'`, a lazily constructed `GoogleGenAI` from `process.env.GEMINI_API_KEY`, and a thrown error naming the missing variable — mirroring `src/db/client.ts`
 - [ ] T007 Export a `GenAiClient` interface from `src/review/client.ts` narrow enough for tests to implement, following the `SqlClient` seam 001 established ([research D12](research.md))
-- [ ] T008 [P] Define the `BLOCK_NONE` safety-settings constant in `src/review/client.ts` for the content call only, and document that the three boolean checks pass no `safetySettings` so the provider's defaults stay in force ([research D3](research.md)); add a comment that ratings are never returned at any threshold and `candidate.safetyRatings` must not be read
+- [ ] T008 [P] Define one `BLOCK_NONE` safety-settings constant in `src/review/client.ts` covering all four adjustable categories, applied to **both** calls ([research D3](research.md)); document that the provider ships these filters off by default so the setting is explicit rather than inherited, that ratings are never returned at any threshold, and that `candidate.safetyRatings` must not be read
 
 ### Validation
 
-- [ ] T009 [P] Create `src/review/schemas.ts` with `contentResultSchema` (`canPublish`, `displayText` 1–2000, `sourceLanguage`, nullable `emotion`, nullable `contentReason` enum) and `booleanCheckSchema` (`canPublish`), per [data-model.md](data-model.md)
-- [ ] T010 [P] Define the `CheckResult`, `ContentPayload`, `ActiveSubmission`, and `ReviewOutcome` types in `src/review/types.ts` as discriminated unions, so a caller cannot read `displayText` off a rejection
+- [ ] T009 [P] Create `src/review/schemas.ts` with `contentResultSchema` (`canPublish`, `displayText` 1–2000, `sourceLanguage`, nullable `emotion`, nullable `contentReason` enum) and `judgmentResultSchema` (`crisisCanPublish`, `illegalCanPublish`, nullable `relevanceCanPublish`, `audioQuality` enum, `primaryReason` enum, `reasonDetail`), per [data-model.md](data-model.md) — FR-036 requires every field validated before use
+- [ ] T010 [P] Define the `CheckResult`, `ContentPayload`, `JudgmentPayload`, `ActiveSubmission`, and `ReviewOutcome` types in `src/review/types.ts` as discriminated unions, so a caller cannot read `displayText` off a rejection
 - [ ] T011 [P] Unit-test `src/review/schemas.ts` in `tests/unit/review-schemas.test.ts`: valid payloads parse, `emotion: null` is accepted, over-length `displayText` and missing `canPublish` are rejected
 
 ### Bounded retry and deadline
@@ -66,7 +66,7 @@ endpoints that call this module ([research D10](research.md)).
 - [ ] T012 Create `src/review/retry.ts` exposing a `runCheck` wrapper: at most 3 invocations, 20-second per-invocation timeout, waits of 1s then 2s, honouring an `AbortSignal` (FR-039)
 - [ ] T013 Classify faults in `src/review/retry.ts` — network error, timeout, **no candidate**, undefined `response.text`, JSON parse failure, Zod failure — and return `outcome: 'fault'` for each, never `'refuse'` ([contracts/review.md](contracts/review.md))
 - [ ] T014 [P] Unit-test bounded retry in `tests/unit/review-retry.test.ts`: exactly 3 invocations before exhaustion, 1s/2s backoff, timeout at 20s, abort mid-flight stops further attempts
-- [ ] T015 [P] Unit-test in `tests/unit/review-retry.test.ts` that an empty-candidate response retries as a fault and never resolves to a rejection, for a default-threshold check as well as the content call (FR-008b1)
+- [ ] T015 [P] Unit-test in `tests/unit/review-retry.test.ts` that an empty-candidate response retries as a fault and never resolves to a rejection, for the judgment call as well as content processing — the non-adjustable protections apply to both (FR-008b1)
 
 ### Rate limiting
 
@@ -96,17 +96,17 @@ endpoints that call this module ([research D10](research.md)).
 - [ ] T023 [P] [US1] Integration-test the answer fan-out in `tests/integration/review-fanout.test.ts` with a faked client: exactly two calls, each receiving the original audio, neither receiving the other's output (FR-004, FR-005)
 - [ ] T024 [P] [US1] Integration-test the question fan-out in `tests/integration/review-fanout.test.ts`: still exactly two calls, with `relevanceCanPublish` returned as null rather than a third call (FR-003)
 - [ ] T025 [P] [US1] Unit-test the gate in `tests/unit/review-gate.test.ts`: publishes only when every applicable check permits; a missing result is not a permit (FR-019)
-- [ ] T026 [P] [US1] Contract-test each prompt module in `tests/unit/review-prompts.test.ts`: every system instruction carries its `<never>` block, and content processing forbids adding advice or altering substance
+- [ ] T026 [P] [US1] Contract-test both prompt modules in `tests/unit/review-prompts.test.ts`: content processing carries its `<never>` block and forbids adding advice or altering substance; the judgment prompt carries a `Do NOT` line in each of its `<crisis>`, `<illegal>` and `<relevance>` sections. Assert the constraints, not a tag name — the two prompts are structured differently on purpose
 
 ### Implementation for User Story 1
 
-- [ ] T027 [P] [US1] Write `src/review/prompts/content.ts` with the system instruction and response schema from [contracts/review.md](contracts/review.md), on `gemini-3.8-flash`, `temperature: 0`, applying the `BLOCK_NONE` settings — this is the only call that overrides the provider's thresholds (FR-008b)
-- [ ] T028 [P] [US1] Write `src/review/prompts/judgment.ts` on `gemini-3.5-flash-lite` with no `safetySettings`, carrying all three judgments plus `primaryReason` and `audioQuality`, verbatim from [contracts/review.md](contracts/review.md) — every `<never>` line is load-bearing and measured (FR-008a1, FR-008e, FR-008h)
+- [ ] T027 [P] [US1] Write `src/review/prompts/content.ts` with the system instruction and response schema from [contracts/review.md](contracts/review.md), on `gemini-3.8-flash`, `temperature: 0`, applying the shared `BLOCK_NONE` settings (FR-008b)
+- [ ] T028 [P] [US1] Write `src/review/prompts/judgment.ts` on `gemini-3.5-flash-lite` with the same `BLOCK_NONE` settings as content processing, carrying all three judgments plus `primaryReason` and `audioQuality`, verbatim from [contracts/review.md](contracts/review.md) — every `Do NOT` line is load-bearing and measured (FR-008a1, FR-008e, FR-008h)
 - [ ] T029 [P] [US1] Unit-test in `tests/unit/review-judgment.test.ts` that `primaryReason` is read from the response and never reconstructed from which boolean flipped (FR-008e)
 - [ ] T030 [P] [US1] Unit-test in `tests/unit/review-judgment.test.ts` that `reasonDetail` never reaches a rendered component — it is a log field, and FR-027 fixes every participant-facing string
 - [ ] T031 [US1] Create `src/review/gate.ts` implementing unanimity to publish and the crisis → illegal → relevance → content precedence for reason selection only (FR-022)
 - [ ] T032 [US1] Create `src/review/index.ts` exporting `reviewContribution()`, ordering rate limit → cheap audio validation → fan-out → aggregate → release, per [contracts/review.md](contracts/review.md)
-- [ ] T033 [US1] Enforce the audio input contract in `src/review/index.ts` before any provider call — mime allowlist, 1 KB floor, 5 MB ceiling — resolving `withheld/content` with `contentReason: 'silence'`, never throwing and never processing failure ([contracts/review.md](contracts/review.md), FR-050)
+- [ ] T033 [US1] Enforce the audio input contract in `src/review/index.ts` before any provider call — mime allowlist, 1 KB floor, 5 MB ceiling — resolving `withheld/content`, never throwing and never processing failure. Map the cause to the right `contentReason`: below the floor is `silence`, an unreadable or disallowed container is `unintelligible`, above the ceiling is `unpublishable`. A 6 MB upload must not tell the participant nothing was audible ([contracts/review.md](contracts/review.md), FR-050)
 - [ ] T033a [P] [US1] Unit-test the input contract in `tests/unit/review-audio-input.test.ts`: each allowed mime accepted, a disallowed one rejected, and both size bounds enforced without a provider call
 - [ ] T034 [US1] Throw on programmer error in `src/review/index.ts` — `kind: 'answer'` with a null `questionText` — while returning `failed` rather than throwing for any provider outcome
 - [ ] T035 [US1] Create `scripts/review-once.ts` running one fixture through the module and printing the outcome, satisfying US1's independent test
@@ -125,7 +125,7 @@ endpoints that call this module ([research D10](research.md)).
 
 ### Tests for User Story 2
 
-- [ ] T038 [P] [US2] E2E-test in `tests/e2e/withheld.spec.ts` that all five content variants render one layout with the correct heading and the shared sub-line
+- [ ] T038 [P] [US2] E2E-test in `tests/e2e/withheld.spec.ts` that all five reason variants — relevance, illegal, and the three content sub-variants — render one layout with the correct heading and the shared sub-line
 - [ ] T039 [P] [US2] E2E-test in `tests/e2e/withheld.spec.ts` that answer retry targets `/answer/record?questionId=<same>` and question retry targets `/ask` (FR-027b)
 - [ ] T040 [P] [US2] Integration-test in `tests/integration/review-reason.test.ts` that an unlawful but on-topic recording resolves `reason: 'illegal'`, **not** `'relevance'` — the [research D5](research.md) bleed
 - [ ] T041 [P] [US2] Unit-test in `tests/unit/review-gate.test.ts` that precedence selects copy only, and never delays resolution to wait for an unfinished check (FR-022)
@@ -173,7 +173,7 @@ endpoints that call this module ([research D10](research.md)).
 
 ### Tests for User Story 4
 
-- [ ] T053 [P] [US4] Integration-test in `tests/integration/review-retry.test.ts` that with three passing checks and one fault, only the failed check is re-invoked, reusing the same audio (US4 scenario 1)
+- [ ] T053 [P] [US4] Integration-test in `tests/integration/review-retry.test.ts` that with one call permitting and the other faulting, only the faulted call is re-invoked, reusing the same audio (US4 scenario 1)
 - [ ] T054 [P] [US4] Integration-test in `tests/integration/review-retry.test.ts` that a passing check is never re-invoked inside the active submission (FR-019)
 - [ ] T055 [P] [US4] Integration-test in `tests/integration/review-retry.test.ts` that a definitive rejection arriving during an in-flight retry resolves Withheld immediately and ignores the late result (FR-022, US4 scenario 3)
 - [ ] T056 [P] [US4] Integration-test in `tests/integration/review-retry.test.ts` that exhaustion and deadline expiry both produce `failed`, never `withheld` (FR-040)
@@ -204,7 +204,7 @@ endpoints that call this module ([research D10](research.md)).
 - [ ] T065 [P] [US5] Integration-test in `tests/integration/audio-lifecycle.test.ts` that aborting the caller's signal mid-fan-out cancels in-flight calls and releases the audio (FR-045)
 - [ ] T066 [P] [US5] Static-assert in `tests/unit/audio-no-storage.test.ts` that `src/review/` contains no bucket client, signed URL, object key, or filesystem write ([research D1](research.md))
 - [ ] T067 [P] [US5] Static-assert in the same test that nothing in `src/review/` reads `candidate.safetyRatings` ([research D3](research.md))
-- [ ] T067a [P] [US5] Static-assert in `tests/unit/review-config.test.ts` that only `prompts/content.ts` passes `safetySettings`, and that the three boolean prompts pass none — the split is easy to "tidy" into uniformity by a later reader (FR-008b)
+- [ ] T067a [P] [US5] Static-assert in `tests/unit/review-config.test.ts` that **both** prompts pass the shared `BLOCK_NONE` settings explicitly, and that neither relies on the provider's default — the filters ship off by default, so an omitted setting looks identical today and diverges silently if that default changes (FR-008b)
 - [ ] T068 [P] [US5] E2E-test in `tests/e2e/audio-lifecycle.spec.ts` that no surface offers review or playback of a participant's own original recording (FR-047)
 
 ### Implementation for User Story 5
@@ -225,7 +225,7 @@ endpoints that call this module ([research D10](research.md)).
 - [ ] T075 [P] E2E-test in `tests/e2e/checking.spec.ts` that the Checking state announces via `aria-live`, per design.md's 002 test obligation
 - [ ] T076 [P] Verify `deploy.sh` already binds `GEMINI_API_KEY` from `${HTH_SECRET_PREFIX}_GEMINI_API_KEY` only when the secret exists (it does, at `deploy.sh:55`); this is a confirmation, not a change
 - [ ] T076a [P] Assert a request timeout greater than 90s for the Cloud Run service in `deploy.sh`; the FR-039 deadline is meaningless if the platform kills the request first ([research D14](research.md))
-- [ ] T076b [P] Bound per-instance concurrency in `deploy.sh` against instance memory — roughly 3 MB of audio is in flight per submission, 27 MB at the 5 MB input ceiling ([research D14](research.md))
+- [ ] T076b [P] Bound per-instance concurrency in `deploy.sh` against instance memory — roughly 1.5 MB of audio is in flight per submission, 14 MB at the 5 MB input ceiling ([research D14](research.md))
 - [ ] T076c [P] Unit-test in `tests/unit/review-faults.test.ts` that a provider `429` is classified as a fault and never renders this system's own rate-limit copy — they are different refusals and must not share a message ([research D14](research.md))
 - [ ] T077 [P] Update `README.md`'s What's next list, checking off 002
 - [ ] T078 Run the `ai-checks` target in `Makefile` and fix every warning; warnings are hard errors under the constitution
@@ -236,7 +236,7 @@ endpoints that call this module ([research D10](research.md)).
 These are the open items from [quickstart.md](quickstart.md). Each is a real gap, not a nicety.
 
 - [ ] T080 Add 60-second recordings to `tests/fixtures/audio/` and measure fan-out latency via `scripts/review-fixtures.ts --timing`. **Pass: median ≤8s and p95 ≤18s.** Above 15s median or 30s p95 breaks SC-001 and forces a revisit of [research D8](research.md) before 003 builds on it
-- [ ] T081 Measure cost per contribution via `scripts/review-fixtures.ts --cost` and record it in `specs/002-contribution-review/quickstart.md`. **Pass: a 60s answer lands within 20% of the ~8,300 input-token model** (32 tokens/second of audio x 4 calls). More than 2x means the model is wrong and the retry policy or fan-out width needs revisiting (SC-012)
+- [ ] T081 Measure cost per contribution via `scripts/review-fixtures.ts --cost` and record it in `specs/002-contribution-review/quickstart.md`. **Pass: a 60s answer lands within 20% of the ~4,500 input-token model** — 1,920 audio tokens per call at 32 tokens/second, plus ~250 and ~400 of system instruction, across two calls. More than 2x means the model is wrong and the retry policy or fan-out width needs revisiting (SC-012)
 - [ ] T082 Author 10 fresh understated-crisis recordings and 10 near-miss controls appearing nowhere in `src/review/prompts/judgment.ts`, add them to `tests/fixtures/cases.ts`. **Pass: 10/10 caught, 0/10 false positives.** Anything less ships a known miss on the one failure that causes harm outside the software ([research D4](research.md))
 - [ ] T083 Add multilingual recordings to `tests/fixtures/audio/` with labels in `tests/fixtures/cases.ts`, and verify SC-007's ninety-percent readable-English threshold
 - [ ] T084 Add privacy and fidelity recordings to `tests/fixtures/audio/` with labels in `tests/fixtures/cases.ts`, and verify SC-005 and SC-006; **redaction is the only failure in this product that cannot be retried**
@@ -275,7 +275,7 @@ would mislead whoever picks this up:
 - All test tasks within a phase, marked [P]
 - **US4 and US5 together** after US1, if two people are working
 
-### Parallel example — the four prompts
+### Parallel example — the two prompts
 
 ```bash
 Task: "Write src/review/prompts/content.ts"
@@ -299,7 +299,7 @@ engine is wrong, every screen built on it is wrong too.
 3. US2 → rejections render
 4. US3 → crisis routes → **the one that must not ship broken**
 5. US4 + US5 → faults and audio behave
-6. Polish → rate-limit screen, then the four pre-launch gaps
+6. Polish → rate-limit screen, then the pre-launch gaps in T080–T086
 
 ### Weekend reality
 

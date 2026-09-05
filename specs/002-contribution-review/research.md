@@ -370,9 +370,10 @@ it loses:
 (FR-039); run in sequence, two exhausting calls exceed it and the whole submission renders as
 processing failure even though one of them may have returned a usable verdict.
 
-**Note on FR-008a**: its requirement is *isolation* — each check its own call, consuming no other
-check's output (FR-005) — and its stated rationale is classification reliability, not timing.
-Staging would not have violated that rationale. It fails on latency and the deadline instead.
+**Note on FR-008a**: it no longer requires a call per judgment — D2 replaced that with a single
+split between content processing and the judgment call, and FR-008a1 repudiates the
+classification-reliability rationale outright. What survives is FR-005: no call consumes another's
+output. Staging would not have violated that either. It fails on latency and the deadline.
 
 **Revisit if**: T081's cost measurement shows the content call dominating spend badly enough to
 justify trading a second of latency for it.
@@ -386,14 +387,14 @@ the bound is hit, because a limit without a behaviour is a comment.
 
 ### Memory
 
-Four checks each carry their own inline copy of the recording. Measured worst case is a 530 KB
-60-second AAC file, so one submission holds roughly **2.1 MB of audio across the fan-out**, plus
-base64 expansion of about a third on each copy — call it **3 MB per in-flight submission**.
+Both calls carry their own inline copy of the recording. Measured worst case is a 530 KB
+60-second AAC file, so one submission holds roughly **1.1 MB of audio across the fan-out**, plus
+base64 expansion of about a third on each copy — call it **1.5 MB per in-flight submission**.
 
 The 5 MB input bound in [contracts/review.md](contracts/review.md) puts the absolute worst case
-near 27 MB per submission. Cloud Run's smallest instance is 512 MB, so concurrency is what
-matters: **per-instance concurrency MUST be set such that `concurrency x 27 MB` stays inside the
-instance memory limit with headroom.** At the default 512 MB that is a concurrency well under 10.
+near 14 MB per submission. Cloud Run's smallest instance is 512 MB, so concurrency is what
+matters: **per-instance concurrency MUST be set such that `concurrency x 14 MB` stays inside the
+instance memory limit with headroom.** At the default 512 MB that is a concurrency well under 20.
 
 **Alternatives considered**: streaming the audio to each call rather than buffering. The SDK takes
 inline bytes, so this would mean the Files API — rejected in D1 for creating a remote object with

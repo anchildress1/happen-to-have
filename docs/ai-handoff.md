@@ -507,8 +507,8 @@ Kill or simplify any feature that does not work reliably during this spike.
 >   audio calls was not. `SC-012` requires that cost before interface work depends on the
 >   review, so the spike does not clear as a whole until it is recorded.
 >
-> Outcome: the provider returns no safety ratings, and its default filter passes 7 of 8
-> must-not-publish recordings, so illegal-or-dangerous became a dedicated call.
+> Outcome: the provider returns no safety ratings, and its adjustable filters ship off by
+> default, so nothing screens a contribution unless this product does.
 
 ## Day 1
 
