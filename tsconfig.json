@@ -4,7 +4,7 @@
     "lib": ["dom", "dom.iterable", "es2023"],
     "module": "esnext",
     "moduleResolution": "bundler",
-    "jsx": "preserve",
+    "jsx": "react-jsx",
     "strict": true,
     "noEmit": true,
     "esModuleInterop": true,
@@ -31,7 +31,8 @@
     "tests/**/*.ts",
     "tests/**/*.tsx",
     "next.config.ts",
-    ".next/types/**/*.ts"
+    ".next/types/**/*.ts",
+    ".next/dev/types/**/*.ts"
   ],
   "exclude": ["node_modules"]
 }

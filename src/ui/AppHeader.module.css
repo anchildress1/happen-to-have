@@ -1,0 +1,23 @@
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 44px;
+  font-size: 15px;
+  font-weight: var(--weight-medium);
+}
+
+.left {
+  color: var(--ink);
+}
+
+.right {
+  color: var(--green);
+  text-decoration: none;
+}
+
+.right:focus-visible {
+  outline: 2px solid var(--green);
+  outline-offset: 3px;
+  border-radius: 4px;
+}

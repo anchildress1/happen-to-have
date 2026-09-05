@@ -1,0 +1,64 @@
+/**
+ * Design tokens — the design system of record for the whole product.
+ * Source: specs/001-participant-and-pool/contracts/design.md
+ *
+ * Every value here is verbatim from the design. Do not hard-code these hex
+ * or rgba values anywhere else — reference the custom property instead.
+ */
+
+:root {
+  /* Color */
+  --bg: #fafaf7;
+  --ink: #14201a;
+  --green: #2e7d4f;
+  --green-hover: #286f46;
+  --green-85: rgba(46, 125, 79, 0.85);
+  --green-18: rgba(46, 125, 79, 0.18);
+  --green-16: rgba(46, 125, 79, 0.16);
+  --green-14: rgba(46, 125, 79, 0.14);
+  --green-12: rgba(46, 125, 79, 0.12);
+  --green-10: rgba(46, 125, 79, 0.1);
+  --green-08: rgba(46, 125, 79, 0.08);
+  --green-06: rgba(46, 125, 79, 0.06);
+  --ink-70: rgba(20, 32, 26, 0.7);
+  --ink-65: rgba(20, 32, 26, 0.65);
+  --ink-60: rgba(20, 32, 26, 0.6);
+  --ink-55: rgba(20, 32, 26, 0.55);
+  --ink-50: rgba(20, 32, 26, 0.5);
+  --ink-45: rgba(20, 32, 26, 0.45);
+  --ink-35: rgba(20, 32, 26, 0.35);
+
+  /*
+   * Type — two families, split by origin rather than by size.
+   *
+   * --font-display is Paprika, loaded in app/layout.tsx. It sets the product
+   * name and display chrome. Weight 400 is the only weight it ships.
+   *
+   * --font-sans carries every string a participant wrote, at any size, because
+   * Paprika has no Cyrillic, Vietnamese, or CJK and 002 publishes translated
+   * contributions.
+   *
+   * Source Sans 3's digits are monospaced by default, so the recorder timer does
+   * not need `tabular-nums` — which would be a no-op anyway, since Google Fonts
+   * strips GSUB features from its subsets.
+   */
+  --font-display: var(--font-paprika), system-ui, sans-serif;
+  --font-sans: var(--font-source-sans), system-ui, sans-serif;
+  --weight-display: 400;
+  --weight-medium: 500;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-sans);
+}

@@ -1,0 +1,35 @@
+.screen {
+  position: relative;
+  overflow: hidden;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  padding: 78px 28px 52px;
+}
+
+.headerRow {
+  flex: 0 0 auto;
+}
+
+.content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 18px;
+  width: 100%;
+}
+
+@media (min-width: 768px) {
+  .screen {
+    padding: 28px 56px 40px;
+    display: grid;
+    grid-template-rows: auto 1fr auto;
+  }
+
+  .content {
+    gap: 22px;
+    max-width: 560px;
+    margin: 0 auto;
+  }
+}
