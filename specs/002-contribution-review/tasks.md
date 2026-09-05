@@ -51,9 +51,9 @@ endpoints that call this module ([research D10](research.md)).
 
 ### Provider client
 
-- [ ] T006 Create `src/review/client.ts` with `import 'server-only'`, a lazily constructed `GoogleGenAI` from `process.env.GEMINI_API_KEY`, and a thrown error naming the missing variable — mirroring `src/db/client.ts`
-- [ ] T007 Export a `GenAiClient` interface from `src/review/client.ts` narrow enough for tests to implement, following the `SqlClient` seam 001 established ([research D12](research.md))
-- [ ] T008 [P] Define one `BLOCK_NONE` safety-settings constant in `src/review/client.ts` covering all four adjustable categories, applied to **every** call ([research D3](research.md)); document that the provider ships these filters off by default so the setting is explicit rather than inherited, that ratings are never returned at any threshold, and that `candidate.safetyRatings` must not be read
+- [x] T006 Create `src/review/client.ts` with `import 'server-only'`, a lazily constructed `GoogleGenAI` from `process.env.GEMINI_API_KEY`, and a thrown error naming the missing variable — mirroring `src/db/client.ts`
+- [x] T007 Export a `GenAiClient` interface from `src/review/client.ts` narrow enough for tests to implement, following the `SqlClient` seam 001 established ([research D12](research.md))
+- [x] T008 [P] Define one `BLOCK_NONE` safety-settings constant in `src/review/client.ts` covering all four adjustable categories, applied to **every** call ([research D3](research.md)); document that the provider ships these filters off by default so the setting is explicit rather than inherited, that ratings are never returned at any threshold, and that `candidate.safetyRatings` must not be read
 
 ### Validation
 
