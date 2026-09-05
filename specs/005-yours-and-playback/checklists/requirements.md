@@ -26,7 +26,7 @@
 
 - [x] All functional requirements have clear acceptance criteria
 - [x] User scenarios cover primary flows
-- [x] Feature meets measurable outcomes defined in Success Criteria
+- [ ] Implementation meets measurable outcomes defined in Success Criteria (runtime proof pending)
 - [x] No implementation details leak into specification
 
 ## Split Integrity
@@ -34,13 +34,14 @@
 - [x] Read-only over contributions; publication and review behavior owned by 002, 003, 004
 - [x] Owns generated playback end to end; no other spec specifies TTS behavior
 - [x] Original-recording prohibition restated here as a display constraint, consistent with 002
-- [x] No requirement duplicates one in another spec
+- [x] Shared ownership is identified; cross-flow enforcement references its owning spec
 
-## Constitution Alignment (v1.0.0)
+## Constitution Alignment (v2.0.0)
 
 | Principle | Covered by |
 |-----------|------------|
 | IV. Original Audio Is Transient | FR-022 – FR-030, SC-002 – SC-006 |
+| V. Structured Output Or Failure | FR-004, FR-008, FR-021, SC-007 |
 | VI. Scope Discipline | Out of Scope, FR-017 – FR-021, SC-008 |
 
 ## Validation Notes
@@ -50,12 +51,13 @@
   independently testable and a reviewer of either spec alone must see the rule.
 - Response ordering is chronological and explicitly carries no quality signal (Assumptions),
   distinguishing it from the ranking the handoff forbids.
-- A participant sees their own withheld answers; nobody else ever does, including the asker of
-  the question addressed (FR-021, Edge Cases). The handoff did not state who sees a withheld
-  contribution.
+- Nobody sees a withheld answer, the author included (FR-021, FR-008, SC-007). Constitution
+  v2.0.0 inverted Principle V: unpublished attempts are never stored, so there is no row for
+  Yours to list. The reason and the retry live only on the active flow's Withheld page. The
+  handoff left this open and an earlier draft of this note answered it the other way.
 - Pagination is excluded on weekend-scale volume grounds (Assumptions), not overlooked.
 - Zero [NEEDS CLARIFICATION] markers.
 
 ## Notes
 
-- All items pass. Ready for `/speckit-plan`.
+- Specification decisions are synchronized; implementation validation remains pending.

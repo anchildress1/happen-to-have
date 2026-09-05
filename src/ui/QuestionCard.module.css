@@ -1,0 +1,140 @@
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  width: 100%;
+}
+
+.question {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-weight: 400;
+  font-size: 34px;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  text-wrap: pretty;
+  color: var(--ink);
+}
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.helperMobile,
+.helperDesktop {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--ink-65);
+}
+
+.helperDesktop {
+  display: none;
+}
+
+/* Authored, not designed (design.md "Gaps"): helper metrics, lifted colour. */
+.onlyQuestion {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.5;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.actions {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+}
+
+/*
+ * Mirrors Button's primary variant so the placeholder link to /answer/record
+ * (003) is visually identical to a real button. Button.tsx renders only a
+ * native <button>, so a navigable link needs its own markup rather than an
+ * href-less shared component.
+ */
+.primaryLink {
+  all: unset;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  padding: 0 24px;
+  border-radius: 14px;
+  font-family: inherit;
+  font-weight: var(--weight-medium);
+  font-size: 18px;
+  min-height: 56px;
+  background: var(--green);
+  color: #fff;
+  text-align: center;
+  cursor: pointer;
+}
+
+.primaryLink:hover {
+  background: var(--green-hover);
+}
+
+.primaryLink:focus-visible {
+  outline: 2px solid var(--green);
+  outline-offset: 3px;
+}
+
+.status {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+  width: 100%;
+}
+
+.statusHeading {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-weight: var(--weight-medium);
+  font-size: 24px;
+  line-height: 1.2;
+  color: var(--ink);
+}
+
+.statusBody {
+  margin: 0;
+  font-size: 16px;
+  line-height: 1.45;
+  color: var(--ink-70);
+}
+
+@media (min-width: 768px) {
+  .card {
+    display: grid;
+    grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+    align-items: start;
+    gap: 64px;
+  }
+
+  .question {
+    font-size: 44px;
+    line-height: 1.12;
+    letter-spacing: -0.025em;
+  }
+
+  .panel {
+    padding: 32px;
+    border-radius: 20px;
+    background: var(--green-06);
+  }
+
+  .helperMobile {
+    display: none;
+  }
+
+  .helperDesktop {
+    display: block;
+    font-size: 16px;
+    color: var(--ink-60);
+  }
+}

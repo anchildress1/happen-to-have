@@ -1,0 +1,10 @@
+/*
+ * Raise Screen's width cap by setting its variable, never by re-declaring max-width:
+ * both rules are `.content` at equal specificity, so a duplicate is settled by
+ * stylesheet order rather than intent, and the order is not stable across builds.
+ */
+@media (min-width: 768px) {
+  .content {
+    --content-max: 1100px;
+  }
+}

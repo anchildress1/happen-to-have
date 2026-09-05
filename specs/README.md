@@ -13,6 +13,7 @@ Five specs. Build in numeric order; each depends only on lower numbers.
 ## Dependency graph
 
 ```mermaid
+%%{init: {'theme':'default'}}%%
 graph TD
     accTitle: Happen to Have? spec dependency graph
     accDescr: Five specs. 001 and 002 are foundations. 003 depends on both. 004 depends on 002 and 003. 005 depends on 002, 003 and 004.
@@ -32,20 +33,36 @@ graph TD
     S004 -. "closure state" .-> S001
 ```
 
+## Design system
+
+One design covers all 11 screens across all five specs:
+[`001-participant-and-pool/contracts/design.md`](001-participant-and-pool/contracts/design.md).
+
+001 builds the foundation — tokens, header, buttons, watermark, list rows — and 002–005 assemble
+their screens from it. Route map, per-screen copy, and component specs all live there. Do not
+re-derive any of it per spec.
+
+Source: Claude Design project `Happen to Have UI mockups`. The `ios-frame.jsx` and
+`browser-window.jsx` wrappers in that project are canvas staging and never ship.
+
 ## Ownership boundaries
 
 Rules that touch more than one spec are defined once and referenced elsewhere:
 
 - **Ask granting** → 003. **Ask consumption** → 004. Neither restates the other.
 - **Question closure rule** → 004. 001 honors the resulting closed state.
-- **Review, result page, crisis routing, audio deletion** → 002. 003 and 004 consume the decision.
+- **Review, Withheld page, crisis resources, independent check retries, audio deletion** → 002.
+  003 and 004 supply contribution-specific fresh-recording routes; crisis also permits retry.
+- **Persistence** → only published contributions enter the database and Yours; no retained attempts.
+- **Selection** → 001 uses strict answer-count order and a tab-local pointer with wraparound.
+- **Seeds** → Ashley supplies the content; authorship and recording provenance remain TBD.
 - **Recording behavior** → 003. 004 reuses it rather than respecifying it.
 - **Answer eligibility** appears twice on purpose: 001 controls what is *shown*, 003 controls what is *accepted*. The server-side refusal in 003 is the one that matters.
 - **Original-recording prohibition** appears twice on purpose: 002 forbids retention, 005 forbids offering it in the interface.
 
 ## Handoff validation coverage
 
-All 22 required validation cases from the handoff map to at least one spec:
+The handoff's validation cases map to the specs below; this is planned coverage, not executed proof:
 
 | Case | Spec |
 |------|------|
@@ -57,10 +74,10 @@ All 22 required validation cases from the handoff map to at least one spec:
 | Guardrail failure does not unlock | 003 |
 | Passing answer unlocks exactly one | 003 |
 | Second question needs another answer | 004 |
-| Infrastructure failure is retryable | 002 |
+| Failed checks retry independently; exhausted submissions offer a fresh recording | 002, 003, 004 |
 | Non-English produces valid text | 002 |
 | Identifying info removed | 002 |
-| Crisis withheld and routed | 002 |
+| Crisis is Withheld with resources and a fresh-recording action | 002, 003, 004 |
 | Illegal withheld with distinct text | 002 |
 | Cannot answer own question | 001, 003 |
 | No repeat question after answering | 001, 003 |

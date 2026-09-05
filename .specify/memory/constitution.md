@@ -1,27 +1,89 @@
 <!--
 SYNC IMPACT REPORT
 ==================
-Version change: (unratified template) → 1.0.0
-Bump rationale: Initial ratification. All template placeholders replaced with concrete,
-testable governance derived from the "Happen to Have?" AI handoff (revision 4) and the
-new-web-repo-setup GCP/Cloud Run conventions.
+Version change: 1.0.0 → 2.0.0
+
+1.0.0 is the last committed version (08015e5). Everything below is one amendment; intermediate
+numbers were never released and are not recorded.
+
+Bump rationale: MAJOR. Principle V's meaning is inverted — state that was required to persist on
+question and answer rows is now required to exist only for the life of the request. Principle IV
+is narrowed with a hard retention bound. Principle II's exclusion rule is narrowed from any
+answer to a published one. Under this document's own versioning policy, narrowing or inverting a
+principle is MAJOR regardless of how much else came with it.
 
 Modified principles:
-  [PRINCIPLE_1_NAME] → I. Human Contribution Is The Product (NON-NEGOTIABLE)
-  [PRINCIPLE_2_NAME] → II. Server-Authoritative Reciprocity
-  [PRINCIPLE_3_NAME] → III. Aggregate Guardrail Gate (NON-NEGOTIABLE)
-  [PRINCIPLE_4_NAME] → IV. Original Audio Is Transient
-  [PRINCIPLE_5_NAME] → V. Structured Output Or Failure
-Added principles:
-  VI. Scope Discipline
-  VII. Voice And Provenance
-Added sections:
-  Technology And Infrastructure Constraints (replaces [SECTION_2_NAME])
-  Development Workflow And Quality Gates (replaces [SECTION_3_NAME])
+
+  II. Server-Authoritative Reciprocity
+    - Exclusion narrowed: only a PUBLISHED answer bars a question.
+    - NEW: after any withheld answer the participant is offered a fresh recording for the same
+      question. Crisis is NOT exempt — the model can be wrong about crisis, and a wrong call
+      must not remove the participant's ability to try again.
+
+  III. Aggregate Guardrail Gate
+    - Restructured around a uniform `canPublish` boolean per check; false always means reject.
+    - Fan-out narrowed: illegal-or-dangerous reads the content call's safety ratings instead of
+      taking its own call, pending spike evidence. Three calls per answer, two per question.
+    - Fail-fast: any definitive NO resolves to Withheld immediately and cancels remaining work.
+    - Withheld is one outcome carrying a reason, with precedence used for presentation only.
+
+  IV. Original Audio Is Transient
+    - NEW hard bound: check retries may use the audio only inside the active submission, capped
+      at 90 seconds from server receipt.
+    - NEW: the browser MUST release its recording when the submission ends.
+
+  V. Structured Output Or Failure  (the MAJOR)
+    - INVERTED: processing state, check results, retry counts, and storage references now exist
+      only in the active request. Only published questions and answers enter the database.
+    - Publication and ask grant/consumption MUST commit atomically.
+
+Modified sections:
+
+  Technology And Infrastructure Constraints → Platform
+    - Application state is Neon (serverless Lakebase Postgres) via @neondatabase/serverless.
+    - NEW: database rules — server-side access only, schema owned by committed migrations,
+      parameterized queries, no denormalized counters, bounded connection pools.
+    - NEW: branch-first development — every git branch gets a copy-on-write Neon branch, so
+      each stacked pull request has an isolated database.
+
+    Considered and rejected:
+      Firebase SQL Connect — adopted, implemented, then reverted. Every generated operation
+        was annotated @auth(level: NO_ACCESS), which disabled the product's one differentiator:
+        server-deployed operations that clients may safely invoke. Nothing client-side touches
+        the database, so it contributed 1.9MB of Admin SDK and a codegen build step to serve
+        three one-line queries.
+      Cloud Firestore — briefly adopted, then reverted. NoSQL: no joins, no cross-collection
+        NOT EXISTS, no ordering by a query-time aggregate. Would have forced a drift-capable
+        denormalized counter under the two rules that must not drift.
+      Cloud SQL direct with `pg` — superseded by Neon: same SQL, but Neon adds scale-to-zero,
+        a free tier, and branchable databases.
+
+  Technology And Infrastructure Constraints → Application Stack
+    - Gemini access MUST use the official `@google/genai` SDK, server-side only.
+    - Model ids pinned per job: gemini-3.8-flash for content processing, gemini-3.5-flash-lite
+      for the three boolean guardrails, gemini-3.1-flash-tts-preview for playback.
+    - NEW: the content-processing call sets every safety category to BLOCK_NONE (not OFF, which
+      returns no ratings). Illegal-or-dangerous reads those free ratings rather than a dedicated
+      call unless the spike proves otherwise; a dedicated crisis check exists regardless, since
+      no built-in category covers self-harm. Checks stay separate parallel threads.
+    - Live API models forbidden outright, with the Principle I and IV conflicts named.
+    - Runtime narrowed from "Node.js 22+" to "Node.js 24 LTS" (Krypton).
+
+Added principles: none
 Removed sections: none
 
+Verified 2026-09-04:
+  Neon project silent-meadow-11692011 (org org-bold-hat-14494774), aws-us-east-2, Postgres 18.
+  @neondatabase/serverless 1.1.0, node-pg-migrate 9.0.0 — npm registry.
+  @google/genai 2.21.0 (2026-09-02), engines: node >=20.0.0.
+  gemini-3.8-flash and gemini-3.5-flash-lite are GA; both accept audio and structured output.
+  All Gemini TTS ids are preview; no GA text-to-speech model exists.
+  Gemini safety filter exposes HARM_CATEGORY_{HARASSMENT,HATE_SPEECH,SEXUALLY_EXPLICIT,
+  DANGEROUS} and returns ratings automatically. No self-harm or crisis category exists.
+  Node 24 (Krypton) Active LTS through 2026-10-20, maintenance to 2028-04-30.
+
 Deferred TODOs:
-  TODO(TTS_VOICE_ID): exact Gemini TTS voice unresolved — Open Decisions in the handoff.
+  TODO(TTS_VOICE_ID): exact Gemini TTS voice unresolved. The model is pinned; the voice is not.
   TODO(DISPLAY_LANGUAGE_POLICY): MVP display/translation language unresolved; English is
     the working assumption.
 -->
@@ -53,34 +115,55 @@ voids that claim, and agent framing invites reviewers to read the app as a chatb
 - Participants MUST NOT bank more than one ask.
 - Skipping a question MUST NOT start a recording, grant an ask, or advance toward one.
 - The ask MUST be consumed only when the question row is successfully created.
-- Participants MUST NOT be served their own question or a question they already answered.
+- Participants MUST NOT be served their own question, or a question to which they already hold a
+  **published** answer.
+- A withheld or failed attempt MUST NOT exclude a question. It never counted, so the question MUST
+  remain eligible for that participant.
+- After any withheld answer, including crisis, the participant MUST be offered a fresh recording
+  for the same question without locating it in the pool again. A withheld question MUST return
+  to question recording with its ask intact. Crisis resources remain available alongside retry.
 - A question closes for further routing after three published answers from three distinct
   participants. Unanswered questions never expire.
 
 **Rationale:** Reciprocity is the only rule the product has. Enforcing it client-side
 makes it decorative.
 
+"Already answered" means an answer that counted. A contribution the gate withheld published
+nothing, granted no ask, and left no trace another participant can see — so it MUST NOT also cost
+the participant the question. Excluding on any attempt punishes a clipped recording or a quiet
+microphone, not bad faith; the submission rate limit is the control for volume. Gemini can be
+wrong about crisis too, so that result MUST NOT remove the participant's ability to try again.
+
 ### III. Aggregate Guardrail Gate (NON-NEGOTIABLE)
 
-- An answer qualifies only when all of the following hold:
-  `duration_seconds <= 60`, `processing_status == complete`,
-  `guardrail_decision == pass`, `is_relevant == true`.
-- The gate is the conjunction of four independent Gemini calls — content processing,
-  relevance, crisis, illegal/dangerous — each receiving the original audio. No call may
-  consume another call's transcript.
+- An answer qualifies only when its verified duration is at most 60 seconds and every applicable
+  check has completed with validated `canPublish == true`.
+- The gate is the conjunction of independent signals, each derived from the original audio.
+  For an answer: content processing, relevance, and crisis as three parallel calls, plus the
+  illegal-or-dangerous rating the content call already returns. For a question: content
+  processing and crisis, two calls; relevance does not apply.
+- No call may consume another call's transcript, and calls MUST NOT be merged into one that
+  returns several verdicts.
 - Relevance MUST NOT substitute for the content, crisis, or illegal-content decisions.
-- Questions run three calls (content, crisis, illegal); relevance does not apply.
-- Crisis and illegal/dangerous results MUST remain distinct fields so the shared result
-  page renders the correct text.
+- Every review check MUST return `canPublish`: true means YES and false means NO, including
+  crisis and illegal checks. False means rejection, never absence of a detected hazard.
+- Any definitive NO MUST immediately resolve to Withheld, cancel remaining work where possible,
+  and suppress further retries and late results. Publication waits for every applicable YES.
+- A YES is kept for the active submission. Only a timed-out, failed, or schema-invalid check
+  retries independently, and only while no check has rejected the submission.
+- Withheld is one outcome with a reason: crisis, illegal/dangerous, relevance, or content.
+  If multiple rejections are already known at resolution, use that precedence for presentation;
+  do not delay Withheld to wait for unfinished checks.
 - Crisis and illegal/dangerous content MUST be withheld from the public pool and MUST NOT
   unlock asking.
 - Crisis routing MUST be fixed, human-authored text with US and international resources,
   reachable without earning an ask. The app MUST NOT generate counseling or claim
   emergency intervention.
-- All non-passing outcomes MUST render one result page with outcome-specific text.
+- Every rejection MUST render the shared Withheld page with reason-specific text; exhausted
+  infrastructure failures use the processing-failure state rather than Withheld.
 - There MUST be no minimum answer duration.
-- Provider or network failure MUST produce a retryable failure state, never a participant
-  rejection.
+- Exhausted provider or network retries MUST produce a processing-failure state offering a
+  fresh recording, never a participant rejection or a promise to restore an old attempt.
 
 **Rationale:** "Useful" is defined as this gate's result and nothing else — not recipient
 approval, votes, or elapsed time. Collapsing the gate to one signal silently changes the
@@ -89,10 +172,12 @@ product's definition of a qualifying contribution.
 ### IV. Original Audio Is Transient
 
 - Original participant audio MUST NOT be publicly reachable at any URL, at any time.
-- Original audio MUST be deleted immediately after any terminal result — published,
-  irrelevant, crisis-routed, illegal-withheld, or failed.
-- On retryable infrastructure failure, original audio MAY be retained only long enough to
-  retry, then deleted on the terminal result.
+- Original audio MUST be deleted immediately after publication, Withheld, processing failure,
+  or abandonment. It MUST NOT be retained for a later attempt.
+- Independent check retries MAY use the audio only inside the current active submission,
+  bounded to 90 seconds from server receipt; expiry cancels review and triggers deletion.
+- The browser MUST release its recording after the submission ends or the participant leaves.
+  Refreshing or returning later MUST NOT restore a recording or an unpublished attempt.
 - Storage holding original audio MUST have a lifecycle deletion rule as a backstop; the
   rule is a safety net, not the deletion mechanism.
 - Playback MUST be generated from processed text, never from the original recording.
@@ -104,14 +189,17 @@ retention path that "might be useful later" is the failure mode this principle f
 
 ### V. Structured Output Or Failure
 
-- Every Gemini call MUST request structured output against an explicit schema.
+- Every Gemini review call MUST request structured output against an explicit schema.
+- TTS MUST NOT request structured output; validate the returned audio type and nonempty payload
+  before caching or serving it.
 - Every returned object MUST be validated in application code before use. Unvalidated
   model output MUST NOT reach the database or the UI.
 - A schema-invalid or unparseable response is an infrastructure failure: retryable,
   never a participant-facing guardrail rejection.
-- Processing state (`processing_status`, `processing_attempts`, `last_error`) lives on the
-  question and answer rows. Separate job or audio tables MUST NOT be introduced unless a
-  real worker queue or shared polymorphic audio behavior exists.
+- Processing state, check results, retry counts, and storage references exist only in the active
+  request. Only published questions and answers enter the database and `Yours`.
+- Pending, withheld, failed, or abandoned attempts MUST NOT be stored as contribution rows,
+  attempt history, or recovery jobs. Publication and ask grant/consumption MUST commit atomically.
 
 **Rationale:** The gate is only as trustworthy as the parsing in front of it. Trusting
 shape without validating it turns a model hiccup into a wrongly granted ask.
@@ -159,21 +247,92 @@ a performance or a marketing hook is the one failure that cannot be patched late
 - Secrets MUST live in Secret Manager or a local, gitignored `.env`. Real credentials MUST
   NOT appear in the repository, in workflow logs, or in example files.
 - Transient audio MUST live in a Cloud Storage bucket with uniform bucket-level access and
-  no public access, and MUST NOT be served through signed public URLs.
-- Relational state (participants, questions, answers) MUST live in a managed Postgres
-  instance reachable from Cloud Run.
+  no public access, and MUST NOT be served through signed public URLs..
+- Application state (participants, questions, answers) MUST live in **Neon** — serverless
+  Lakebase Postgres — reached through `@neondatabase/serverless`.
+
+#### Database rules
+
+- All database access MUST happen server-side, in a route handler or a server-only module.
+  The connection string MUST NOT reach the browser; a client that can read it can forge its
+  own ask eligibility, which is a Principle II violation.
+- Schema is owned by SQL migrations under `migrations/`, applied with `node-pg-migrate` and
+  committed to the repository. A schema change made by hand against a branch does not exist
+  as far as this repository is concerned.
+- Every query MUST use `$1`-style placeholders. String-interpolating a value into SQL is
+  forbidden.
+- Answer counts MUST be computed relationally with `COUNT`. Denormalized counters MUST NOT be
+  introduced: a drifted count silently corrupts both the fewer-answers selection bias and the
+  three-answer closure rule, and `COUNT` cannot drift.
+- Every row crossing into application code MUST be validated before use, per Principle V.
+- Connection pools MUST cap `max` low enough that the cap multiplied by Cloud Run's
+  `max-instances` stays inside the project's connection limit. Prefer Neon's pooled endpoint.
+
+#### Branch-first development
+
+- Every git branch MUST have a corresponding Neon branch, created with `neon checkout`. A
+  Neon branch is a copy-on-write clone, so this costs approximately nothing and gives each
+  stacked pull request an isolated database.
+- Migrations run against the checked-out branch, never against `main` by hand.
+- `.neon` and `.env` are per-checkout state and MUST stay gitignored.
 
 ### Application Stack
 
-- Runtime: Node.js 22+, ESM only. CommonJS patterns, legacy loaders, and compatibility
+- Runtime: Node.js 24 LTS, ESM only. CommonJS patterns, legacy loaders, and compatibility
   shims are forbidden.
 - Framework: Next.js (App Router) with TypeScript `strict: true`; server route handlers own
   every Gemini call. This is a MINOR-amendable decision, not a bare preference.
 - Package manager: pnpm. Never npm or yarn.
-- All Gemini access — transcription, processing, guardrails, TTS — goes through the Google
-  Gemini API directly. No third-party audio provider.
+- All Gemini access — transcription, processing, guardrails, TTS — MUST go through the official
+  **Google Gen AI SDK for TypeScript and JavaScript**, package `@google/genai`
+  (<https://googleapis.github.io/js-genai/release_docs/>). No third-party audio provider, no
+  hand-rolled REST calls, and not the superseded `@google/generative-ai` package.
+- Clients MUST be constructed server-side only. An API key MUST NOT reach the browser.
+- Every review call MUST use an explicit `responseSchema`, per Principle V; TTS is exempt.
+- Model ids are pinned here and MUST NOT be varied per call site:
+
+  | Job | Model | Why |
+  | - | - | - |
+  | Content processing (transcribe, translate, redact, emotion) | `gemini-3.8-flash` | The one call doing real extraction and transformation. GA, accepts audio, structured output. |
+  | Relevance check | `gemini-3.5-flash-lite` | Single boolean. GA, fastest, cheapest. |
+  | Crisis check | `gemini-3.5-flash-lite` | Single boolean. |
+  | Illegal or dangerous check | `gemini-3.5-flash-lite` | Single boolean. |
+  | Generated playback (TTS) | `gemini-3.1-flash-tts-preview` | Lowest-latency TTS with expressive control. |
+
+- Running all four review calls at the top tier buys latency and cost, not accuracy. The three
+  guardrails are boolean classification and belong on Flash-Lite.
+- Content processing runs on Flash, not Pro. The participant is blocked on the Checking state
+  while the review runs, so the critical path takes the GA tier with the better latency and cost
+  profile. The job is extraction and transformation over one minute of audio, not the multi-step
+  reasoning Pro exists for.
+- Content processing MUST NOT be downgraded to Flash-Lite without spike evidence. Flash-Lite is
+  documented for "simple data extraction"; this call transcribes dialect, translates, redacts
+  identifying details, preserves the participant's substance, and returns a multi-field guardrail
+  decision. **Redaction is the only failure in the product that cannot be retried** — a missed name
+  is published. If the 002 spike shows Flash-Lite matching Flash on the privacy and multilingual
+  test sets, downgrading is a MINOR amendment; until then it is a guess.
+- `gemini-3.1-pro-preview` is the documented escalation for content processing if the spike shows
+  Flash missing on redaction or translation. It costs latency, spend, and preview risk on the
+  critical path, so it MUST NOT be adopted pre-emptively.
+- Only one pinned model is preview: the TTS id, and only because no GA text-to-speech model
+  exists. Every call the reciprocity gate depends on runs GA.
+- Every model in the table above MUST be callable via `generateContent`. **Live API models are
+  forbidden**: `gemini-3.5-live-translate-preview`, `gemini-3.1-flash-live-preview`, and
+  `gemini-2.5-flash-native-audio-preview-12-2025` run over a stateful WebSocket session, are
+  speech-to-speech, and cannot return structured text. They also contradict Principle I — this
+  product is an asynchronous recording workflow, not a conversation — and Principle IV, because
+  a speech-to-speech path would derive playback from the original recording rather than from
+  processed text.
+- `gemini-3.1-flash-tts-preview` is a **preview** model. Every Gemini TTS id is preview — there is
+  no GA text-to-speech model. This is accepted, and MUST NOT be described to participants or in
+  marketing as stable.
+- These ids MUST be re-verified against <https://ai.google.dev/gemini-api/docs/models> before any
+  spec that calls them is planned. Names churn fast: `gemini-3.5-flash` went from default
+  workhorse to legacy baseline in one quarter.
+- Never use, shut down or deprecated: `gemini-2.0-flash`, `gemini-2.0-flash-lite`,
+  `gemini-3.1-flash-lite-preview`, `gemini-3-pro-preview`, `imagen-4.0-generate`.
 - One TTS voice is used consistently for all generated playback.
-  TODO(TTS_VOICE_ID): voice not yet selected.
+  TODO(TTS_VOICE_ID): voice not yet selected. The TTS *model* is pinned above; the *voice* is not.
   TODO(DISPLAY_LANGUAGE_POLICY): display/translation language policy not yet settled;
   English is the working assumption.
 
@@ -252,4 +411,4 @@ a performance or a marketing hook is the one failure that cannot be patched late
 - `AGENTS.md` and `CLAUDE.md` carry runtime development guidance and MUST NOT restate or
   contradict the principles above.
 
-**Version**: 1.0.0 | **Ratified**: 2026-09-04 | **Last Amended**: 2026-09-04
+**Version**: 2.0.0 | **Ratified**: 2026-09-04 | **Last Amended**: 2026-09-04

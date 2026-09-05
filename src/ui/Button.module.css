@@ -1,0 +1,47 @@
+.button {
+  all: unset;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  padding: 0 24px;
+  border-radius: 14px;
+  font-family: inherit;
+  font-weight: var(--weight-medium);
+  text-align: center;
+  cursor: pointer;
+}
+
+/*
+ * `all: unset` above strips the default focus outline — the one
+ * accessibility regression the source design introduces if copied
+ * literally. This ring replaces it and must stay visible on every variant.
+ */
+.button:focus-visible {
+  outline: 2px solid var(--green);
+  outline-offset: 3px;
+}
+
+.primary {
+  background: var(--green);
+  color: #fff;
+  font-size: 18px;
+  min-height: 56px;
+}
+
+.primary:hover {
+  background: var(--green-hover);
+}
+
+.ghost {
+  background: transparent;
+  color: var(--green);
+  font-size: 17px;
+  min-height: 52px;
+}
+
+.ghost:hover {
+  background: var(--green-08);
+}

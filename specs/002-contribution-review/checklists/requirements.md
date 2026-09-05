@@ -26,7 +26,7 @@
 
 - [x] All functional requirements have clear acceptance criteria
 - [x] User scenarios cover primary flows
-- [x] Feature meets measurable outcomes defined in Success Criteria
+- [ ] Implementation meets measurable outcomes defined in Success Criteria (runtime proof pending)
 - [x] No implementation details leak into specification
 
 ## Split Integrity
@@ -34,9 +34,9 @@
 - [x] Owns the decision, the checking state, the shared result page, crisis routing, retry, audio lifecycle, and rate limiting — no other spec restates them
 - [x] Specifies a decision, not a flow; 003 and 004 own the flows that consume it
 - [x] Provider names, schemas, and column lists deliberately excluded (constitution + plan own those)
-- [x] No requirement duplicates one in another spec
+- [x] Shared ownership is identified; cross-flow enforcement references its owning spec
 
-## Constitution Alignment (v1.0.0)
+## Constitution Alignment (v2.0.0)
 
 | Principle | Covered by |
 |-----------|------------|
@@ -47,16 +47,15 @@
 
 ## Validation Notes
 
-- Crisis precedence (FR-022) resolves a case the handoff does not name: a recording that is both
-  irrelevant and crisis-signalling shows crisis routing. Safety outranks a relevance message.
-- Latency (SC-001) is a target set before measurement, not a measured figure. The spike measures
-  the real number first; Assumptions record that the check structure or the checking-state
-  experience changes if the real number is materially worse.
-- Cost per contribution (SC-012) is stated as "known and recorded" rather than a number, because
-  the handoff requires measuring it during the spike before committing to the four-check shape.
-- Zero [NEEDS CLARIFICATION] markers.
+- Withheld is one outcome with content, relevance, illegal/dangerous, or crisis reason text.
+- Definitive rejection stops remaining work; only failed checks retry independently.
+- Successful checks are kept during the active submission; retries and overall lifetime are bounded.
+- Crisis resources and fresh recording coexist; answer/question retries use their own routes.
+- Only published contributions persist; exhausted or abandoned attempts have no recovery path.
+- Review calls use structured output; TTS validates audio without structured output.
+- Spike latency, cost, provider behavior, cancellation, and deletion remain unverified until run.
 
 ## Notes
 
-- All items pass. Ready for `/speckit-plan`.
+- Specification decisions are synchronized; implementation validation remains pending.
 - Highest-risk spec in the split. Plan this one against spike results, not assumptions.

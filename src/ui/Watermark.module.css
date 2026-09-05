@@ -1,0 +1,26 @@
+.watermark {
+  position: absolute;
+  right: -30px;
+  top: 120px;
+  font-size: 520px;
+  line-height: 1;
+  font-weight: var(--weight-display);
+  font-stretch: var(--width-display);
+  color: var(--green);
+  opacity: 0.09;
+  letter-spacing: -0.06em;
+  pointer-events: none;
+  user-select: none;
+}
+
+.dim {
+  opacity: 0.05;
+}
+
+@media (min-width: 768px) {
+  .watermark {
+    right: -70px;
+    top: -60px;
+    font-size: 760px;
+  }
+}

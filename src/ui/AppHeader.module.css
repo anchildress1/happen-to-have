@@ -1,0 +1,32 @@
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 44px;
+  font-size: 15px;
+  font-weight: var(--weight-medium);
+}
+
+.left {
+  color: var(--ink);
+}
+
+.right {
+  /*
+   * The 44px hit target lives here, not on .header. The container's min-height
+   * bounds the row, but `align-items: center` shrink-wraps each child to its own
+   * line box — so the anchor rendered 21px tall and the container looked fine.
+   * A tap target under half the minimum, on the only navigation in the screen.
+   */
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--green);
+  text-decoration: none;
+}
+
+.right:focus-visible {
+  outline: 2px solid var(--green);
+  outline-offset: 3px;
+  border-radius: 4px;
+}

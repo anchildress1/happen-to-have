@@ -26,7 +26,7 @@
 
 - [x] All functional requirements have clear acceptance criteria
 - [x] User scenarios cover primary flows
-- [x] Feature meets measurable outcomes defined in Success Criteria
+- [ ] Implementation meets measurable outcomes defined in Success Criteria (runtime proof pending)
 - [x] No implementation details leak into specification
 
 ## Split Integrity
@@ -34,15 +34,16 @@
 - [x] Review behavior is consumed, not restated; 002 owns the decision and the result page
 - [x] Owns ask granting; 004 owns consumption; neither duplicates the other
 - [x] Recording behavior specified here is explicitly reused by 004 rather than respecified
-- [x] No requirement duplicates one in another spec
+- [x] Shared ownership is identified; cross-flow enforcement references its owning spec
 
-## Constitution Alignment (v1.0.0)
+## Constitution Alignment (v2.0.0)
 
 | Principle | Covered by |
 |-----------|------------|
 | I. Human Contribution Is The Product | FR-009 |
 | II. Server-Authoritative Reciprocity | FR-016 – FR-027, SC-003 – SC-007 |
 | III. Aggregate Guardrail Gate | FR-013, FR-021, FR-026, SC-008 |
+| V. Structured Output Or Failure | FR-014, FR-019, FR-027 |
 
 ## Validation Notes
 
@@ -51,8 +52,11 @@
   server-side refusal is the one that matters and must exist independently.
 - Duration is enforced during recording and re-checked at submission (FR-013, Assumptions),
   because a client-reported duration is not trustworthy for a gate condition.
+- Publication and ask granting are atomic; unpublished attempts create no answer row.
+- Every Withheld reason, including crisis, offers fresh recording for the same question.
+- Upload/exhausted processing failures offer fresh recording without retaining the attempt.
 - Zero [NEEDS CLARIFICATION] markers.
 
 ## Notes
 
-- All items pass. Ready for `/speckit-plan`.
+- Specification decisions are synchronized; implementation validation remains pending.

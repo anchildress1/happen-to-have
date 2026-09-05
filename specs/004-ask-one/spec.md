@@ -6,7 +6,7 @@
 
 **Status**: Draft
 
-**Input**: AI handoff "Happen to Have?" revision 4 — Record a question, Reciprocity, question lifecycle and closure rules.
+**Input**: AI handoff "Happen to Have?" revision 5 — Record a question, Reciprocity, question lifecycle and closure rules.
 
 ## Overview
 
@@ -88,7 +88,8 @@ recording works.
 
 1. **Given** a question that fails review, **When** the outcome resolves, **Then** nothing is published and the participant still holds their unspent ask.
 2. **Given** a question submission that hits an infrastructure failure, **When** the retryable state is shown, **Then** the participant still holds their unspent ask.
-3. **Given** a retryable failure on a question, **When** the participant retries and review passes, **Then** the question publishes and the ask is consumed exactly once.
+3. **Given** a transient check failure, **When** its independent retry succeeds and all checks pass, **Then** the question publishes and consumes the ask exactly once.
+3a. **Given** processing retries are exhausted, **When** the participant tries again, **Then** `/ask` starts a fresh recording with the original ask intact and no saved attempt.
 4. **Given** a question withheld for any reason, **When** the participant returns, **Then** they may record a different question immediately with no penalty.
 5. **Given** any question submission, **When** the ask is evaluated for consumption, **Then** it is consumed only at the moment the question is successfully created.
 
@@ -112,7 +113,7 @@ Separately, leave a question unanswered and confirm it never expires.
 1. **Given** a published question with no answers, **When** any amount of time passes, **Then** it remains open and eligible for routing, with no expiry.
 2. **Given** a question with three published answers from three distinct participants, **When** the pool selects questions for anyone, **Then** that question is no longer routed.
 3. **Given** a closed question, **When** its asker views it, **Then** the question and all of its answers remain visible to them.
-4. **Given** a question with three published answers from only two distinct participants, **When** routing is evaluated, **Then** the question is still open, because closure counts distinct participants.
+4. **Given** concurrent submissions from the same participant to the same question, **When** publication is attempted, **Then** at most one answer row is created and that participant contributes only one to closure.
 5. **Given** a question with withheld answers, **When** routing is evaluated, **Then** withheld answers do not count toward closure.
 6. **Given** two participants submitting the third and fourth qualifying answers at nearly the same moment, **When** both resolve, **Then** both answers publish and are visible to the asker, and the question is closed for future routing.
 
@@ -122,7 +123,7 @@ Separately, leave a question unanswered and confirm it never expires.
 
 - **Question recorded but never submitted**: the participant abandons the flow. Nothing is published, the ask is still held, and no recording persists.
 - **Ask flow entered, then abandoned**: the participant leaves without recording. The ask remains unspent and the flow can be re-entered.
-- **Question signals crisis**: withheld and routed to fixed resources exactly as an answer would be. Not published, and the ask is still held.
+- **Question signals crisis**: the shared Withheld page shows fixed resources and a fresh-question action at `/ask`; nothing publishes and the ask is still held.
 - **Question is unintelligible or silent**: withheld, ask still held, participant may re-record immediately.
 - **Question that is not a question**: content processing publishes what was said as readable text. The product does not enforce interrogative grammar.
 - **Session reset while holding an ask**: the participant becomes a new participant and loses the unspent ask. Accepted limitation of session-scoped identity.
@@ -154,7 +155,7 @@ Separately, leave a question unanswered and confirm it never expires.
 - **FR-011**: The system MUST submit the question recording for review on the server, through the same review used for answers.
 - **FR-012**: The system MUST display a checking state while question review is in progress.
 - **FR-013**: The system MUST publish a question only after its review passes.
-- **FR-014**: On a passing review, the system MUST persist the processed text and publish the question to the open pool.
+- **FR-014**: Only after review passes, the system MUST atomically insert the published question and consume the ask; no pending, withheld, failed, or abandoned question row may be stored.
 - **FR-015**: A published question MUST become eligible for selection by other participants.
 
 #### Ask consumption
@@ -164,7 +165,7 @@ Separately, leave a question unanswered and confirm it never expires.
 - **FR-018**: The system MUST NOT consume an ask when a question submission hits an infrastructure failure.
 - **FR-019**: The system MUST consume exactly one ask per published question, even under concurrent or duplicate submission.
 - **FR-020**: On a published question, the system MUST return the participant to the state of needing an answer before they can ask again.
-- **FR-021**: A withheld or failed question MUST NOT produce a penalty, cooldown, or strike, and the participant MUST be able to record another immediately.
+- **FR-021**: A withheld or failed question MUST NOT produce a penalty, cooldown, or strike; every retry action, including the crisis variant, MUST start a fresh question recording at `/ask` with the ask intact.
 
 #### Question lifecycle
 
@@ -177,7 +178,7 @@ Separately, leave a question unanswered and confirm it never expires.
 
 ### Key Entities
 
-- **Question**: One participant's published question. Carries display text, source language, its author, routing status, safety outcomes, processing state, attempt history, and a reference to its transient original recording. Related to its answers and to its asker.
+- **Question**: One participant's published question. Carries display text, source language, its author, routing status, duration, submission id, and publication time; only published questions are stored. Related to its answers and to its asker.
 - **Ask Eligibility**: A participant's right to submit one question, granted in [003-answer-and-unlock](../003-answer-and-unlock/spec.md) and consumed here. Authoritative only on the server.
 
 ## Success Criteria *(mandatory)*
@@ -202,6 +203,7 @@ Separately, leave a question unanswered and confirm it never expires.
 - **Closure count**: three published answers from three distinct participants, per the handoff. This is a routing rule only; it does not lock, archive, or hide anything.
 - **Concurrent closure**: a fourth answer landing simultaneously with the third publishes normally. Closure is evaluated for future routing, not enforced as a hard cap on stored answers.
 - **Ask durability**: an unspent ask persists for the life of the participant's session. Session reset loses it, per the accepted identity limitation.
+- **Abandoned attempt**: leaving or refreshing discards unpublished audio and state; there is no recovery entry in Yours.
 - **Question playback in the pool**: whether a question can be listened to while being answered is specified in [003-answer-and-unlock](../003-answer-and-unlock/spec.md), not here.
 
 ## Out of Scope

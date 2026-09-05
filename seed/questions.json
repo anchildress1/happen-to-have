@@ -1,0 +1,36 @@
+{
+  "$comment": "Seed questions for the launch pool. Selected by Ashley Childress. Inserted with participant_id = NULL so they belong to no participant and never surface in a personal history view (spec FR-028). Ids are uuid5 over namespace 6f1b6a2e-9c3d-5f47-8b21-0d4a7c9e2f10 and displayText, so reseeding is idempotent and anyone can regenerate them.",
+  "namespace": "6f1b6a2e-9c3d-5f47-8b21-0d4a7c9e2f10",
+  "questions": [
+    {
+      "id": "a6cb5faa-4325-5cd2-ae5e-44c66fe88bdc",
+      "displayText": "What's the one thing you keep in your car or your bag that's bailed you out more than once?",
+      "sourceLanguage": "en"
+    },
+    {
+      "id": "7351240c-00ad-5b9b-88bf-59ce68859037",
+      "displayText": "What do you wish somebody had told you before your first review got torn apart?",
+      "sourceLanguage": "en"
+    },
+    {
+      "id": "15899088-1bef-51c4-ad5b-a74ff2c52e44",
+      "displayText": "How do you tell a friend you can't afford the thing they just invited you to?",
+      "sourceLanguage": "en"
+    },
+    {
+      "id": "b93b0e3a-4d01-5dc2-a742-042f001057e3",
+      "displayText": "How do you turn down helping someone move without it costing you the friendship?",
+      "sourceLanguage": "en"
+    },
+    {
+      "id": "cfc5ba54-dd1c-5dfb-82a3-fcf121dc4fe1",
+      "displayText": "How do you bring up moving a parent closer without it sounding like you're taking over their life?",
+      "sourceLanguage": "en"
+    },
+    {
+      "id": "1f2f1cb9-f030-5176-9f50-f27749740461",
+      "displayText": "How do you let someone help you without feeling like you owe them something back?",
+      "sourceLanguage": "en"
+    }
+  ]
+}

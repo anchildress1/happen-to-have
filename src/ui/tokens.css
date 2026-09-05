@@ -1,0 +1,76 @@
+/**
+ * Design tokens — the design system of record for the whole product.
+ * Source: specs/001-participant-and-pool/contracts/design.md
+ *
+ * Every value here is verbatim from the design. Do not hard-code these hex
+ * or rgba values anywhere else — reference the custom property instead.
+ */
+
+:root {
+  /* Color */
+  --bg: #fafaf7;
+  --ink: #14201a;
+  --green: #2e7d4f;
+  /*
+   * Display headings only. --green reads too light at 58-84px and competes with the
+   * primary button, which is the same value; --ink at 16:1 reads as a black slab.
+   * 7.14:1 on --bg, so it clears AA for normal text, not just large.
+   */
+  --green-deep: #24603c;
+  --green-hover: #286f46;
+  --green-85: rgba(46, 125, 79, 0.85);
+  --green-18: rgba(46, 125, 79, 0.18);
+  --green-16: rgba(46, 125, 79, 0.16);
+  --green-14: rgba(46, 125, 79, 0.14);
+  --green-12: rgba(46, 125, 79, 0.12);
+  --green-10: rgba(46, 125, 79, 0.1);
+  --green-08: rgba(46, 125, 79, 0.08);
+  --green-06: rgba(46, 125, 79, 0.06);
+  --ink-70: rgba(20, 32, 26, 0.7);
+  --ink-65: rgba(20, 32, 26, 0.65);
+  --ink-60: rgba(20, 32, 26, 0.6);
+  /*
+   * design.md assigns --ink-55 to helper and secondary text, and --ink-45 to the desktop
+   * footer. Both fail WCAG AA on --bg at body sizes: 3.77:1 and 2.80:1 against a required
+   * 4.5:1, confirmed by Lighthouse. Those elements use --ink-65 (5.16:1) instead. The
+   * tokens stay defined at the design's values for anything large enough to pass.
+   */
+  --ink-55: rgba(20, 32, 26, 0.55);
+  --ink-50: rgba(20, 32, 26, 0.5);
+  --ink-45: rgba(20, 32, 26, 0.45);
+  --ink-35: rgba(20, 32, 26, 0.35);
+
+  /*
+   * Split by origin, not size: --font-sans carries every string a participant wrote at
+   * any size, because Sour Gummy has no Cyrillic, Greek, Vietnamese, or CJK and 002
+   * publishes translated contributions.
+   *
+   * Source Sans 3's digits are already monospaced, so the recorder timer needs no
+   * `tabular-nums` — a no-op regardless, since Google Fonts strips GSUB from its subsets.
+   */
+  --font-display: var(--font-sour-gummy), system-ui, sans-serif;
+  --font-sans: var(--font-source-sans), system-ui, sans-serif;
+  --weight-display: 500;
+  /*
+   * Sour Gummy's wdth axis (100-125), applied wherever --font-display is set. Widening
+   * the axis is not the same as loosening letter-spacing: this stretches the letterforms,
+   * rather than leaving thin glyphs adrift in extra gaps.
+   */
+  --width-display: 115%;
+  --weight-medium: 500;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-sans);
+}

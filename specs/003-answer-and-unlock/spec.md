@@ -6,7 +6,7 @@
 
 **Status**: Draft
 
-**Input**: AI handoff "Happen to Have?" revision 4 — Record an answer, Process the answer, Reciprocity, participant state model.
+**Input**: AI handoff "Happen to Have?" revision 5 — Record an answer, Process the answer, Reciprocity, participant state model.
 
 ## Overview
 
@@ -87,7 +87,7 @@ flow directly. Confirm it is refused, then confirm it opens once review passes.
 
 1. **Given** a submitted answer under review, **When** the participant attempts to ask a question, **Then** asking is unavailable and the checking state is still shown.
 2. **Given** a recording that has just ended, **When** the recording stops, **Then** no ask is granted at that moment.
-3. **Given** a review that has not completed, **When** ask eligibility is checked on the server, **Then** it is false.
+3. **Given** a participant with no earned ask and a review that has not completed, **When** eligibility is checked, **Then** it is false; an already-earned ask is not revoked by another review.
 4. **Given** an answer whose review did not pass, **When** the outcome is returned, **Then** no ask is granted and the participant is returned to the answer flow.
 5. **Given** a participant who already holds one unspent ask, **When** they submit another passing answer, **Then** they still hold exactly one ask and asks do not accumulate.
 6. **Given** a participant attempting to bypass the interface and claim an ask directly, **When** the server evaluates eligibility, **Then** the claim is refused.
@@ -112,7 +112,7 @@ each produces a clear state with a way forward rather than a dead screen.
 2. **Given** the browser does not support recording, **When** the participant reaches the flow, **Then** they are told plainly rather than shown a broken control.
 3. **Given** a recording in progress, **When** the participant navigates away or their connection drops, **Then** nothing is submitted, nothing is published, and their ask eligibility is unchanged.
 4. **Given** a recording that captured no audio, **When** the participant submits, **Then** it is rejected before review work is spent.
-5. **Given** a submission fails to upload, **When** the failure occurs, **Then** the participant is offered a retry rather than losing the attempt silently.
+5. **Given** an upload fails, **When** the failure is shown, **Then** the participant is told to record again and the original recording is discarded; no recoverable attempt is stored.
 
 ---
 
@@ -121,7 +121,8 @@ each produces a clear state with a way forward rather than a dead screen.
 - **Question closes mid-answer**: the participant is recording when the question reaches its answer limit. Their answer is still accepted and published; closure affects future routing only.
 - **Question deleted or unavailable at submit**: the submission is refused with an explanation and the participant is returned to selection with no penalty.
 - **Duplicate submission**: the participant submits the same answer twice through a double tap or a retry. Exactly one answer is published and exactly one ask is granted.
-- **Answer submitted for a question the participant already answered**: refused server-side, even if the interface allowed it.
+- **Answer submitted for a question the participant already has published**: refused server-side, even if the interface allowed it.
+- **Repeated withheld attempts on one question**: allowed. Nothing caps them except the submission rate limit, which is deliberate — a cap would punish someone whose microphone is bad rather than someone acting in bad faith.
 - **Answer submitted for the participant's own question**: refused server-side, even if the interface allowed it.
 - **Participant already holds an unspent ask**: a further passing answer publishes normally but grants no second ask.
 - **Screen locks or the app backgrounds mid-recording on a phone**: the recording ends; whatever was captured is either submittable or discarded cleanly, never left ambiguous.
@@ -149,26 +150,28 @@ each produces a clear state with a way forward rather than a dead screen.
 - **FR-011**: The system MUST submit the original recording for review on the server.
 - **FR-012**: The system MUST display a checking state while review is in progress.
 - **FR-013**: The system MUST record the answer's duration and MUST reject any answer exceeding sixty seconds.
-- **FR-014**: The system MUST offer a retry when a submission fails to upload, rather than discarding the attempt.
+- **FR-014**: An upload or exhausted processing failure MUST offer a fresh recording without retaining the attempt; a lost response MUST NOT be described as proof that publication failed, and any committed result remains in Yours.
 - **FR-015**: The system MUST publish exactly one answer per submission, even when a submission is duplicated or retried.
 
 #### Eligibility enforcement
 
 - **FR-016**: The system MUST refuse, server-side, an answer submitted to a question the participant authored.
-- **FR-017**: The system MUST refuse, server-side, an answer submitted to a question the participant has already answered.
+- **FR-017**: The system MUST refuse, server-side, an answer submitted to a question to which the participant already has a **published** answer.
+- **FR-017a**: The system MUST accept a further answer to a question whose only prior attempts by this participant were withheld or failed.
 - **FR-018**: The system MUST evaluate all eligibility rules on the server regardless of what the interface allowed.
 
 #### Publication and unlock
 
-- **FR-019**: On a passing review, the system MUST persist the processed text and publish the answer under its question.
+- **FR-019**: Only after review passes, the system MUST atomically insert the published answer and grant an ask if none is held; no answer row exists for a pending, withheld, failed, or abandoned submission.
 - **FR-020**: On a passing review, the system MUST show `Your answer counts. Ask one.`
-- **FR-021**: The system MUST grant exactly one ask when, and only when, an answer passes review.
+- **FR-021**: A published passing answer MUST grant one ask if the participant holds none; it MUST NOT add another if one is already held.
 - **FR-022**: The system MUST NOT grant an ask when recording ends, when a recording is submitted, or at any point before the review decision.
 - **FR-023**: The system MUST NOT allow a participant to hold more than one unspent ask.
 - **FR-024**: The system MUST compute and enforce ask eligibility server-side; client-supplied eligibility MUST be treated as advisory only.
 - **FR-025**: The system MUST block the ask flow entirely for a participant with no unspent ask, including direct attempts that bypass the interface.
 - **FR-026**: On a non-passing review, the system MUST grant no ask and return the participant to the answer flow.
-- **FR-027**: A participant MUST NOT be presented again a question they have answered, whether the answer was published or withheld.
+- **FR-027**: A participant MUST NOT be presented again a question to which they have a published answer. A withheld or failed attempt leaves the question eligible.
+- **FR-027a**: Every Withheld result, including crisis, MUST offer a fresh answer recording for the same question at `/answer/record?questionId=<same>`; fixed crisis resources remain available alongside retry.
 
 #### Failure states
 
@@ -179,7 +182,7 @@ each produces a clear state with a way forward rather than a dead screen.
 
 ### Key Entities
 
-- **Answer**: One participant's response to one question. Carries its duration, published display text, source language, emotional direction, review outcomes, publication status, processing state, and a reference to its transient original recording. Related to exactly one question and exactly one participant.
+- **Answer**: One participant's response to one question. Carries its duration, published display text, source language, emotional direction, a submission id for idempotency, and publication time; only published answers are stored. Related to exactly one question and exactly one participant.
 - **Ask Eligibility**: A participant's right to submit one question. Granted by a passing answer, held at a maximum of one, and spent elsewhere. Authoritative only on the server.
 
 ## Success Criteria *(mandatory)*
@@ -188,7 +191,7 @@ each produces a clear state with a way forward rather than a dead screen.
 
 - **SC-001**: A first-time participant goes from a displayed question to holding an earned ask in under three minutes, including recording and review.
 - **SC-002**: Recording stops automatically at sixty seconds in every tested browser, with zero submissions exceeding the ceiling and zero recordings lost at the boundary.
-- **SC-003**: One hundred percent of passing answers grant exactly one ask; zero non-passing contributions grant any ask.
+- **SC-003**: A passing published answer leaves the participant holding exactly one ask, including when one was already held; non-passing submissions grant none.
 - **SC-004**: Zero asks are granted before a review decision exists, verified by attempting to claim an ask during review.
 - **SC-005**: A participant never holds more than one unspent ask, across repeated qualifying answers.
 - **SC-006**: One hundred percent of attempts to answer one's own question or an already-answered question are refused server-side, including attempts that bypass the interface.
@@ -203,7 +206,7 @@ each produces a clear state with a way forward rather than a dead screen.
 - **Duration source**: the recording's duration is measured and enforced during recording, and re-checked on the server at submission. The client value alone is not trusted.
 - **Recording format**: whatever the browser produces natively is used. Format conversion is a planning concern, not a specification one.
 - **Backgrounded recording**: a phone locking or backgrounding the app ends the recording. Whatever was captured up to that point is treated as a normal short recording.
-- **Retry on upload failure**: the participant retries the upload of the same recording. This is distinct from retrying a review, which belongs to [002-contribution-review](../002-contribution-review/spec.md).
+- **Retry**: 002 retries failed checks within the active submission. Upload failure, exhausted processing, or Withheld offers a fresh recording; leaving the page discards the attempt.
 - **Concurrent unlock**: two simultaneous passing answers from the same participant still result in one unspent ask, resolved server-side.
 
 ## Out of Scope
