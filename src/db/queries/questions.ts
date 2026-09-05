@@ -7,16 +7,12 @@ export interface EligibleQuestion {
 }
 
 /**
- * The native-SQL selection query from data-model.md ("Selection query"). Returns every
- * open question eligible for `participantId` — not their own, not already answered by
- * them, not closed — ordered least-published-answers first with a deterministic tiebreak.
+ * Every open question eligible for `participantId`, fewest published answers first.
  *
- * `IS DISTINCT FROM` is load-bearing: seeded questions carry `participant_id IS NULL`, and
- * plain `<>` never matches against NULL, silently excluding every seeded row.
- *
- * `COUNT` is computed relationally on every call. A denormalized counter is forbidden by
- * the constitution — it drifts, and a drifted count corrupts both the fewer-answers bias
- * (FR-018) and 004's three-answer closure rule.
+ * `IS DISTINCT FROM` is load-bearing: seeded questions carry a NULL `participant_id`, and
+ * plain `<>` never matches NULL, silently excluding every seeded row. `COUNT` stays
+ * relational because a denormalized counter drifts, corrupting both the fewer-answers
+ * bias (FR-018) and 004's closure rule.
  */
 export async function listEligibleQuestions(
   participantId: string,
@@ -46,15 +42,11 @@ export interface SelectionPayload {
 }
 
 /**
- * Shape eligible rows into the response body.
+ * Shape eligible rows into the response body. Extracted from the route handler so a test
+ * exercises this transform rather than re-implementing its own copy of it.
  *
- * Extracted from the route handler so it can be tested directly. Left inline, a test could
- * only re-implement the transform and assert its own copy — which passes forever, including
- * after someone changes the real one.
- *
- * An empty list yields `question: null`, which is the FR-029 empty state and **not** an
- * error. The whole ordered list travels as `queue` so traversal stays tab-local: skipping
- * advances a pointer in page memory and never returns to the server (research D11).
+ * An empty list yields `question: null` — the FR-029 empty state, not an error. The whole
+ * queue travels so skipping stays tab-local and never returns to the server (research D11).
  */
 export function toSelectionPayload(eligible: EligibleQuestion[]): SelectionPayload {
   const queue = eligible.map((q) => ({

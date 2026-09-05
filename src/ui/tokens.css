@@ -35,18 +35,12 @@
   --ink-35: rgba(20, 32, 26, 0.35);
 
   /*
-   * Type — two families, split by origin rather than by size.
+   * Split by origin, not size: --font-sans carries every string a participant wrote at
+   * any size, because Sour Gummy has no Cyrillic, Greek, Vietnamese, or CJK and 002
+   * publishes translated contributions.
    *
-   * --font-display is Sour Gummy at weight 500, loaded in app/layout.tsx. It sets
-   * the product name and display chrome.
-   *
-   * --font-sans carries every string a participant wrote, at any size, because
-   * Sour Gummy has no Cyrillic, Greek, Vietnamese, or CJK and 002 publishes translated
-   * contributions.
-   *
-   * Source Sans 3's digits are monospaced by default, so the recorder timer does
-   * not need `tabular-nums` — which would be a no-op anyway, since Google Fonts
-   * strips GSUB features from its subsets.
+   * Source Sans 3's digits are already monospaced, so the recorder timer needs no
+   * `tabular-nums` — a no-op regardless, since Google Fonts strips GSUB from its subsets.
    */
   --font-display: var(--font-sour-gummy), system-ui, sans-serif;
   --font-sans: var(--font-source-sans), system-ui, sans-serif;

@@ -1,17 +1,12 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Happen to Have?">
   <!--
-    A favicon is fetched and parsed as image/svg+xml, which is STRICT XML: an XML
-    comment may not contain a double hyphen, so CSS custom properties cannot be named
-    here in prose. An earlier revision wrote the green token with its leading hyphens
-    and the whole file failed to parse, which shows as no favicon at all rather than
-    as an error anywhere. Validate edits by parsing, not by dropping the markup into
-    an HTML page: the HTML parser is lenient and accepts what a browser will reject.
+    Parsed as strict XML, where a comment may not contain a double hyphen: naming the
+    CSS custom properties here once broke the file, and a parse error renders as no
+    favicon rather than an error. Validate by parsing as image/svg+xml, not by dropping
+    the markup into an HTML page.
 
-    Solid green tile with the glyph knocked out, not a light plate carrying a green
-    mark. At 16px on a dark tab strip the thin glyph disappeared and only the plate
-    read; a filled tile holds its shape on any tab colour, so no prefers-color-scheme
-    variant is needed. Drawn as a path rather than text because browser chrome does
-    not load the page webfonts.
+    Filled tile, glyph knocked out: at 16px a thin mark on a light plate vanished on a
+    dark tab strip. Path rather than text because browser chrome loads no webfonts.
   -->
   <title>Happen to Have?</title>
   <rect width="64" height="64" rx="13" fill="#2e7d4f"/>

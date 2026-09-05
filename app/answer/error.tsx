@@ -7,16 +7,8 @@ import { Screen } from '@/ui/Screen';
 import { Watermark } from '@/ui/Watermark';
 
 /**
- * Route-level error boundary for `/answer`.
- *
- * QuestionCard already renders a failure state for the case that actually happens — the
- * selection request failing — because that failure is client-side and recoverable in place.
- * This boundary catches the other kind: the Server Component itself throwing during render.
- * Without it that surfaces as Next's default error page, which is the one screen in the
- * product nobody wrote and nobody would want a demo viewer to find.
- *
- * `reset` re-renders the segment, which is the right recovery: the render failed, not the
- * data.
+ * Route-level error boundary for `/answer`: catches the Server Component throwing during
+ * render, which QuestionCard's own failure state cannot reach.
  */
 export default function AnswerError({ reset }: { error: Error; reset: () => void }) {
   return (

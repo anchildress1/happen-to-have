@@ -1,13 +1,7 @@
 /*
- * Selection is one of design.md's bespoke-desktop-grid screens, not the
- * default centered 560px column Screen.module.css provides. The
- * `minmax(0,1.4fr) minmax(0,1fr)` split itself lives on QuestionCard; this
- * only lifts Screen's width cap so that grid has room to work. 1100px
- * matches the source design's declared desktop-preview default viewport.
- *
- * Raise the cap by setting Screen's variable, never by re-declaring max-width:
- * both rules are `.content` at equal specificity, so a duplicate declaration is
- * settled by stylesheet order rather than by intent.
+ * Raise Screen's width cap by setting its variable, never by re-declaring max-width:
+ * both rules are `.content` at equal specificity, so a duplicate is settled by
+ * stylesheet order rather than intent, and the order is not stable across builds.
  */
 @media (min-width: 768px) {
   .content {

@@ -5,14 +5,8 @@ import { Screen } from '@/ui/Screen';
 import { Watermark } from '@/ui/Watermark';
 
 /**
- * Placeholder. 003 (answer recording) replaces this entire route.
- *
- * It exists so `I can answer this` — the primary action of the whole product — lands
- * somewhere honest instead of a 404. T055 calls for a disabled or placeholder target; a
- * 404 on the MVP's main path is neither, and it is what a demo viewer would hit first.
- *
- * Deliberately touches no recording API. SC-005 asserts zero getUserMedia calls anywhere
- * in this feature, and this route is inside it until 003 lands.
+ * Placeholder; 003 replaces this route. Touches no recording API — SC-005 asserts zero
+ * getUserMedia calls anywhere in this feature, and this route is inside it until then.
  */
 export default function RecordPlaceholder() {
   return (
