@@ -14,11 +14,12 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
  * design, so it defines its own visible `:focus-visible` ring rather than
  * relying on the outline that reset strips.
  */
-export function Button({ variant = 'primary', className, ...props }: ButtonProps) {
+export function Button({ variant = 'primary', type = 'button', className, ...props }: ButtonProps) {
   const variantClass = variant === 'ghost' ? styles.ghost : styles.primary;
 
   return (
     <button
+      type={type}
       {...props}
       className={[styles.button, variantClass, className].filter(Boolean).join(' ')}
     />

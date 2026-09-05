@@ -3,7 +3,7 @@ import { defineConfig, devices } from '@playwright/test';
 // A dedicated port, not 3000. Developers here run several Next apps at once, and
 // port 3000 is the default every one of them claims — a suite pointed at it will
 // happily test whichever app answered first. Override with PLAYWRIGHT_PORT.
-const port = Number(process.env.PLAYWRIGHT_PORT ?? 3210);
+const port = Number.parseInt(process.env.PLAYWRIGHT_PORT ?? '', 10) || 3210;
 const baseURL = `http://127.0.0.1:${port}`;
 
 export default defineConfig({
