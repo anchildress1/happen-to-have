@@ -1,0 +1,105 @@
+import { randomUUID } from 'node:crypto';
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { listEligibleQuestions } from '../../src/db/queries/questions.js';
+import { createTestDb, type TestDb } from '../helpers/pglite.js';
+
+/**
+ * Validates FR-018 / SC-004 against PGlite — real Postgres compiled to WASM, in-process,
+ * no network, no shared state. The selection query's strict ascending order (data-model.md
+ * "Selection query", research D10) produces a fewer-published-answers BIAS in aggregate,
+ * not a fixed single winner every pass. The assertion below reads relative frequency over
+ * a large sample with a wide margin rather than an exact ordering of any single call, per
+ * research D10 — so it cannot flake.
+ *
+ * The client is injected directly into `listEligibleQuestions` rather than mocking
+ * `../client`, so the selection SQL itself still runs, unmodified, against real Postgres
+ * semantics — and every one of the 100 round trips below stays in-process.
+ */
+
+let db: TestDb;
+
+beforeAll(async () => {
+  db = await createTestDb();
+});
+
+afterEach(async () => {
+  await db.truncate();
+});
+
+afterAll(async () => {
+  await db.close();
+});
+
+async function createParticipants(count: number): Promise<string[]> {
+  const { rows } = await db.query<{ id: string }>(
+    'INSERT INTO participants (id) SELECT gen_random_uuid() FROM generate_series(1, $1) RETURNING id',
+    [count],
+  );
+  return rows.map((row) => row.id);
+}
+
+async function createSeededQuestion(): Promise<string> {
+  const { rows } = await db.query<{ id: string }>(
+    `INSERT INTO questions (participant_id, display_text, status)
+     VALUES (NULL, $1, 'open')
+     RETURNING id`,
+    [`selection-bias.test.ts fixture ${randomUUID()}`],
+  );
+  return rows[0].id;
+}
+
+async function publishAnswers(questionId: string, forParticipantIds: string[]): Promise<void> {
+  await db.query(
+    `INSERT INTO answers (question_id, participant_id)
+     SELECT $1, unnest($2::uuid[])`,
+    [questionId, forParticipantIds],
+  );
+}
+
+const SELECTIONS = 100;
+// Comfortably larger than SELECTIONS: even if every one of the 100 loop selections below
+// picks the low-count question, its count can never climb high enough to catch the
+// high-count question's starting total. That keeps which question "wins" determined
+// entirely by the count comparison for the whole loop — never by a created_at/id
+// tie-break — which is what makes the assertion below immune to flaking.
+const HIGH_COUNT_HEADSTART = SELECTIONS + 50;
+
+describe('question selection bias toward fewer published answers (real Postgres SQL via PGlite)', () => {
+  it(`prefers the lower-answer-count question in a large majority of ${SELECTIONS} selections`, async () => {
+    const lowCountQuestionId = await createSeededQuestion();
+    const highCountQuestionId = await createSeededQuestion();
+
+    const headstartParticipants = await createParticipants(HIGH_COUNT_HEADSTART);
+    await publishAnswers(highCountQuestionId, headstartParticipants);
+
+    const loopParticipants = await createParticipants(SELECTIONS);
+
+    let lowCountWins = 0;
+    let highCountWins = 0;
+
+    for (const participantId of loopParticipants) {
+      const eligible = await listEligibleQuestions(participantId, db);
+      const contenders = eligible.filter(
+        (question) => question.id === lowCountQuestionId || question.id === highCountQuestionId,
+      );
+      // Both fixtures are unauthored and unanswered by this fresh participant, so both
+      // must always be present — a missing one means an exclusion rule regressed (see
+      // exclusions.test.ts), not that the bias assertion below is meaningless.
+      expect(contenders).toHaveLength(2);
+
+      const winnerId = contenders[0].id;
+      if (winnerId === lowCountQuestionId) {
+        lowCountWins++;
+      } else {
+        highCountWins++;
+      }
+      await publishAnswers(winnerId, [participantId]);
+    }
+
+    expect(lowCountWins + highCountWins).toBe(SELECTIONS);
+    // Generous margin, not an exact count: the low-count question must win a clear,
+    // large majority of a 100-selection sample rather than matching one specific number.
+    expect(lowCountWins).toBeGreaterThan(highCountWins);
+    expect(lowCountWins).toBeGreaterThanOrEqual(SELECTIONS * 0.9);
+  });
+});

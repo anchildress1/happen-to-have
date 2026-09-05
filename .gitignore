@@ -60,3 +60,7 @@ dataconnect/.dataconnect/
 
 # Neon workspace link (branch pointer, per-checkout state)
 .neon
+
+# Playwright output
+/test-results/
+/playwright-report/

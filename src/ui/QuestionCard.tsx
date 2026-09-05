@@ -106,10 +106,19 @@ export function QuestionCard() {
         <p className={styles.helperDesktop}>{copy.selection.helperDesktop}</p>
         <div className={styles.actions}>
           {/* Placeholder target: 003 delivers /answer/record. This feature's code
-              never touches getUserMedia, on this path or any other. */}
+              never touches getUserMedia, on this path or any other.
+
+              prefetch={false} is load-bearing. The href carries the current
+              question id, so every skip changes it and Next fires a fresh RSC
+              prefetch for a route that is a placeholder — wasted round trips
+              proportional to how much someone skips. It also makes "a skip
+              issues zero network requests" (FR-020, FR-022) literally true
+              rather than nearly true, which is the difference between an
+              assertion that holds and one that flakes by viewport. */}
           <Link
             href={`/answer/record?questionId=${encodeURIComponent(current.id)}`}
             className={styles.primaryLink}
+            prefetch={false}
           >
             {copy.action.canAnswer}
           </Link>

@@ -38,10 +38,22 @@ function getPool(): Pool {
 }
 
 /**
+ * The only database surface the query modules depend on. Declaring it lets tests inject an
+ * in-process Postgres (PGlite) without importing this module's Neon pool, and without any
+ * query module knowing which one it got.
+ */
+export interface SqlClient {
+  query<T = Record<string, unknown>>(
+    sql: string,
+    params?: readonly unknown[],
+  ): Promise<{ rows: T[] }>;
+}
+
+/**
  * Parameterized SQL against the branch named in `.neon`. Every caller must use `$1`-style
  * placeholders — never interpolate a value into `sql`.
  */
-export const db = {
+export const db: SqlClient = {
   query<T = Record<string, unknown>>(
     sql: string,
     params?: readonly unknown[],

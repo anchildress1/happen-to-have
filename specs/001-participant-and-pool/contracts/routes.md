@@ -2,8 +2,8 @@
 
 **Feature**: 001-participant-and-pool | **Date**: 2026-09-04
 
-Two pages, two route handlers. Only `/api/questions/next` may create a participant through
-`getOrCreateParticipant` ([session.md](session.md)); `/skip` requires the existing authenticated
+Two pages, one route handler. Only `/api/questions/next` may create a participant through
+`getOrCreateParticipant` ([session.md](session.md)); skipping is client-side and requires no
 session. Neither Server Component creates participants or sets cookies.
 
 Route names come from the design, not from me — each Chrome frame's `url` prop names its route.
@@ -116,45 +116,39 @@ public browse API. The browser stores the list and pointer only in page memory.
 
 ---
 
-### `POST /api/questions/skip`
+### Skipping is not an endpoint
 
-Read the question at the tab's next pointer position after re-checking current eligibility.
+There is no `/api/questions/skip`. `POST /api/questions/next` returns the full ordered `queue`
+of eligible questions, and the tab holds that list plus a pointer in page memory. `Try another
+question` advances the pointer and wraps at the end.
 
-**Request**
+**Why no round trip.** A skip is a presentation change, not a contribution. Every requirement it
+has to satisfy — no write to `participants`, no write to `answers`, no penalty, no cooldown, no
+rate limit, no microphone (FR-020 through FR-023) — is satisfied *by construction* when nothing
+leaves the tab. An endpoint would merely promise the same thing and cost a round trip on every
+press.
 
-```json
-{ "questionId": "c7f2d3e9-...." }
-```
+**The staleness this trades away, and why it is acceptable.** The queue is fetched once on mount.
+If another participant publishes an answer that closes a question mid-traversal, the pointer can
+land on one that is no longer eligible. At challenge scale that window is seconds wide, and the
+consequence is bounded: the participant taps `I can answer this` and the submit-time check in
+[003](../../003-answer-and-unlock/spec.md) refuses it. Eligibility is enforced where it changes
+an outcome — at submission — not where it only changes a display.
 
-**Behavior**
+**What the client must do:**
 
-1. The client advances its pointer by one without moving or excluding any list entry.
-2. The handler validates `questionId`, authenticates the existing session, and re-checks that
-   the candidate is open, not authored by this participant, and not already answered by them.
-3. If eligible, return `{ question: { id, displayText, publishedAnswers } }`; if stale, return
-   `409 { error: "question_ineligible" }` and the client advances again.
-4. At the end of the list, call `/next` to refresh and wrap. If its first id is the question just
-   skipped and another eligible id exists, advance once to avoid an immediate repeat.
-5. If only one eligible question remains, keep it visible with the single-question helper;
-   zero genuinely eligible questions is the only empty-pool case.
-6. Missing or invalid session returns `401 { error: "session_required" }`; the client restarts
-   through `/next`. `/skip` does not mint identity or write any cookie.
+1. Advance the pointer by one; never mutate or reorder the queue.
+2. Wrap to index 0 past the end, rather than rendering a false empty state (FR-025 — a skipped
+   question stays permanently eligible).
+3. Never write a cookie, never re-request, never touch a recording API.
+4. Treat `queue.length === 0` as the only empty-pool case (FR-029).
 
-**Hard requirements** — these are the ones a reviewer should verify by reading the handler:
+**Hard requirements** — verifiable by reading `QuestionCard.tsx` and confirming what is absent:
 
 - **No write to `participants`.** Not `can_ask`, not anything (FR-022).
 - **No write to `answers`.** A skip is not a contribution.
 - **No penalty, cooldown, or counter** of any kind (FR-023).
-- **No rate limit.** Skipping is unlimited (FR-020).
-
-**400** — malformed or missing `questionId`
-
-```json
-{ "error": "invalid_request" }
-```
-
-An unknown-but-well-formed uuid returns `409 { error: "question_ineligible" }` without text.
-Client-supplied ids never bypass current eligibility checks.
+- **No rate limit, and no network call at all.** Skipping is unlimited (FR-020).
 
 ---
 
@@ -163,10 +157,10 @@ Client-supplied ids never bypass current eligibility checks.
 **Validation**: every request body is parsed with Zod before use. Every database row is parsed
 with Zod before rendering (research D5).
 
-**Method rejection**: both handlers export only `POST`. Any other method gets 405 from the
+**Method rejection**: the handler exports only `POST`. Any other method gets 405 from the
 framework.
 
-**Caching**: `/answer` and both handlers are dynamic — `export const dynamic = 'force-dynamic'`.
+**Caching**: `/answer` and the handler are dynamic — `export const dynamic = 'force-dynamic'`.
 Caching a per-participant selection would serve one person's question to another, which breaks
 FR-015 and FR-016 in the most visible way possible.
 

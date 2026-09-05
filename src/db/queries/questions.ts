@@ -1,4 +1,4 @@
-import { db } from '../client';
+import { db, type SqlClient } from '../client';
 
 export interface EligibleQuestion {
   id: string;
@@ -18,8 +18,11 @@ export interface EligibleQuestion {
  * the constitution — it drifts, and a drifted count corrupts both the fewer-answers bias
  * (FR-018) and 004's three-answer closure rule.
  */
-export async function listEligibleQuestions(participantId: string): Promise<EligibleQuestion[]> {
-  const { rows } = await db.query<EligibleQuestion>(
+export async function listEligibleQuestions(
+  participantId: string,
+  client: SqlClient = db,
+): Promise<EligibleQuestion[]> {
+  const { rows } = await client.query<EligibleQuestion>(
     `SELECT q.id, q.display_text, COUNT(a.id) AS published_answers
      FROM questions q
      LEFT JOIN answers a ON a.question_id = q.id

@@ -1,5 +1,11 @@
 import { defineConfig, devices } from '@playwright/test';
 
+// A dedicated port, not 3000. Developers here run several Next apps at once, and
+// port 3000 is the default every one of them claims — a suite pointed at it will
+// happily test whichever app answered first. Override with PLAYWRIGHT_PORT.
+const port = Number(process.env.PLAYWRIGHT_PORT ?? 3210);
+const baseURL = `http://127.0.0.1:${port}`;
+
 export default defineConfig({
   testDir: 'tests/e2e',
   fullyParallel: true,
@@ -8,7 +14,7 @@ export default defineConfig({
   workers: process.env.CI ? 1 : undefined,
   reporter: 'html',
   use: {
-    baseURL: 'http://localhost:3000',
+    baseURL,
     trace: 'on-first-retry',
   },
   projects: [
@@ -34,8 +40,10 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: 'pnpm start',
-    url: 'http://localhost:3000',
-    reuseExistingServer: !process.env.CI,
+    command: `pnpm exec next start -p ${port}`,
+    url: baseURL,
+    // Never reuse. A server left running from an earlier session serves the build
+    // it started with, so a green suite could be reporting on stale code.
+    reuseExistingServer: false,
   },
 });

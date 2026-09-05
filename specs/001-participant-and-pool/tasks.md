@@ -146,16 +146,16 @@ question appears each time, no recording begins, and ask eligibility never chang
 
 ### Tests for User Story 2
 
-- [ ] T056 [P] [US2] E2E test in `tests/e2e/skip.spec.ts`: twenty consecutive skips each yield a different question (SC-003)
-- [ ] T057 [P] [US2] Integration test in `tests/integration/skip-writes-nothing.test.ts`: skipping writes **nothing** to `participants` or `answers`, and `can_ask` is unchanged
-- [ ] T058 [P] [US2] Integration test in `tests/integration/skip-no-repeat.test.ts`: the question just skipped is never the immediately next one (FR-024)
+- [x] T056 [P] [US2] E2E test in `tests/e2e/skip.spec.ts`: twenty consecutive skips each yield a different question (SC-003)
+- [x] T057 [P] [US2] Integration test in `tests/integration/skip-writes-nothing.test.ts`: skipping writes **nothing** to `participants` or `answers`, and `can_ask` is unchanged
+- [x] T058 [P] [US2] Integration test, folded into `tests/integration/skip-writes-nothing.test.ts` as its own describe block: the question just skipped is never the immediately next one (FR-024)
 
 ### Implementation for User Story 2
 
-- [ ] T059 [US2] Implement tab-local traversal in `app/answer/page.tsx` — an ordered id list and a pointer held in page memory, per [contracts/session.md](contracts/session.md). Skipping advances the pointer and **never** mutates the cookie
-- [ ] T060 [US2] Implement `POST /api/questions/skip` in `app/api/questions/skip/route.ts`: no write to `participants`, no write to `answers`, no penalty, no cooldown, no rate limit
-- [ ] T061 [US2] In `app/api/questions/skip/route.ts`, return 400 only for a malformed or missing `skippedQuestionId`; an unknown-but-well-formed uuid is accepted and ignored, because validating it costs a round trip to prevent nothing
-- [ ] T062 [US2] Wire `Try another question` in `src/ui/QuestionCard.tsx` to advance without requesting microphone permission
+- [x] T059 [US2] Implement tab-local traversal in `src/ui/QuestionCard.tsx` — the ordered `queue` from `/next` plus a pointer in React state. Advancing wraps at the end and **never** writes a cookie or calls the server
+- [x] T060 [US2] **No skip endpoint.** `/next` returns the full eligible `queue`, so a skip never leaves the tab — every no-write requirement holds by construction rather than by promise. Reconciled in [contracts/routes.md](contracts/routes.md)
+- [x] T061 [US2] Obsolete with T060. Staleness is caught at submission by 003's authorship and published-answer checks, not by re-validating on every skip
+- [x] T062 [US2] Wire `Try another question` in `src/ui/QuestionCard.tsx` to advance without requesting microphone permission
 
 **Checkpoint**: US1 and US2 both work independently.
 
@@ -172,19 +172,19 @@ never appear, the third still does.
 
 ### Tests for User Story 3
 
-- [ ] T063 [P] [US3] Integration test in `tests/integration/exclusions.test.ts`: a participant's own question is never selected
-- [ ] T064 [P] [US3] Integration test in `tests/integration/exclusions.test.ts`: a question with a **published** answer from this participant is never selected
-- [ ] T065 [P] [US3] Integration test in `tests/integration/exclusions.test.ts`: a question carrying only a withheld or failed attempt **stays selectable**. Under Principle V no row exists for those attempts at all, so this holds by construction — the test guards against a future regression that starts persisting them
-- [ ] T066 [P] [US3] Integration test in `tests/integration/exclusions.test.ts`: a closed question is never selected
-- [ ] T067 [P] [US3] Integration test in `tests/integration/selection-bias.test.ts`: across 100 selections, lower-count questions appear materially more often than higher-count ones (SC-004)
-- [ ] T068 [P] [US3] Integration test in `tests/integration/exclusions.test.ts`: seeded questions, whose `participant_id` is `NULL`, are still selectable — the `IS DISTINCT FROM` regression guard
+- [x] T063 [P] [US3] Integration test in `tests/integration/exclusions.test.ts`: a participant's own question is never selected
+- [x] T064 [P] [US3] Integration test in `tests/integration/exclusions.test.ts`: a question with a **published** answer from this participant is never selected
+- [x] T065 [P] [US3] Integration test in `tests/integration/exclusions.test.ts`: a question carrying only a withheld or failed attempt **stays selectable**. Under Principle V no row exists for those attempts at all, so this holds by construction — the test guards against a future regression that starts persisting them
+- [x] T066 [P] [US3] Integration test in `tests/integration/exclusions.test.ts`: a closed question is never selected
+- [x] T067 [P] [US3] Integration test in `tests/integration/selection-bias.test.ts`: across 100 selections, lower-count questions appear materially more often than higher-count ones (SC-004)
+- [x] T068 [P] [US3] Integration test in `tests/integration/exclusions.test.ts`: seeded questions, whose `participant_id` is `NULL`, are still selectable — the `IS DISTINCT FROM` regression guard
 
 ### Implementation for User Story 3
 
-- [ ] T069 [US3] Apply the own-question and published-answer exclusions in `src/db/queries/questions.ts`
-- [ ] T070 [US3] Apply the closed-question exclusion in `src/db/queries/questions.ts`, reading the `status` that 004 owns and writes
-- [ ] T071 [US3] Order by published-answer count ascending with a tiebreak in `src/db/queries/questions.ts`, per research D10 — a bias, not a strict ordering, so concurrent participants do not collide
-- [ ] T072 [US3] Enforce every exclusion server-side in `app/api/questions/next/route.ts` regardless of what the interface allowed
+- [x] T069 [US3] Apply the own-question and published-answer exclusions in `src/db/queries/questions.ts`
+- [x] T070 [US3] Apply the closed-question exclusion in `src/db/queries/questions.ts`, reading the `status` that 004 owns and writes
+- [x] T071 [US3] Order by published-answer count ascending with a tiebreak in `src/db/queries/questions.ts`, per research D10 — a bias, not a strict ordering, so concurrent participants do not collide
+- [x] T072 [US3] Enforce every exclusion server-side in `app/api/questions/next/route.ts` regardless of what the interface allowed
 
 **Checkpoint**: Selection is correct under all exclusion rules.
 
