@@ -36,6 +36,12 @@ export const copy = {
     helperMobile: 'Answer in your own voice. Up to 60 seconds.',
     helperDesktop:
       'Answer in your own voice. Up to 60 seconds. Once your answer counts, you can ask one of your own.',
+    /**
+     * FR-024. Shown after `Try another question` when the pool holds exactly one eligible
+     * question, so a press that cannot advance reads as an explanation rather than a
+     * broken button. Not an empty state — the question stays on screen.
+     */
+    onlyQuestion: 'This is the only question waiting right now.',
   },
 
   /**

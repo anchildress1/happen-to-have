@@ -128,10 +128,11 @@ rate limit, no microphone (FR-020 through FR-023) — is satisfied *by construct
 leaves the tab. An endpoint would merely promise the same thing and cost a round trip on every
 press.
 
-**The staleness this trades away, and why it is acceptable.** The queue is fetched once on mount.
-If another participant publishes an answer that closes a question mid-traversal, the pointer can
-land on one that is no longer eligible. At challenge scale that window is seconds wide, and the
-consequence is bounded: the participant taps `I can answer this` and the submit-time check in
+**The staleness this trades away, and why it is acceptable.** The queue is fetched on mount and
+again at each pass boundary, so it can go stale for at most one pass. If another participant
+publishes an answer that closes a question mid-pass, the pointer can land on one that is no longer
+eligible. At challenge scale that window is seconds wide, and the consequence is bounded: the
+participant taps `I can answer this` and the submit-time check in
 [003](../../003-answer-and-unlock/spec.md) refuses it. Eligibility is enforced where it changes
 an outcome — at submission — not where it only changes a display.
 
@@ -140,15 +141,26 @@ an outcome — at submission — not where it only changes a display.
 1. Advance the pointer by one; never mutate or reorder the queue.
 2. Wrap to index 0 past the end, rather than rendering a false empty state (FR-025 — a skipped
    question stays permanently eligible).
-3. Never write a cookie, never re-request, never touch a recording API.
-4. Treat `queue.length === 0` as the only empty-pool case (FR-029).
+3. **Re-request on that wrap, and only on that wrap.** FR-025 makes the end of a pass a refresh
+   point: the list is re-fetched and re-sorted so a question published mid-traversal can appear
+   and moved answer counts are re-read. Wrap the pointer first and let the new queue land
+   underneath — blanking to the loading state here would render as the false empty state item 2
+   forbids. The in-flight response must not move the pointer again; the participant may have
+   skipped on, and yanking them back re-shows a question they just left (FR-024).
+4. Never write a cookie, never re-request mid-pass, never touch a recording API.
+5. With `queue.length === 1` there is nowhere to advance: keep the question rendered and show
+   `This is the only question waiting right now.` (FR-024). Do not re-request — a refresh per
+   press on a pool of one is a request loop, and item 2 already keeps the question eligible.
+6. Treat `queue.length === 0` as the only empty-pool case (FR-029).
 
 **Hard requirements** — verifiable by reading `QuestionCard.tsx` and confirming what is absent:
 
 - **No write to `participants`.** Not `can_ask`, not anything (FR-022).
 - **No write to `answers`.** A skip is not a contribution.
 - **No penalty, cooldown, or counter** of any kind (FR-023).
-- **No rate limit, and no network call at all.** Skipping is unlimited (FR-020).
+- **No rate limit, and no network call inside a pass.** Skipping is unlimited (FR-020). The one
+  call a traversal makes is the FR-025 refresh at a pass boundary — a read, bounded by pool size,
+  and it writes nothing.
 
 ---
 

@@ -33,12 +33,20 @@ export function QuestionCard() {
   const [status, setStatus] = useState<Status>('loading');
   const [queue, setQueue] = useState<Question[]>([]);
   const [pointer, setPointer] = useState(0);
+  const [isOnlyQuestion, setIsOnlyQuestion] = useState(false);
   // Guards against a slow first request resolving after a retry supersedes it.
   const requestId = useRef(0);
 
-  const load = useCallback(() => {
+  /**
+   * `keepVisible` suppresses the loading state so a wrap refresh swaps the queue underneath
+   * the rendered card. Blanking mid-traversal would read as the false empty state FR-029
+   * exists to prevent, and it would strip the `Try another question` button out from under
+   * the press that triggered it.
+   */
+  const load = useCallback((options?: { keepVisible?: boolean }) => {
     const id = ++requestId.current;
-    setStatus('loading');
+    setIsOnlyQuestion(false);
+    if (!options?.keepVisible) setStatus('loading');
 
     fetch('/api/questions/next', { method: 'POST' })
       .then((res) => {
@@ -48,7 +56,13 @@ export function QuestionCard() {
       .then((data) => {
         if (id !== requestId.current) return;
         setQueue(data.queue);
-        setPointer(0);
+        // A wrap refresh must not move the pointer. It already jumped to 0 optimistically,
+        // and the participant may have skipped again while the request was in flight —
+        // resetting here would yank them back and re-show a question they just left,
+        // breaking FR-024. Modulo only guards a queue that came back shorter.
+        setPointer((p) =>
+          options?.keepVisible ? (data.queue.length ? p % data.queue.length : 0) : 0,
+        );
         setStatus(data.question ? 'ready' : 'empty');
       })
       .catch(() => {
@@ -74,7 +88,7 @@ export function QuestionCard() {
       <div className={styles.status}>
         <h1 className={styles.statusHeading}>{copy.failure.heading}</h1>
         <p className={styles.statusBody}>{copy.failure.body}</p>
-        <Button type="button" onClick={load}>
+        <Button type="button" onClick={() => load()}>
           {copy.failure.action}
         </Button>
       </div>
@@ -95,7 +109,25 @@ export function QuestionCard() {
   const current = queue[pointer] as Question;
 
   const handleTryAnother = () => {
-    setPointer((p) => (p + 1) % queue.length);
+    // FR-024: with one eligible question there is nowhere to advance to. Keep it on screen
+    // and say so, rather than re-rendering the same card as if the press did nothing.
+    if (queue.length === 1) {
+      setIsOnlyQuestion(true);
+      return;
+    }
+
+    const next = pointer + 1;
+    if (next < queue.length) {
+      setPointer(next);
+      return;
+    }
+
+    // FR-025: the end of a pass refreshes and re-sorts the eligible list rather than
+    // replaying a stale one, so a question published mid-traversal can appear and counts
+    // that moved are re-read. Wrap optimistically first — the press must change the screen
+    // now, not a round trip later, and the refreshed queue lands underneath.
+    setPointer(0);
+    load({ keepVisible: true });
   };
 
   return (
@@ -104,6 +136,11 @@ export function QuestionCard() {
       <div className={styles.panel}>
         <p className={styles.helperMobile}>{copy.selection.helperMobile}</p>
         <p className={styles.helperDesktop}>{copy.selection.helperDesktop}</p>
+        {isOnlyQuestion ? (
+          <p className={styles.onlyQuestion} aria-live="polite">
+            {copy.selection.onlyQuestion}
+          </p>
+        ) : null}
         <div className={styles.actions}>
           {/* Placeholder target: 003 delivers /answer/record. This feature's code
               never touches getUserMedia, on this path or any other.
