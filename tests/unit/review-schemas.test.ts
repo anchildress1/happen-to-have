@@ -87,10 +87,31 @@ describe('contentResultSchema', () => {
     expect(contentResultSchema.safeParse(silent).success).toBe(true);
   });
 
-  it('rejects a refusal that does not say which heading to render', () => {
+  it('accepts a refusal with no stated reason — the gate falls back to audioQuality', () => {
+    // contracts/review.md rule 2c exists precisely for this shape. Rejecting it here would
+    // make that rule unreachable and turn a silent recording into three faults and a
+    // processing failure, which is the outcome FR-021 wants withheld.
     const noReason = { ...VALID_CONTENT, canPublish: false, contentReason: null };
 
-    expect(contentResultSchema.safeParse(noReason).success).toBe(false);
+    expect(contentResultSchema.safeParse(noReason).success).toBe(true);
+  });
+
+  it('accepts a refusal with no source language, which silence has none of', () => {
+    const silent = {
+      ...VALID_CONTENT,
+      canPublish: false,
+      contentReason: 'silence',
+      displayText: '',
+      sourceLanguage: null,
+    };
+
+    expect(contentResultSchema.safeParse(silent).success).toBe(true);
+  });
+
+  it('still requires a source language on anything publishable', () => {
+    const publishable = { ...VALID_CONTENT, sourceLanguage: null };
+
+    expect(contentResultSchema.safeParse(publishable).success).toBe(false);
   });
 
   it('rejects a contentReason outside the three headings copy.md defines', () => {
@@ -120,8 +141,13 @@ describe('judgmentResultSchema', () => {
     expect(answerSchema.safeParse(answer).success).toBe(false);
   });
 
-  it('rejects a boolean relevance verdict on a QUESTION, which never evaluates it', () => {
-    expect(questionSchema.safeParse(VALID_JUDGMENT).success).toBe(false);
+  it('ignores a stray relevance verdict on a QUESTION rather than discarding the result', () => {
+    // The field is unused for questions, so refusing an over-eager judge that scored it
+    // anyway would throw away a crisis verdict to protect nothing.
+    const parsed = questionSchema.safeParse({ ...VALID_JUDGMENT, relevanceCanPublish: false });
+
+    expect(parsed.success).toBe(true);
+    expect(parsed.success && parsed.data.relevanceCanPublish).toBeNull();
   });
 
   it('rejects a missing crisis verdict — absence is not permission', () => {
@@ -171,10 +197,28 @@ describe('judgmentResultSchema', () => {
     expect(answerSchema.safeParse(refusal).success).toBe(true);
   });
 
-  it('rejects an audioQuality outside the three values FR-008h defines', () => {
-    const unknownQuality = { ...VALID_JUDGMENT, audioQuality: 'muffled' };
+  it('falls back rather than discarding a verdict over an unrecognised audioQuality', () => {
+    // audioQuality selects a heading and gates nothing. Its two non-clear values have never
+    // been observed, so an unexpected one is the likely case — and rejecting it would throw
+    // away the crisis verdict travelling beside it.
+    const refusal = {
+      ...VALID_JUDGMENT,
+      crisisCanPublish: false,
+      primaryReason: 'crisis',
+      audioQuality: 'muffled',
+    };
 
-    expect(answerSchema.safeParse(unknownQuality).success).toBe(false);
+    const parsed = answerSchema.safeParse(refusal);
+
+    expect(parsed.success).toBe(true);
+    expect(parsed.success && parsed.data.audioQuality).toBe('clear');
+  });
+
+  it('keeps a crisis verdict when reasonDetail is missing entirely', () => {
+    const { reasonDetail: _detail, ...withoutDetail } = VALID_JUDGMENT;
+    const refusal = { ...withoutDetail, crisisCanPublish: false, primaryReason: 'crisis' };
+
+    expect(answerSchema.safeParse(refusal).success).toBe(true);
   });
 
   it('truncates an over-long reasonDetail instead of discarding the verdict', () => {

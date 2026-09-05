@@ -35,7 +35,11 @@ export const contentResultSchema = z
     // exact case FR-021 wants withheld into three faults and a processing failure, and the
     // participant would read "we couldn't check that" instead of "we couldn't hear anything".
     displayText: z.string().max(2000),
-    sourceLanguage: z.string().min(1),
+    // Capped, never floored, for the same reason as displayText: a recording with no
+    // discernible speech has no source language either, and `''` or null is its natural
+    // emission. Every fixture is a clear recording, so this path has no observations behind
+    // it — which argues for accepting what the model sends, not for guessing a floor.
+    sourceLanguage: z.string().nullable(),
     // Nullable, never optional: the model must state that it found no reliable direction
     // rather than omitting the field, so a missing key stays a schema failure.
     emotion: z.string().nullable(),
@@ -47,11 +51,14 @@ export const contentResultSchema = z
     message: 'a publishable result must carry non-empty displayText',
     path: ['displayText'],
   })
-  // A refusal that does not say why leaves WithheldPage nothing to select among the three
-  // content headings copy.md requires.
-  .refine((result) => result.canPublish || result.contentReason !== null, {
-    message: 'a content refusal must carry a contentReason',
-    path: ['contentReason'],
+  // There is deliberately NO rule requiring a refusal to carry a contentReason. The gate's
+  // rule 2c already handles that shape: a refusal without a stated reason falls back to the
+  // judgment call's audioQuality to pick the heading. Rejecting it here would make that rule
+  // unreachable and turn a silent recording — the exact case FR-021 wants withheld — into
+  // three faults and a processing failure.
+  .refine((result) => !result.canPublish || result.sourceLanguage !== null, {
+    message: 'a publishable result must name the language it was translated from',
+    path: ['sourceLanguage'],
   });
 
 /**
@@ -63,7 +70,11 @@ export const contentResultSchema = z
 const judgmentShape = {
   crisisCanPublish: z.boolean(),
   illegalCanPublish: z.boolean(),
-  audioQuality: audioQualitySchema,
+  // Defaulted rather than required. It selects a heading and gates nothing, so an omitted or
+  // unrecognised value must not discard the verdict alongside it — `clear` routes to the
+  // general content heading, which is true of every case. Its two other values have never
+  // been observed, so the unexpected-value path is the likely one, not the exotic one.
+  audioQuality: audioQualitySchema.catch('clear').default('clear'),
   // Exactly the four values contracts/review.md defines and the judgment prompt is told it
   // may return. `content` is deliberately absent: this call never judges content, and
   // accepting it would hand the gate a withheld reason with no contentReason to render.
@@ -72,7 +83,11 @@ const judgmentShape = {
   // nothing (FR-027), so failing the parse over its length would discard a real refusal —
   // a crisis verdict would arrive as a processing failure. Clipping still denies a model
   // somewhere to hide the transcript it was told not to repeat.
-  reasonDetail: z.string().transform((detail) => detail.slice(0, 500)),
+  reasonDetail: z
+    .string()
+    .optional()
+    .default('')
+    .transform((detail) => detail.slice(0, 500)),
 };
 
 /**
@@ -87,7 +102,17 @@ export function judgmentResultSchemaFor(kind: 'answer' | 'question') {
   return z
     .object({
       ...judgmentShape,
-      relevanceCanPublish: kind === 'answer' ? z.boolean() : z.null(),
+      // Strict for an answer, forgiving for a question. On an answer a missing verdict is
+      // absence, and absence is not permission (FR-019) — that rejection is load-bearing.
+      // On a question the field is unused, so refusing an over-eager judge that scored it
+      // anyway would discard a crisis verdict to protect nothing.
+      relevanceCanPublish:
+        kind === 'answer'
+          ? z.boolean()
+          : z
+              .union([z.boolean(), z.null()])
+              .optional()
+              .transform(() => null),
     })
     .refine(
       (result) => {
