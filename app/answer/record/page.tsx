@@ -12,8 +12,8 @@ export default function RecordPlaceholder() {
   return (
     <Screen header={<AppHeader />}>
       <Watermark />
-      <h1>Recording isn&rsquo;t built yet</h1>
-      <p>This is where you&rsquo;d record your answer. It lands with the next slice of work.</p>
+      <h1>{copy.recordPlaceholder.heading}</h1>
+      <p>{copy.recordPlaceholder.body}</p>
       <Link href="/answer">{copy.action.tryAnother}</Link>
     </Screen>
   );

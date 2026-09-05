@@ -52,6 +52,12 @@ export const copy = {
 
   loading: 'Finding you a question…',
 
+  /** Placeholder route until 003 delivers recording. */
+  recordPlaceholder: {
+    heading: 'Recording isn\u2019t built yet',
+    body: 'This is where you\u2019d record your answer. It lands with the next slice of work.',
+  },
+
   failure: {
     heading: "That didn't load",
     body: 'Something on our end went wrong. Try again.',
