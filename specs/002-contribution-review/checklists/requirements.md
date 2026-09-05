@@ -36,12 +36,13 @@
 - [x] Provider names, schemas, and column lists deliberately excluded (constitution + plan own those)
 - [x] Shared ownership is identified; cross-flow enforcement references its owning spec
 
-## Constitution Alignment (v2.0.0)
+## Constitution Alignment (v2.1.0)
 
 | Principle | Covered by |
 |-----------|------------|
 | I. Human Contribution Is The Product | FR-014, FR-015, SC-006 |
 | III. Aggregate Guardrail Gate | FR-001 – FR-035, SC-004, SC-008 |
+| III. Provider filter is not a check | FR-008b, FR-008c, spike Finding 2 |
 | IV. Original Audio Is Transient | FR-043 – FR-047, SC-002, SC-003 |
 | V. Structured Output Or Failure | FR-036 – FR-042, SC-009, SC-010 |
 
@@ -53,9 +54,15 @@
 - Crisis resources and fresh recording coexist; answer/question retries use their own routes.
 - Only published contributions persist; exhausted or abandoned attempts have no recovery path.
 - Review calls use structured output; TTS validates audio without structured output.
-- Spike latency, cost, provider behavior, cancellation, and deletion remain unverified until run.
+- Guardrail checks measured 2026-09-05 (docs/spike-002-guardrails.md): no safety ratings are
+  returned, the provider's default filter passes 7 of 8 must-not-publish recordings, and the
+  dedicated checks caught 6/6 illegal and 3/3 crisis with no benign false positives.
+- Crisis wording is fitted to its own failing case and needs untuned recordings before launch.
+- Cost, 60-second-clip latency, cancellation, and deletion remain unverified.
 
 ## Notes
 
 - Specification decisions are synchronized; implementation validation remains pending.
-- Highest-risk spec in the split. Plan this one against spike results, not assumptions.
+- Highest-risk spec in the split. Spike results now exist — plan against those, not assumptions.
+- Fan-out is four calls for an answer and three for a question. Any plan that still says three
+  and two predates the 2026-09-05 amendment.
