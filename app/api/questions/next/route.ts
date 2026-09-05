@@ -16,6 +16,11 @@ function json(payload: unknown, headers: Headers): Response {
 }
 
 export async function POST(request: Request): Promise<Response> {
+  // Set-Cookie must survive a failure after the participant was created. Without it a
+  // retry mints another row and the participant's identity resets on every transient
+  // selection error.
+  const sessionHeaders = new Headers();
+
   try {
     // Deliberately does not confirm the row still exists: an id with no rows returns the
     // same list as a new participant (exclusions.test.ts), so the check cost a round-trip
@@ -23,14 +28,19 @@ export async function POST(request: Request): Promise<Response> {
     // 003 under the foreign key that enforces it.
     const claimed = await readParticipantId(request);
     if (claimed) {
-      return json(toSelectionPayload(await listEligibleQuestions(claimed)), new Headers());
+      return json(toSelectionPayload(await listEligibleQuestions(claimed)), sessionHeaders);
     }
 
     const { participantId, headers } = await getOrCreateParticipant(request);
+    for (const [key, value] of headers) sessionHeaders.append(key, value);
     const eligible = await listEligibleQuestions(participantId);
-    return json(toSelectionPayload(eligible), headers);
+    return json(toSelectionPayload(eligible), sessionHeaders);
   } catch {
     // Never a stack trace, never a database message.
-    return Response.json({ error: 'selection_failed' }, { status: 500 });
+    sessionHeaders.set('content-type', 'application/json');
+    return new Response(JSON.stringify({ error: 'selection_failed' }), {
+      status: 500,
+      headers: sessionHeaders,
+    });
   }
 }
