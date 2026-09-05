@@ -224,9 +224,9 @@ state renders rather than an error, a blank screen, or an ineligible question.
 - [x] T084 [P] E2E test in `tests/e2e/a11y.spec.ts`: the watermark and status dot are `aria-hidden`
 - [x] T085 [P] E2E test in `tests/e2e/responsive.spec.ts`: `scrollWidth <= clientWidth` at 402, 767, 768, 1100, and 1440 px, and the desktop grid engages at exactly 768px
 - [x] T086 [P] E2E test in `tests/e2e/copy.spec.ts`: a case-insensitive scan of every rendered route finds none of the forbidden terms in [contracts/copy.md](contracts/copy.md) — no "expert", no "agent", no "safe", no dialect spelling
-- [ ] T087 [P] Verify `.neon` and `.env` are gitignored and that a fresh `make db-up && make migrate && make seed` reproduces the schema and pool on a new Neon branch
-- [ ] T088 Walk every scenario in [quickstart.md](quickstart.md) end to end against a fresh clone of the repository root
-- [ ] T089 Run `make ai-checks` from the repository root and confirm **zero warnings** — the constitution treats warnings as hard errors
+- [x] T087 [P] Verify `.neon` and `.env` are gitignored and that a fresh `make db-up && make migrate && make seed` reproduces the schema and pool on a new Neon branch
+- [x] T088 Walk every scenario in [quickstart.md](quickstart.md) end to end against a fresh clone of the repository root
+- [x] T089 Run `make ai-checks` from the repository root and confirm **zero warnings** — the constitution treats warnings as hard errors
 - [ ] T090 Deploy to Cloud Run via `./deploy.sh` and run the full flow on a real iPhone and a real Android device (SC-006, SC-009)
 
 ---

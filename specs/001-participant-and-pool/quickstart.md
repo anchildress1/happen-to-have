@@ -5,9 +5,6 @@
 Run the feature locally and prove each success criterion. Written for someone with the repo
 cloned and nothing else.
 
-> **Status**: this describes the target state. None of it runs until `/speckit-tasks` and
-> `/speckit-implement` have built it. Do not treat these steps as verified.
-
 ---
 
 ## Prerequisites
@@ -16,7 +13,9 @@ cloned and nothing else.
 | - | - | - |
 | Node.js | 24 LTS | `node --version` |
 | pnpm | 11.25.0 | `pnpm --version` |
-| Docker | any current | `docker info` |
+| Neon CLI | 4.14.1 | `neon --version` |
+
+Tests need no database service: integration tests run Postgres in-process via PGlite.
 
 `.nvmrc` pins Node 24. With `nvm`, `nvm use` in the repo root is enough.
 
@@ -35,7 +34,9 @@ Fill `.env`:
 | - | - | - |
 | `DATABASE_URL` | pulled by `neon checkout` | Secret Manager |
 | `SESSION_SECRET` | any 32+ char string — `openssl rand -base64 32` | Secret Manager |
-| `NODE_ENV` | `development` | `production` |
+
+Do not set `NODE_ENV` in `.env`. Next sets it per command, and pinning it to `development`
+breaks `next start` and would drop the session cookie's `secure` flag in a deployment.
 
 `.env` is gitignored. Never commit a real secret; `.env.example` carries placeholders only.
 
@@ -76,7 +77,7 @@ canvas and must not ship.
 Confirm identity was created on interaction, not page view:
 
 ```bash
-make db-shell   # psql against the emulator's Postgres
+make db-shell   # psql against the checked-out Neon branch
 select count(*) from participants;   -- 1 after clicking, not after merely loading /
 ```
 
@@ -98,7 +99,7 @@ select count(*) from answers;             -- 0
 ### 3. Exclusions — SC-002, FR-015 through FR-017
 
 ```bash
-make db-shell   # psql against the emulator's Postgres
+make db-shell   # psql against the checked-out Neon branch
 ```
 
 ```sql
@@ -147,17 +148,15 @@ not a closed question shown anyway.
 
 ### 6. Loading and failure — SC-007, FR-030, FR-031
 
-```bash
-make db-down
-```
-
-Reload `/answer`. Expect `That didn't load` and a working `Try again`. Then:
+There is no `make db-down`. Point the app at an unreachable host instead:
 
 ```bash
-make db-up && make migrate && make seed
+DATABASE_URL='postgres://u:p@ep-does-not-exist.us-east-2.aws.neon.tech/db' make dev
 ```
 
-Retry succeeds.
+Reload `/answer`. Expect `That didn't load` and a working `Try again`; the API returns
+`500 {"error":"selection_failed"}` with no driver message. Restore the real `DATABASE_URL`
+(`make db-up`) and the retry succeeds.
 
 ### 7. Zero microphone prompts — SC-005
 
@@ -165,15 +164,16 @@ Click through every route. **No permission prompt may ever appear.** This featur
 `I can answer this` and touches no recording API.
 
 ```bash
-pnpm playwright test tests/e2e/no-microphone.spec.ts
+pnpm exec playwright test a11y
 ```
 
-The test asserts `navigator.mediaDevices.getUserMedia` is never invoked on any route.
+`tests/e2e/a11y.spec.ts` asserts `navigator.mediaDevices.getUserMedia` is never invoked on
+any route.
 
 ### 8. Responsive — SC-006
 
 ```bash
-pnpm playwright test tests/e2e/responsive.spec.ts
+pnpm exec playwright test responsive
 ```
 
 Widths come from the design, not from guesswork: the mobile frame is `402px` and the desktop
@@ -204,7 +204,7 @@ for the weekend build, documented in the README, and not a bug to file.
 ### 11. Design fidelity — [contracts/design.md](contracts/design.md)
 
 ```bash
-pnpm playwright test tests/e2e/design.spec.ts
+pnpm exec playwright test design
 ```
 
 Asserts: no device or browser frame anywhere; only Sour Gummy and Source Sans 3 are requested,
@@ -225,7 +225,6 @@ make ai-checks    # format-check, lint, typecheck, test, e2e, secret-scan
 ```
 
 Everything must pass with **zero warnings** — the constitution treats warnings as hard errors.
-These commands remain planned until the application and tooling exist; seed readiness is pending.
 
 ---
 
@@ -250,8 +249,8 @@ the swap in `research.md` if you take it.
 ## Deploy
 
 ```bash
-./deploy.sh    # build, push to Artifact Registry, deploy to Cloud Run us-east1
+./deploy.sh    # build, push to Artifact Registry, deploy to Cloud Run ($REGION, default us-east1)
 ```
 
-Requires: `SESSION_SECRET` and
-the Neon project reachable, `DATABASE_URL` in Secret Manager, and migrations applied against `main`.
+Requires `SESSION_SECRET` and `DATABASE_URL` in Secret Manager, the Neon project reachable,
+and migrations applied against `main`.
