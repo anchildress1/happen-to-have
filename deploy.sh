@@ -13,9 +13,10 @@ REPOSITORY="${REPOSITORY:-$SERVICE_NAME}"
 IMAGE_TAG="${IMAGE_TAG:-$(git rev-parse --short HEAD 2>/dev/null || date +%s)}"
 # Deploys retained, newest first, counting the one this run creates.
 KEEP_DEPLOYS="${KEEP_DEPLOYS:-3}"
-# Secret Manager ids, never values. Prefixed because this Secret Manager is shared with
-# other services, where a bare `session-secret` would collide with whoever claimed it first.
-HTH_SECRET_PREFIX="${HTH_SECRET_PREFIX:-hth}"
+# Secret Manager ids, never values. Ids are `<PREFIX>_<ENV VAR>`, matching the convention
+# already in this Secret Manager (SAVE_THE_SUN_GEMINI_API_KEY). The prefix is why an
+# unprefixed GEMINI_API_KEY belonging to another service cannot be picked up by accident.
+HTH_SECRET_PREFIX="${HTH_SECRET_PREFIX:-HTH}"
 
 command -v gcloud >/dev/null 2>&1 || { echo "error: gcloud CLI is required." >&2; exit 1; }
 
@@ -34,9 +35,9 @@ echo "Deploying ${SERVICE_NAME} to ${PROJECT_ID}/${REGION} as ${IMAGE_TAG}"
 
 # Checked before the build, not after: gcloud run deploy reports a missing secret as a
 # generic IAM error naming neither the secret nor the fix, by which point the image is built.
-SESSION_SECRET_ID="${HTH_SECRET_PREFIX}-session-secret"
-DATABASE_URL_ID="${HTH_SECRET_PREFIX}-database-url"
-GEMINI_API_KEY_ID="${HTH_SECRET_PREFIX}-gemini-api-key"
+SESSION_SECRET_ID="${HTH_SECRET_PREFIX}_SESSION_SECRET"
+DATABASE_URL_ID="${HTH_SECRET_PREFIX}_DATABASE_URL"
+GEMINI_API_KEY_ID="${HTH_SECRET_PREFIX}_GEMINI_API_KEY"
 
 for ID in "${SESSION_SECRET_ID}" "${DATABASE_URL_ID}"; do
   secret_exists "${ID}" || {
@@ -64,6 +65,26 @@ gcloud artifacts repositories describe "${REPOSITORY}" --location "${REGION}" \
     --location "${REGION}" --project "${PROJECT_ID}" \
     --description "Container images for ${SERVICE_NAME}"
 
+# Retention is Artifact Registry's job, not this script's. A Keep rule outranks a Delete
+# rule, so this is "keep the newest ${KEEP_DEPLOYS}, bin the rest", enforced by GCP on its
+# own schedule. Re-applied every run because it is idempotent and a repo created before this
+# existed would otherwise never get one.
+#
+# Cloud Run revisions have no equivalent and are deliberately left alone: an idle revision
+# serves nothing and bills nothing, so only the images were ever costing anything.
+POLICY=$(mktemp)
+trap 'rm -f "${POLICY}"' EXIT
+cat >"${POLICY}" <<JSON
+[
+  {"name": "keep-newest", "action": {"type": "Keep"},
+   "mostRecentVersions": {"keepCount": ${KEEP_DEPLOYS}}},
+  {"name": "delete-rest", "action": {"type": "Delete"},
+   "condition": {"tagState": "ANY"}}
+]
+JSON
+gcloud artifacts repositories set-cleanup-policies "${REPOSITORY}" --location "${REGION}" \
+  --project "${PROJECT_ID}" --policy "${POLICY}" --quiet >/dev/null
+
 gcloud builds submit . --tag "${IMAGE_URI}" --project "${PROJECT_ID}"
 
 gcloud run deploy "${SERVICE_NAME}" \
@@ -74,48 +95,6 @@ gcloud run deploy "${SERVICE_NAME}" \
   --port 8080 \
   --allow-unauthenticated \
   --set-secrets "${SECRETS}"
-
-# Prune only after a successful deploy, so a failed run never deletes what is still serving.
-#
-# Revisions before images: a retained revision pins the image it runs, and deleting that
-# image out from under it breaks the rollback the retention exists for.
-#
-# Best effort by design — the deploy has already succeeded, and a cleanup that cannot reach
-# the API must not report that success as a failure.
-prune() {
-  local serving
-  serving=$(gcloud run services describe "${SERVICE_NAME}" --project "${PROJECT_ID}" \
-    --region "${REGION}" --format "value(status.traffic[].revisionName)" | tr ';,' '\n' | sed '/^$/d')
-
-  gcloud run revisions list --service "${SERVICE_NAME}" --project "${PROJECT_ID}" \
-    --region "${REGION}" --sort-by "~metadata.creationTimestamp" --format "value(metadata.name)" |
-    tail -n "+$((KEEP_DEPLOYS + 1))" |
-    while read -r revision; do
-      # A revision can hold traffic without being newest — a rollback, or a pinned split.
-      if grep -qxF "${revision}" <<<"${serving}"; then
-        echo "  keeping ${revision} (serving traffic)"
-        continue
-      fi
-      echo "  deleting revision ${revision}"
-      gcloud run revisions delete "${revision}" --project "${PROJECT_ID}" \
-        --region "${REGION}" --quiet || true
-    done
-
-  # `~createTime`, not `~CREATE_TIME`. The latter is the display column heading; gcloud
-  # accepts it silently, sorts by nothing, and the list comes back ordered by digest — so
-  # the tail would delete an arbitrary set, the image just deployed included.
-  gcloud artifacts docker images list "${IMAGE_REPO}" --project "${PROJECT_ID}" \
-    --sort-by "~createTime" --format "value(version)" |
-    tail -n "+$((KEEP_DEPLOYS + 1))" |
-    while read -r digest; do
-      echo "  deleting image ${digest:0:19}..."
-      gcloud artifacts docker images delete "${IMAGE_REPO}@${digest}" \
-        --project "${PROJECT_ID}" --delete-tags --quiet || true
-    done
-}
-
-echo "Pruning to the newest ${KEEP_DEPLOYS}..."
-prune || echo "  warning: prune incomplete; the deploy itself succeeded." >&2
 
 gcloud run services describe "${SERVICE_NAME}" --project "${PROJECT_ID}" \
   --region "${REGION}" --format "value(status.url)" | sed 's/^/Deployed: /'

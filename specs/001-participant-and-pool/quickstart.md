@@ -32,11 +32,11 @@ Fill `.env`:
 
 | Variable | Local value | Production source |
 | - | - | - |
-| `SESSION_SECRET` | any 32+ char string — `openssl rand -base64 32` | `hth-session-secret` |
-| `DATABASE_URL` | written by `neon checkout` (pooled) | `hth-database-url` |
+| `SESSION_SECRET` | any 32+ char string — `openssl rand -base64 32` | `HTH_SESSION_SECRET` |
+| `DATABASE_URL` | written by `neon checkout` (pooled) | `HTH_DATABASE_URL` |
 | `DATABASE_URL_UNPOOLED` | written by `neon checkout` (direct) | n/a — migrations only |
 | `NEON_BRANCH` | written by `neon checkout` | n/a — informational |
-| `GEMINI_API_KEY` | leave empty; 001 never reads it | `hth-gemini-api-key` (002/003) |
+| `GEMINI_API_KEY` | leave empty; 001 never reads it | `HTH_GEMINI_API_KEY` (002/003) |
 
 Only `SESSION_SECRET` is filled in by hand. Production ids assume the default
 `HTH_SECRET_PREFIX=hth` — see [Deploy](#deploy).
@@ -264,13 +264,13 @@ for all three:
 
 | Env var in the container | Secret id | Required by |
 | - | - | - |
-| `SESSION_SECRET` | `$HTH_SECRET_PREFIX-session-secret` | 001 |
-| `DATABASE_URL` | `$HTH_SECRET_PREFIX-database-url` | 001 |
-| `GEMINI_API_KEY` | `$HTH_SECRET_PREFIX-gemini-api-key` | 002/003 — bound when it exists, skipped when it does not |
+| `SESSION_SECRET` | `${HTH_SECRET_PREFIX}_SESSION_SECRET` | 001 |
+| `DATABASE_URL` | `${HTH_SECRET_PREFIX}_DATABASE_URL` | 001 |
+| `GEMINI_API_KEY` | `${HTH_SECRET_PREFIX}_GEMINI_API_KEY` | 002/003 — bound when it exists, skipped when it does not |
 
-`HTH_SECRET_PREFIX` defaults to `hth`, so the ids are `hth-session-secret`,
-`hth-database-url`, `hth-gemini-api-key`. Point a deploy at a different set without editing
-the script:
+`HTH_SECRET_PREFIX` defaults to `HTH`, so the ids are `HTH_SESSION_SECRET`,
+`HTH_DATABASE_URL`, `HTH_GEMINI_API_KEY` — `<PREFIX>_<VAR>`, matching the convention already
+in this Secret Manager. Point a deploy at a different set without editing the script:
 
 ```bash
 HTH_SECRET_PREFIX=staging ./deploy.sh
@@ -284,8 +284,10 @@ missing: `gcloud run deploy` reports a missing secret as a generic IAM error nam
 the secret nor the fix, by which point the image is already built and pushed. Also requires
 the Neon project reachable and migrations applied against `main`.
 
-After a successful deploy it prunes to the newest `KEEP_DEPLOYS` (default 3) Cloud Run
-revisions and Artifact Registry images. A revision serving traffic is never deleted, even
-when it is older than the cutoff — that is what a rollback looks like. Pruning is best
-effort: it runs after the deploy has succeeded, so a cleanup that cannot reach the API warns
-rather than failing the run.
+Image retention is an Artifact Registry cleanup policy, applied to the repository on every
+run and enforced by GCP on its own schedule: keep the newest `KEEP_DEPLOYS` (default 3),
+delete the rest. The script deletes nothing itself.
+
+Cloud Run revisions are left alone. There is no equivalent retention policy for them, and
+they cost nothing — an idle revision serves no traffic and is not billed. Only images were
+ever accruing storage.
