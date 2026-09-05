@@ -3,23 +3,14 @@ import type { SqlClient } from '../../src/db/client';
 import { createTestDb, type TestDb } from '../helpers/pglite.js';
 
 /**
- * FR-001 and contracts/routes.md's test obligation "`/` creates no participant row"
- * (tasks.md T045/T094): identity is minted on *interaction*, never on render.
+ * FR-001: identity is minted on interaction, never on render. A crawler or link preview
+ * hitting `/` runs the Server Component body, and must not become a participant.
  *
- * The distinction is load-bearing. `app/page.tsx` is a Server Component, so a crawler, a
- * link preview, or an uptime probe hitting `/` runs its body. If identity moved into that
- * body, every one of them would become a participant, and `participants` would fill with
- * rows no person is behind — which quietly makes the reciprocity numbers a lie.
- *
- * The page components are called directly rather than rendered to HTML. Calling is what
- * proves the point: a Server Component's own body is the only place a render-time write
- * could live, and JSX children are not evaluated by the call, so nothing else can
- * contribute a query. The moment someone awaits `getOrCreateParticipant` in one of these,
- * the row count moves and this fails.
+ * The components are called, not rendered: their own body is the only place a render-time
+ * write could live, and calling does not evaluate JSX children.
  */
 
-// Hoisted so the `vi.mock` factory below can close over it — the factory is lifted above
-// the imports, and the PGlite instance does not exist until `beforeAll`.
+// Hoisted: the mock factory is lifted above the imports, before PGlite exists.
 const testDb = vi.hoisted(() => ({ current: null as SqlClient | null }));
 
 vi.mock('../../src/db/client', () => ({
@@ -42,8 +33,7 @@ beforeAll(async () => {
   db = await createTestDb();
   testDb.current = db;
 
-  // Imported after the mock is registered and the secret is set, so both modules bind to
-  // the PGlite-backed client rather than reaching for a Neon pool that is not there.
+  // After the mock and secret, so these bind to PGlite rather than a Neon pool.
   ({ default: ArrivalPage } = await import('../../app/page'));
   ({ default: AnswerPage } = await import('../../app/answer/page'));
   ({ POST } = await import('../../app/api/questions/next/route'));
@@ -68,8 +58,7 @@ describe('identity is created on interaction, never on render (FR-001, T094)', (
   it('creates no participant row when the Arrival page renders', async () => {
     expect(await countParticipants()).toBe(0);
 
-    // `await` covers both shapes: today it is synchronous, and an added `await` inside it
-    // would make it a promise this must still settle before counting.
+    // `await` covers both shapes: sync today, a promise if someone adds an await.
     await ArrivalPage();
 
     expect(await countParticipants()).toBe(0);
@@ -78,8 +67,7 @@ describe('identity is created on interaction, never on render (FR-001, T094)', (
   it('creates no participant row when the selection page shell renders', async () => {
     expect(await countParticipants()).toBe(0);
 
-    // T054: `/answer` renders the shell only. QuestionCard's client-side POST is what
-    // mints identity, so the Server Component must stay as inert as Arrival.
+    // `/answer` renders the shell only; QuestionCard's POST mints identity.
     await AnswerPage();
 
     expect(await countParticipants()).toBe(0);
@@ -94,7 +82,7 @@ describe('identity is created on interaction, never on render (FR-001, T094)', (
 
     expect(response.status).toBe(200);
     expect(await countParticipants()).toBe(1);
-    // The identity has to come back to the browser, or the next request mints another one.
+    // Without the cookie coming back, the next request mints another participant.
     expect(response.headers.get('set-cookie')).toContain('hth_session=');
   });
 

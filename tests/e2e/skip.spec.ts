@@ -35,11 +35,7 @@ function threeQuestionQueue(): QueuedQuestion[] {
   return [question(1), question(2), question(3)];
 }
 
-/**
- * Stubs the selection endpoint with a fixed queue, so pool size is a property of the test
- * rather than of whatever the shared seeded pool holds. SC-003 names pools of 1 and 2
- * explicitly, and neither can be produced by pointing at the real seeds.
- */
+/** Fixed queue, so pool size is a property of the test. SC-003 names pools of 1 and 2. */
 async function fulfillQueue(route: Route, queue: QueuedQuestion[]): Promise<void> {
   await route.fulfill({
     status: 200,
@@ -112,9 +108,8 @@ test.describe('skip (User Story 2, FR-020–FR-025, SC-003)', () => {
   test('skipping within a pass issues zero network requests (T056b, FR-020, FR-022, FR-023)', async ({
     page,
   }) => {
-    // A three-question queue, so the pass boundary is at a known press rather than wherever
-    // the shared seeded pool happens to end. Two advances stay inside the pass; the third
-    // wraps, which FR-025 requires to refresh the eligible list.
+    // Three questions puts the pass boundary at a known press: two advances stay in, the
+    // third wraps.
     const queue = threeQuestionQueue();
     await page.route(NEXT_QUESTION_URL, (route) => fulfillQueue(route, queue));
     await page.goto('/answer');
@@ -125,12 +120,10 @@ test.describe('skip (User Story 2, FR-020–FR-025, SC-003)', () => {
     await expect(tryAnother).toBeVisible();
 
     const requestUrls: string[] = [];
-    page.on('request', (request) => {
-      // Next's router prefetches the header's `Yours` link on its own schedule (an RSC
-      // request, `?_rsc=`), and which press it lands next to varies by viewport. It is not
-      // traffic a skip caused, so excluding it is what makes this assertion about skipping
-      // instead of about prefetch timing. Everything else still counts.
-      if (!request.url().includes('_rsc=')) requestUrls.push(request.url());
+    // Next prefetches the header's `Yours` link on its own schedule, next to a different
+    // press per viewport. Not traffic a skip caused; everything else still counts.
+    page.on('request', (r) => {
+      if (!r.url().includes('_rsc=')) requestUrls.push(r.url());
     });
 
     // Advances 1 and 2 land on indexes 1 and 2 — inside the pass, so nothing leaves the tab.
@@ -138,11 +131,8 @@ test.describe('skip (User Story 2, FR-020–FR-025, SC-003)', () => {
     await tryAnother.click();
     expect(requestUrls).toEqual([]);
 
-    // Advance 3 runs off the end. FR-025 refreshes and re-sorts for the new pass, so exactly
-    // one selection request is expected — a read. It is still not a write: the no-write
-    // guarantees on `participants` and `answers` are proven in
-    // tests/integration/skip-writes-nothing.test.ts, which is the only layer that can see
-    // the tables at all.
+    // Advance 3 wraps: FR-025 refreshes, so exactly one request — a read. The no-write
+    // half is proven in tests/integration/skip-writes-nothing.test.ts.
     await tryAnother.click();
     await expect
       .poll(() => requestUrls.filter((url) => url.includes('/api/questions/next')).length)

@@ -24,11 +24,8 @@ WORKDIR /app
 RUN corepack enable
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-# `next build` imports every route to collect its config, which evaluates
-# src/session/session.ts and its refuse-to-boot guard. Nothing is served during the build,
-# so this is a placeholder, not a secret, and it does not reach the runner stage — Cloud Run
-# injects the real value from Secret Manager (deploy.sh). Scoped to this RUN so it never
-# lands in an image layer's environment.
+# Placeholder, not a secret: next build evaluates session.ts's boot guard but serves
+# nothing. Scoped to this RUN so no layer carries it; Cloud Run injects the real value.
 RUN SESSION_SECRET=build-time-placeholder-never-served-not-a-secret pnpm run build
 
 # ---- runner: minimal production image, non-root ----

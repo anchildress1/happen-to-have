@@ -34,12 +34,7 @@
   display: none;
 }
 
-/*
- * FR-024's single-eligible-question notice. Authored, not designed — the imported design
- * covers no such state (contracts/design.md, "Gaps"), so it borrows the helper's metrics
- * and only lifts the colour, which is enough to read as an answer to the press rather than
- * as more standing helper text.
- */
+/* Authored, not designed (design.md "Gaps"): helper metrics, lifted colour. */
 .onlyQuestion {
   margin: 0;
   font-size: 15px;

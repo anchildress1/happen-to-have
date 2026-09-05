@@ -20,14 +20,11 @@ interface NextResponse {
 type Status = 'loading' | 'ready' | 'empty' | 'error';
 
 /**
- * Client shell for `/answer` (T052-T055). Identity is created here, by this
- * component's `POST /api/questions/next` on mount — never by the Server
- * Component that renders it (contracts/session.md, T054).
+ * Client shell for `/answer`. Identity is created by this component's POST on mount, never
+ * by the Server Component that renders it (contracts/session.md).
  *
- * Traversal is tab-local (research D11): the returned `queue` and a pointer
- * live only in this component's state. `Try another question` moves the
- * pointer — no cookie write, no repeat request, no microphone permission —
- * and wraps to the start past the last entry instead of faking an empty pool.
+ * Traversal is tab-local: skipping moves a pointer through the returned `queue` with no
+ * cookie write and no microphone permission. Only a wrap re-fetches (FR-025).
  */
 export function QuestionCard() {
   const [status, setStatus] = useState<Status>('loading');
@@ -37,12 +34,8 @@ export function QuestionCard() {
   // Guards against a slow first request resolving after a retry supersedes it.
   const requestId = useRef(0);
 
-  /**
-   * `keepVisible` suppresses the loading state so a wrap refresh swaps the queue underneath
-   * the rendered card. Blanking mid-traversal would read as the false empty state FR-029
-   * exists to prevent, and it would strip the `Try another question` button out from under
-   * the press that triggered it.
-   */
+  // `keepVisible` swaps the queue underneath the rendered card: blanking mid-traversal
+  // reads as the false empty state FR-029 forbids, and removes the button mid-press.
   const load = useCallback((options?: { keepVisible?: boolean }) => {
     const id = ++requestId.current;
     setIsOnlyQuestion(false);
@@ -56,10 +49,8 @@ export function QuestionCard() {
       .then((data) => {
         if (id !== requestId.current) return;
         setQueue(data.queue);
-        // A wrap refresh must not move the pointer. It already jumped to 0 optimistically,
-        // and the participant may have skipped again while the request was in flight —
-        // resetting here would yank them back and re-show a question they just left,
-        // breaking FR-024. Modulo only guards a queue that came back shorter.
+        // A wrap refresh must not move the pointer: it already jumped to 0, and the
+        // participant may have skipped on since. Modulo guards a shorter queue.
         setPointer((p) =>
           options?.keepVisible ? (data.queue.length ? p % data.queue.length : 0) : 0,
         );
@@ -109,8 +100,7 @@ export function QuestionCard() {
   const current = queue[pointer] as Question;
 
   const handleTryAnother = () => {
-    // FR-024: with one eligible question there is nowhere to advance to. Keep it on screen
-    // and say so, rather than re-rendering the same card as if the press did nothing.
+    // FR-024: nowhere to advance to, so hold the question and say why.
     if (queue.length === 1) {
       setIsOnlyQuestion(true);
       return;
@@ -122,10 +112,8 @@ export function QuestionCard() {
       return;
     }
 
-    // FR-025: the end of a pass refreshes and re-sorts the eligible list rather than
-    // replaying a stale one, so a question published mid-traversal can appear and counts
-    // that moved are re-read. Wrap optimistically first — the press must change the screen
-    // now, not a round trip later, and the refreshed queue lands underneath.
+    // FR-025: a new pass re-fetches and re-sorts. Wrap first so the press changes the
+    // screen now, not a round trip later.
     setPointer(0);
     load({ keepVisible: true });
   };
@@ -142,16 +130,8 @@ export function QuestionCard() {
           </p>
         ) : null}
         <div className={styles.actions}>
-          {/* Placeholder target: 003 delivers /answer/record. This feature's code
-              never touches getUserMedia, on this path or any other.
-
-              prefetch={false} is load-bearing. The href carries the current
-              question id, so every skip changes it and Next fires a fresh RSC
-              prefetch for a route that is a placeholder — wasted round trips
-              proportional to how much someone skips. It also makes "a skip
-              issues zero network requests" (FR-020, FR-022) literally true
-              rather than nearly true, which is the difference between an
-              assertion that holds and one that flakes by viewport. */}
+          {/* prefetch={false}: the href carries the question id, so every skip would
+              otherwise fire a fresh RSC prefetch for a placeholder route. */}
           <Link
             href={`/answer/record?questionId=${encodeURIComponent(current.id)}`}
             className={styles.primaryLink}

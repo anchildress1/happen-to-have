@@ -61,11 +61,8 @@ jobs:
       - name: Build
         run: pnpm build
         env:
-          # `next build` imports every route to collect its config, which evaluates
-          # src/session/session.ts and its refuse-to-boot guard. Nothing is served here, so
-          # this value is a placeholder, not a secret — production reads the real one from
-          # Secret Manager at runtime. Keeping the guard strict is the point: a deploy that
-          # cannot find a secret must fail to start rather than serve sessions without one.
+          # Placeholder, not a secret: next build evaluates session.ts's boot guard but
+          # serves nothing. Production reads the real value from Secret Manager.
           SESSION_SECRET: build-time-placeholder-never-served-not-a-secret
 
       - name: SonarCloud Scan
