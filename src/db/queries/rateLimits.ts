@@ -1,3 +1,4 @@
+import { z } from 'zod';
 import { rateLimitRowSchema } from '../../schema/rows';
 import { type SqlClient, db } from '../client';
 
@@ -17,11 +18,12 @@ const DEFAULT_MAX = 20;
 const DEFAULT_WINDOW_SECONDS = 3_600;
 
 function readPositiveInt(raw: string | undefined, fallback: number): number {
-  const parsed = Number.parseInt(raw ?? '', 10);
-  // A typo'd env var must not silently disable the limit. Anything unparseable or
-  // non-positive falls back rather than becoming 0, which would refuse every submission, or
-  // NaN, which would accept every one.
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+  // `Number` rather than `parseInt`, which accepts a valid prefix and discards the rest:
+  // `parseInt('3_600')` is 3, and `parseInt('1e9')` is 1. Both are silent, and the first
+  // turns a one-hour window into three seconds — effectively no limit at all, from an env
+  // var that reads as correct.
+  const parsed = Number(raw);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
 }
 
 /**
@@ -39,13 +41,14 @@ export function rateLimitConfig(env: Record<string, string | undefined> = proces
   };
 }
 
-export interface RateLimitDecision {
-  allowed: boolean;
-  /** When the current window closes. FR-049 requires telling the participant *when*. */
-  retryAt: Date;
-  /** Submissions counted inside the current window, including this one when allowed. */
-  count: number;
-}
+/**
+ * A union so `retryAt` exists only where it means something. On an allowed submission it
+ * would be the current window's close time, which is not a retry time and not something a
+ * caller should be able to read by accident.
+ */
+export type RateLimitDecision =
+  | { allowed: true; count: number }
+  | { allowed: false; retryAt: Date; count: number };
 
 export interface RateLimitClient {
   /** Counts one submission against the participant's window and reports whether it may run. */
@@ -89,15 +92,29 @@ export function makeRateLimitClient(
 ): RateLimitClient {
   return {
     async recordSubmission(participantId) {
+      // Validated here rather than trusted. The column is a uuid PRIMARY KEY, so a malformed
+      // id reaches Postgres and comes back as `invalid input syntax for type uuid` — a
+      // rejected promise, when the contract says reviewContribution never throws for a review
+      // outcome. Failing here names the real problem instead.
+      z.uuid().parse(participantId);
       const { max, windowSeconds } = config();
       const { rows } = await client.query(RECORD_SUBMISSION_SQL, [participantId, windowSeconds]);
       const row = rateLimitRowSchema.parse(rows[0]);
 
-      return {
-        allowed: row.submission_count <= max,
-        retryAt: new Date(row.window_started_at.getTime() + windowSeconds * 1_000),
-        count: row.submission_count,
-      };
+      // Inclusive on purpose: `max` is how many submissions a window permits, so the 20th is
+      // allowed and the 21st is not. An exclusive comparison would silently make the
+      // documented limit one lower than the number an operator configured.
+      const allowed = row.submission_count <= max;
+
+      return allowed
+        ? { allowed: true, count: row.submission_count }
+        : {
+            allowed: false,
+            // Anchored to when THIS window opened, not to now. A participant limited 59
+            // minutes into an hour must be told a minute, not another hour (FR-049).
+            retryAt: new Date(row.window_started_at.getTime() + windowSeconds * 1_000),
+            count: row.submission_count,
+          };
     },
   };
 }
@@ -109,6 +126,10 @@ export const rateLimitClient: RateLimitClient = makeRateLimitClient();
  * Deletes rows whose window closed long ago. Joined to the existing `db-sweep` job rather
  * than given a second scheduled task: a closed window carries no meaning, and the row is
  * abuse infrastructure rather than anything worth retaining.
+ *
+ * `$1` is in **days**, unlike every other duration in this module, which is in seconds.
+ * Passing `windowSeconds` here would sweep roughly ten years of nothing and quietly stop
+ * cleaning up at all.
  */
 export const SWEEP_CLOSED_RATE_LIMIT_WINDOWS_SQL = `
   DELETE FROM submission_rate_limits

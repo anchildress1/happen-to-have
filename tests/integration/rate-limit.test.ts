@@ -1,9 +1,13 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
-import { makeRateLimitClient, rateLimitConfig } from '../../src/db/queries/rateLimits.js';
+import {
+  makeRateLimitClient,
+  rateLimitConfig,
+  SWEEP_CLOSED_RATE_LIMIT_WINDOWS_SQL,
+} from '../../src/db/queries/rateLimits.js';
 import { createTestDb, type TestDb } from '../helpers/pglite.js';
 
 /**
- * T019, FR-048 – FR-052. The submission limiter, against real Postgres via PGlite.
+ * FR-048 – FR-052. The submission limiter, against real Postgres via PGlite.
  *
  * Real SQL rather than a fake, because the whole correctness argument lives in one
  * statement: `ON CONFLICT DO UPDATE` making the check and the increment atomic, and a `CASE`
@@ -111,16 +115,27 @@ describe('submission rate limit — the window (FR-048)', () => {
     expect(afterExpiry.count).toBe(1);
   });
 
-  it('reports when the window closes, not merely that it is closed', async () => {
-    // FR-049: the participant is told a time. A boolean alone leaves the interface with
-    // nothing to interpolate into the heading.
+  it('anchors retryAt to when the window opened, not to now', async () => {
+    // FR-049 tells the participant a time, and the time has to be right. Computing it from
+    // Date.now() instead of window_started_at passed the previous version of this test: under
+    // a real one-hour window, someone limited 59 minutes in would be told to come back in an
+    // hour rather than in a minute.
     const participantId = await createParticipant();
     const client = makeRateLimitClient(db, limitOf(1, 60));
 
-    const decision = await client.recordSubmission(participantId);
+    await client.recordSubmission(participantId);
+    await ageWindow(participantId, 45);
+    const refused = await client.recordSubmission(participantId);
 
-    expect(decision.retryAt.getTime()).toBeGreaterThan(Date.now());
-    expect(decision.retryAt.getTime()).toBeLessThanOrEqual(Date.now() + 61_000);
+    expect(refused.allowed).toBe(false);
+    if (refused.allowed) {
+      return;
+    }
+
+    // 45s into a 60s window: about 15s left, nowhere near a fresh 60.
+    const secondsOut = (refused.retryAt.getTime() - Date.now()) / 1_000;
+    expect(secondsOut).toBeLessThan(30);
+    expect(secondsOut).toBeGreaterThan(0);
   });
 });
 
@@ -160,6 +175,42 @@ describe('submission rate limit — concurrency', () => {
   });
 });
 
+describe('sweeping closed windows', () => {
+  it('deletes windows past the cutoff and leaves live ones alone', async () => {
+    // The statement takes DAYS while every other duration in the module is in seconds. A
+    // unit slip here wipes live limiter rows on every cron tick, which silently removes the
+    // limit for everyone — and nothing else in the suite would notice.
+    const stale = await createParticipant();
+    const live = await createParticipant();
+    const client = makeRateLimitClient(db, limitOf(20));
+
+    await client.recordSubmission(stale);
+    await client.recordSubmission(live);
+    await ageWindow(stale, 60 * 60 * 24 * 45);
+
+    const { rows: swept } = await db.query<{ participant_id: string }>(
+      SWEEP_CLOSED_RATE_LIMIT_WINDOWS_SQL,
+      [30],
+    );
+
+    expect(swept.map((row) => row.participant_id)).toEqual([stale]);
+
+    const { rows: left } = await db.query<{ participant_id: string }>(
+      'SELECT participant_id FROM submission_rate_limits',
+    );
+    expect(left.map((row) => row.participant_id)).toEqual([live]);
+  });
+
+  it('sweeps nothing when every window is inside the cutoff', async () => {
+    const participantId = await createParticipant();
+    await makeRateLimitClient(db, limitOf(20)).recordSubmission(participantId);
+
+    const { rows } = await db.query(SWEEP_CLOSED_RATE_LIMIT_WINDOWS_SQL, [30]);
+
+    expect(rows).toEqual([]);
+  });
+});
+
 describe('submission rate limit — configuration (FR-048)', () => {
   it('falls back to the defaults when the env vars are absent', () => {
     expect(rateLimitConfig({})).toEqual({ max: 20, windowSeconds: 3_600 });
@@ -174,11 +225,28 @@ describe('submission rate limit — configuration (FR-048)', () => {
     expect(config).toEqual({ max: 5, windowSeconds: 60 });
   });
 
-  it('falls back rather than letting a typo disable or invert the limit', () => {
-    // '0' would refuse every submission; 'abc' parses to NaN, which compares false against
-    // everything and would accept every submission. Both are worse than the default.
+  it('falls back rather than letting a typo change the limit', () => {
+    // Both '0' and NaN refuse EVERY submission — `1 <= NaN` is false, so NaN fails closed
+    // rather than open. An earlier comment here claimed the opposite.
     expect(rateLimitConfig({ HTH_RATE_LIMIT_MAX: '0' }).max).toBe(20);
     expect(rateLimitConfig({ HTH_RATE_LIMIT_MAX: 'abc' }).max).toBe(20);
     expect(rateLimitConfig({ HTH_RATE_LIMIT_MAX: '-5' }).max).toBe(20);
+  });
+
+  it('does not accept a numeric prefix and silently discard the rest', () => {
+    // parseInt('3_600') is 3 and parseInt('1e9') is 1. The first turns a one-hour window
+    // into three seconds — effectively no limit — from an env var that reads as correct.
+    expect(rateLimitConfig({ HTH_RATE_LIMIT_WINDOW_SECONDS: '3_600' }).windowSeconds).toBe(3_600);
+    expect(rateLimitConfig({ HTH_RATE_LIMIT_MAX: '1e9' }).max).toBe(1_000_000_000);
+    expect(rateLimitConfig({ HTH_RATE_LIMIT_MAX: '20abc' }).max).toBe(20);
+    expect(rateLimitConfig({ HTH_RATE_LIMIT_MAX: '2.5' }).max).toBe(20);
+  });
+
+  it('rejects a malformed participant id rather than letting Postgres do it', async () => {
+    // The column is a uuid PRIMARY KEY, so an unvalidated id surfaces as a driver error —
+    // and reviewContribution is contracted never to throw for a review outcome.
+    const client = makeRateLimitClient(db, limitOf(20));
+
+    await expect(client.recordSubmission('not-a-uuid')).rejects.toThrow();
   });
 });
