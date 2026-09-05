@@ -78,8 +78,8 @@ endpoints that call this module ([research D10](research.md)).
 
 ### Copy
 
-- [ ] T021 [P] Add every string from [contracts/copy.md](contracts/copy.md) to `src/copy.ts` — Checking, five Withheld variants, crisis heading and body, the four resource rows, processing failure, and rate limited — authoring no string at a call site
-- [ ] T022 [P] Unit-test in `tests/unit/copy.test.ts` that FR-025 and FR-026's two strings match the spec byte for byte, and that no string contains a Principle VII forbidden term
+- [x] T021 [P] Add every string from [contracts/copy.md](contracts/copy.md) to `src/copy.ts` — Checking, five Withheld variants, crisis heading and body, the four resource rows, processing failure, and rate limited — authoring no string at a call site
+- [x] T022 [P] Unit-test in `tests/unit/copy.test.ts` that FR-025 and FR-026's two strings match the spec byte for byte, and that no string contains a Principle VII forbidden term
 
 **Checkpoint**: the provider client, validation, retry, limiter, and copy all exist and are tested. No review has run yet.
 
