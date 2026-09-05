@@ -40,7 +40,9 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: `pnpm exec next start -p ${port}`,
+    // Build first: `next start` needs .next, and on a clean checkout (or the pre-push
+    // hook) nothing has produced it yet.
+    command: `pnpm run build && pnpm exec next start -p ${port}`,
     url: baseURL,
     // Never reuse. A server left running from an earlier session serves the build
     // it started with, so a green suite could be reporting on stale code.

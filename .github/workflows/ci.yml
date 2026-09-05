@@ -58,6 +58,11 @@ jobs:
       - name: Test
         run: pnpm test
 
+      # `pnpm test` is the unit project only. Without this, an integration regression
+      # passes the required check.
+      - name: Integration test
+        run: pnpm run test:integration
+
       - name: Build
         run: pnpm build
         env:
