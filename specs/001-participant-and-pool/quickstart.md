@@ -33,24 +33,27 @@ Fill `.env`:
 
 | Variable | Local value | Production source |
 | - | - | - |
-| `DATACONNECT_EMULATOR_HOST` | `127.0.0.1:9399` (local emulator) | unset in production |
-| `FIREBASE_PROJECT_ID` | your Firebase project id | same value |
+| `DATABASE_URL` | pulled by `neon checkout` | Secret Manager |
 | `SESSION_SECRET` | any 32+ char string — `openssl rand -base64 32` | Secret Manager |
 | `NODE_ENV` | `development` | `production` |
 
 `.env` is gitignored. Never commit a real secret; `.env.example` carries placeholders only.
 
-Start the local stack, deploy schema, seed:
+Check out a Neon branch for your git branch, migrate, and seed:
 
 ```bash
-make db-up        # Firebase emulator suite: SQL Connect + local Postgres
-make schema       # deploy dataconnect/schema/schema.gql, generate the typed SDK
+make db-up        # create + check out dev-<git-branch>; pulls DATABASE_URL into .env
+make migrate      # node-pg-migrate up against that branch
 make seed         # upserts seed/questions.json by id; idempotent, safe to re-run
 make dev          # http://localhost:3000
 ```
 
-Schema and operations deploy from `dataconnect/`. Never author them in the Firebase console —
-the constitution treats console-edited schema as non-existent, and the next deploy overwrites it.
+Every git branch gets its own copy-on-write Neon branch, so a migration you are developing
+never touches another branch's database. `neon checkout` re-pulls `DATABASE_URL` on every
+switch.
+
+Sharp edge: the Neon docs say `neon checkout <name>` creates a missing branch. On CLI 4.14.1 it
+does not — it errors with "Branch not found." `make db-up` runs `neon branches create` first.
 
 ---
 
@@ -151,7 +154,7 @@ make db-down
 Reload `/answer`. Expect `That didn't load` and a working `Try again`. Then:
 
 ```bash
-make db-up && make schema && make seed
+make db-up && make migrate && make seed
 ```
 
 Retry succeeds.
@@ -249,5 +252,5 @@ the swap in `research.md` if you take it.
 ./deploy.sh    # build, push to Artifact Registry, deploy to Cloud Run us-east1
 ```
 
-Requires: Firebase SQL Connect provisioned in the same GCP project, `SESSION_SECRET` and
-SQL Connect service provisioned in the same project, and `dataconnect/` deployed against it.
+Requires: `SESSION_SECRET` and
+the Neon project reachable, `DATABASE_URL` in Secret Manager, and migrations applied against `main`.

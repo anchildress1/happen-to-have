@@ -20,7 +20,7 @@ not optional here.
 ## Path conventions
 
 Single Next.js application at the repository root, per [plan.md](plan.md): `app/` for routing and
-UI, `src/` for testable units, `dataconnect/` for schema and operations, `tests/` mirroring the
+UI, `src/` for testable units, `migrations/` for schema, `tests/` mirroring the
 split.
 
 > **001 carries the project scaffold.** It is the first feature built, so Phase 1 and Phase 2 are
@@ -33,24 +33,24 @@ split.
 **Purpose**: A repository that installs, lints, type-checks, tests, and deploys before any
 product code exists.
 
-- [ ] T001 Initialize the pnpm workspace at the repository root: `package.json` with `"type": "module"`, `engines.node >=24`, and `packageManager: pnpm@11.25.0`
-- [ ] T002 [P] Pin the runtime in `.nvmrc` (Node 24) per research D1
-- [ ] T003 Install Next.js 16.3.4, React 19.2.8, and React DOM 19.2.8 into `package.json`
-- [ ] T004 Install TypeScript 7.0.2 and create `tsconfig.json` with `strict: true`, `moduleResolution: bundler`, ESM only
-- [ ] T005 [P] Create `next.config.ts`; do **not** set `experimental.useTypeScriptCli` — the `tsc` CLI checker is the default and turning it off breaks the build under TypeScript 7 (research D2)
-- [ ] T006 [P] Configure Biome 2.5.12 in `biome.json` for lint and format; do not install ESLint or Prettier (research D3)
-- [ ] T007 [P] Install Vitest 5.0.0 and create `vitest.config.ts` with `unit` and `integration` projects
-- [ ] T008 [P] Install Playwright 1.62.1 and create `playwright.config.ts` with device projects at 402, 767, 768, 1100, and 1440 px widths (design.md breakpoints)
-- [ ] T009 Create the `Makefile` exposing `install`, `dev`, `format`, `format-check`, `lint`, `typecheck`, `test`, `build`, `e2e`, `perf`, `secret-scan`, `clean`, plus `db-up`, `schema`, `seed`, `db-shell`, `ai-checks`
-- [ ] T010 [P] Configure Lefthook in `lefthook.yml`: pre-commit (format, lint, secret scan, actionlint), commit-msg (commitlint), pre-push (typecheck, unit, e2e)
-- [ ] T011 [P] Configure commitlint 21.2.2 in `commitlint.config.js` with the RAI attribution plugin
-- [ ] T012 [P] Create `.env.example` with `SESSION_SECRET`, `FIREBASE_PROJECT_ID`, and `DATACONNECT_EMULATOR_HOST` placeholders; never a real value
-- [ ] T013 [P] Add `.github/workflows/ci.yml` running install, format-check, lint, typecheck, test, build, and the SonarCloud scan; job-level permissions, timeouts, concurrency group, and `paths-ignore`
-- [ ] T014 [P] Add `.github/workflows/codeql.yml` and `.github/workflows/release-please.yml`
-- [ ] T015 [P] Add `.github/dependabot.yml` grouping npm and github-actions with `open-pull-requests-limit: 2` and `cooldown.default-days: 7`
-- [ ] T016 [P] Add `.github/CODEOWNERS` containing `* @anchildress1`
-- [ ] T017 Create the `Dockerfile` on a Node 24 base and `deploy.sh` at the repository root targeting Cloud Run in `us-east1` via Artifact Registry
-- [ ] T018 Verify the toolchain end to end from the repository root: `make install && make ai-checks` passes with **zero warnings** on an empty project
+- [x] T001 Initialize the pnpm workspace at the repository root: `package.json` with `"type": "module"`, `engines.node >=24`, and `packageManager: pnpm@11.25.0`
+- [x] T002 [P] Pin the runtime in `.nvmrc` (Node 24) per research D1
+- [x] T003 Install Next.js 16.3.4, React 19.2.8, and React DOM 19.2.8 into `package.json`
+- [x] T004 Install TypeScript 7.0.2 and create `tsconfig.json` with `strict: true`, `moduleResolution: bundler`, ESM only
+- [x] T005 [P] Create `next.config.ts`; do **not** set `experimental.useTypeScriptCli` — the `tsc` CLI checker is the default and turning it off breaks the build under TypeScript 7 (research D2)
+- [x] T006 [P] Configure Biome 2.5.12 in `biome.json` for lint and format; do not install ESLint or Prettier (research D3)
+- [x] T007 [P] Install Vitest 5.0.0 and create `vitest.config.ts` with `unit` and `integration` projects
+- [x] T008 [P] Install Playwright 1.62.1 and create `playwright.config.ts` with device projects at 402, 767, 768, 1100, and 1440 px widths (design.md breakpoints)
+- [x] T009 Create the `Makefile` exposing `install`, `dev`, `format`, `format-check`, `lint`, `typecheck`, `test`, `build`, `e2e`, `perf`, `secret-scan`, `clean`, plus `db-up`, `schema`, `seed`, `db-shell`, `ai-checks`
+- [x] T010 [P] Configure Lefthook in `lefthook.yml`: pre-commit (format, lint, secret scan, actionlint), commit-msg (commitlint), pre-push (typecheck, unit, e2e)
+- [x] T011 [P] Configure commitlint 21.2.2 in `commitlint.config.js` with the RAI attribution plugin
+- [x] T012 [P] Create `.env.example` with `SESSION_SECRET`, `FIREBASE_PROJECT_ID`, and `DATACONNECT_EMULATOR_HOST` placeholders; never a real value
+- [x] T013 [P] Add `.github/workflows/ci.yml` running install, format-check, lint, typecheck, test, build, and the SonarCloud scan; job-level permissions, timeouts, concurrency group, and `paths-ignore`
+- [x] T014 [P] Add `.github/workflows/codeql.yml` and `.github/workflows/release-please.yml`
+- [x] T015 [P] Add `.github/dependabot.yml` grouping npm and github-actions with `open-pull-requests-limit: 2` and `cooldown.default-days: 7`
+- [x] T016 [P] Add `.github/CODEOWNERS` containing `* @anchildress1`
+- [x] T017 Create the `Dockerfile` on a Node 24 base and `deploy.sh` at the repository root targeting Cloud Run in `us-east1` via Artifact Registry
+- [x] T018 Verify the toolchain end to end from the repository root: `make install && make ai-checks` passes with **zero warnings** on an empty project
 
 **Checkpoint**: The repository builds and every gate is green before a line of product code.
 
@@ -61,30 +61,30 @@ product code exists.
 **Purpose**: Database, identity, validation, and the shared design system that every user story
 and every later spec builds on. **No user story can start until this phase completes.**
 
-### Database — Firebase SQL Connect
+### Database — Neon
 
-- [ ] T019 Provision Firebase SQL Connect in the same GCP project as Cloud Run using the default configuration, and record the service id in `.env.example` (research D7)
-- [ ] T020 Create `dataconnect/dataconnect.yaml` and `dataconnect/schema/schema.gql` declaring `participants`, `questions`, and `answers` exactly as specified in [data-model.md](data-model.md) — **published answers only**, no status enum, no processing columns
-- [ ] T021 Add the `UNIQUE (participant_id, question_id)` constraint on `answers` in `dataconnect/schema/schema.gql`, preventing two published answers by one participant to one question
-- [ ] T022 [P] Declare the indexes from [data-model.md](data-model.md) in `dataconnect/schema/schema.gql`: `questions (status)`, `answers (participant_id, question_id)`, `answers (question_id)`
-- [ ] T023 Create `dataconnect/connector/` with generated operations for find-participant, create-participant, and get-question-by-id; run codegen and commit the output configuration
-- [ ] T024 Implement the SQL Connect client in `src/db/client.ts`, server-side only, and assert it is never imported from a client component
-- [ ] T025 Wire `make db-up` to the Firebase emulator suite and `make schema` to deploy `dataconnect/` and regenerate the SDK
+- [x] T019 Create the Neon project in org `org-bold-hat-14494774` and record the project id; every git branch gets a copy-on-write Neon branch via `neon checkout` (research D7, D7a)
+- [x] T020 Write the initial migration in `migrations/*_initial-schema.sql` declaring `participants`, `questions`, and `answers` exactly as specified in [data-model.md](data-model.md) — **published answers only**, no status enum, no processing columns
+- [x] T021 Add the `UNIQUE (participant_id, question_id)` constraint on `answers`, preventing two published answers by one participant to one question
+- [x] T022 [P] Declare the indexes from [data-model.md](data-model.md): `questions (status)` and `answers (question_id)`; the unique constraint covers `(participant_id, question_id)`
+- [x] T023 Implement `src/db/queries/participants.ts`: find-by-id and create, parameterized, each row parsed with Zod before it leaves the module
+- [x] T024 Implement the pool in `src/db/client.ts` — `@neondatabase/serverless`, `server-only`, `max` capped low enough that pool × Cloud Run max-instances stays inside Neon's connection limit
+- [x] T025 Wire `make db-up` to `neon branches create` + `neon checkout`, and `make migrate` to `node-pg-migrate up`. Note: on CLI 4.14.1 `neon checkout` does **not** create a missing branch, contrary to the docs
 
 ### Validation
 
-- [ ] T026 [P] Define Zod 4.5.4 parsers for every row shape in `src/schema/rows.ts` — participant, question, answer — with `display_text` bounded to 1–2000 characters
-- [ ] T027 [P] Write unit tests in `tests/unit/rows.test.ts` asserting each parser rejects malformed rows rather than passing them through
+- [x] T026 [P] Define Zod 4.5.4 parsers for every row shape in `src/schema/rows.ts` — participant, question, answer — with `display_text` bounded to 1–2000 characters
+- [x] T027 [P] Write unit tests in `tests/unit/rows.test.ts` asserting each parser rejects malformed rows rather than passing them through
 
 ### Identity
 
-- [ ] T028 Implement the iron-session configuration in `src/session/session.ts` per [contracts/session.md](contracts/session.md): cookie `hth_session`, `httpOnly`, `sameSite: Lax`, `secure` in production, 30-day `maxAge`
-- [ ] T029 Fail application boot when `SESSION_SECRET` is absent or shorter than 32 characters in `src/session/session.ts`; never fall back to a default
-- [ ] T030 Implement `getOrCreateParticipant` in `src/session/session.ts` covering all three branches from [contracts/session.md](contracts/session.md), including the **missing-row branch** that must not 500
-- [ ] T031 Implement participant queries in `src/db/queries/participants.ts` using generated SQL Connect operations
-- [ ] T032 [P] Write integration tests in `tests/integration/session.test.ts`: no cookie creates a participant; a valid cookie reuses it; a cookie referencing a deleted row creates a new one without a 500; a tampered cookie does the same; an unreachable database returns 500 and never a silent new identity
-- [ ] T032a **Remove `--passWithNoTests` from the `test:integration` script in `package.json`.** It was added during the scaffold so `make ai-checks` could pass before any integration test existed. Once T027 and T032 land it is not merely redundant — it actively masks integration tests silently failing to be *discovered*, which is exactly the failure a green suite should never hide
-- [ ] T033 [P] Write a unit test in `tests/unit/session-authority.test.ts` asserting the serialized session contains only `participantId` — no `canAsk`, no counts, no history
+- [x] T028 Implement the iron-session configuration in `src/session/session.ts` per [contracts/session.md](contracts/session.md): cookie `hth_session`, `httpOnly`, `sameSite: Lax`, `secure` in production, 30-day `maxAge`
+- [x] T029 Fail application boot when `SESSION_SECRET` is absent or shorter than 32 characters in `src/session/session.ts`; never fall back to a default
+- [x] T030 Implement `getOrCreateParticipant` in `src/session/session.ts` covering all three branches from [contracts/session.md](contracts/session.md), including the **missing-row branch** that must not 500
+- [x] T031 Implement participant queries in `src/db/queries/participants.ts` with parameterized SQL, each row Zod-parsed at the boundary
+- [x] T032 [P] Write integration tests in `tests/integration/session.test.ts`: no cookie creates a participant; a valid cookie reuses it; a cookie referencing a deleted row creates a new one without a 500; a tampered cookie does the same; an unreachable database returns 500 and never a silent new identity
+- [x] T032a **Remove `--passWithNoTests` from the `test:integration` script in `package.json`.** It was added during the scaffold so `make ai-checks` could pass before any integration test existed. Once T027 and T032 land it is not merely redundant — it actively masks integration tests silently failing to be *discovered*, which is exactly the failure a green suite should never hide
+- [x] T033 [P] Write a unit test in `tests/unit/session-authority.test.ts` asserting the serialized session contains only `participantId` — no `canAsk`, no counts, no history
 
 ### Design system
 
@@ -98,8 +98,8 @@ and every later spec builds on. **No user story can start until this phase compl
 
 ### Seed content
 
-- [ ] T041 Reach the 15-question floor in `seed/questions.json`. Six are authored; roughly nine remain. Ids are uuid5 over the file's namespace and `displayText`, so a new question needs no hand-picked id and reseeding stays idempotent
-- [ ] T042 Implement the idempotent seeding script in `seed/seed.ts`: upsert each entry from `seed/questions.json` by `id`, with `participant_id = NULL` and `status = 'open'`, and wire `make seed`
+- [x] T041 Reach the 15-question floor in `seed/questions.json`. Six are authored; roughly nine remain. Ids are uuid5 over the file's namespace and `displayText`, so a new question needs no hand-picked id and reseeding stays idempotent
+- [x] T042 Implement the idempotent seeding script in `seed/seed.ts`: upsert each entry from `seed/questions.json` by `id`, with `participant_id = NULL` and `status = 'open'`, and wire `make seed`. Runs under `node --conditions=react-server` so the `server-only` guard in `client.ts` resolves to its empty build
 
 **Checkpoint**: Database, identity, validation, and the design system all work and are tested.
 User stories can now proceed in any order.
@@ -224,7 +224,7 @@ state renders rather than an error, a blank screen, or an ineligible question.
 - [ ] T084 [P] E2E test in `tests/e2e/a11y.spec.ts`: the watermark and status dot are `aria-hidden`
 - [ ] T085 [P] E2E test in `tests/e2e/responsive.spec.ts`: `scrollWidth <= clientWidth` at 402, 767, 768, 1100, and 1440 px, and the desktop grid engages at exactly 768px
 - [ ] T086 [P] E2E test in `tests/e2e/copy.spec.ts`: a case-insensitive scan of every rendered route finds none of the forbidden terms in [contracts/copy.md](contracts/copy.md) — no "expert", no "agent", no "safe", no dialect spelling
-- [ ] T087 [P] Add `firebase.json` and commit the SQL Connect deploy configuration; verify a console-authored change is overwritten by `make schema`
+- [ ] T087 [P] Verify `.neon` and `.env` are gitignored and that a fresh `make db-up && make migrate && make seed` reproduces the schema and pool on a new Neon branch
 - [ ] T088 Walk every scenario in [quickstart.md](quickstart.md) end to end against a fresh clone of the repository root
 - [ ] T089 Run `make ai-checks` from the repository root and confirm **zero warnings** — the constitution treats warnings as hard errors
 - [ ] T090 Deploy to Cloud Run via `./deploy.sh` and run the full flow on a real iPhone and a real Android device (SC-006, SC-009)

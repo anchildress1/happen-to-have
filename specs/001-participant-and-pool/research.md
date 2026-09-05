@@ -95,99 +95,129 @@ FR-005 and Principle II require without a separate API service.
 
 ---
 
-## D5: Data access — Firebase SQL Connect operations, native SQL for selection
+## D5: Data access — `@neondatabase/serverless`, plain parameterized SQL
 
-**Decision**: Firebase SQL Connect. Schema and operations are authored in the repository and
-deployed from it; the generated typed SDK is used from server route handlers. The
-question-selection query uses SQL Connect's **native SQL** path.
+**Decision**: Talk to Postgres directly through `@neondatabase/serverless` 1.1.0. No ORM, no
+query builder, no generated SDK. Hand-written parameterized SQL, validated with Zod at the
+boundary.
 
-**Rationale**: Constitution v2.0.0 pins SQL Connect. Two properties earn it here.
+**Rationale**: Three reasons, in order of weight.
 
-First, it is PostgreSQL, so the selection statement in [data-model.md](data-model.md) survives
-intact — one query that filters open questions, excludes the participant's own and already-
-answered, aggregates published-answer counts, and orders by that count. Nothing is denormalized
-and nothing can drift.
+First, the selection query in [data-model.md](data-model.md) is the whole feature: one statement
+that filters open questions, excludes the participant's own and already-answered, aggregates
+published-answer counts, and orders by that count. It is exactly what SQL is for, and exactly
+what every abstraction above SQL makes harder.
 
-Second, its access model matches Principle II without being argued into it: deployed operations
-are stored server-side and clients invoke only predefined ones. Nothing is assembled in the
-browser. A NoSQL store would have needed a rule forbidding its own default client path.
+Second, KISS and YAGNI outrank other design preferences per Principle VI. Three tables, six
+queries. Nothing above raw SQL earns its place at this size.
 
-**Native SQL for selection, GraphQL for the rest.** The selection query aggregates and orders by
-a computed count across a join. Expressing that through GraphQL operations obscures it for no
-gain; the constitution explicitly permits native SQL where relational expression is clearer.
-Simple reads and writes — get participant, create participant, insert published answer — stay as
-generated operations.
+Third, TypeScript 7.0.2 is a from-scratch type checker released 2026-07-08. Libraries whose
+value is deep type inference — Drizzle, Kysely — are the ones most likely to hit checker
+differences, and none declares a TypeScript peer range. `@neondatabase/serverless` exposes a
+node-postgres-compatible `Pool` with shallow types.
 
-**Validation still applies.** Generated types describe the shape the schema promised, not the
-shape that arrived. Every row is parsed with **Zod 4.5.4** at the boundary, per Principle V.
+**Why the serverless driver over plain `pg`**: it speaks Neon's pooled endpoint natively and
+handles connection reuse in short-lived serverless invocations, which is the pressure research
+D7 flagged for Cloud Run. It is `pg`-API-compatible, so moving to plain `pg` later is an import
+change, not a rewrite.
 
-**Alternatives considered**:
-
-- **`pg` 8.23.0 with hand-written SQL** — the original plan, and less machinery. Superseded by
-  the constitution. It would also have meant provisioning and connecting to Cloud SQL directly,
-  which SQL Connect does for us.
-- **Everything through GraphQL, no native SQL** — purer, but it hides the one query the whole
-  feature turns on behind a layer that is bad at aggregate ordering.
-- **Drizzle ORM / Kysely** — rejected on TypeScript 7 inference risk (see D2) and unnecessary for
-  three tables. SQL Connect's own codegen supersedes the question entirely.
-
----
-
-## D6: Schema and migrations — SQL Connect, deployed from the repository
-
-**Decision**: Schema lives in the SQL Connect GraphQL SDL under version control, alongside its
-operations. Deployment is from the repository, never from the console.
-
-**Rationale**: The constitution requires it: schema or operations edited by hand in a console do
-not exist as far as this repository is concerned. That rule buys reproducibility — the same
-tooling that deploys the app deploys the schema, so a fresh environment is one command rather
-than a console session someone half-remembers.
-
-`node-pg-migrate` is **dropped**. Running a second migration tool against a database whose schema
-SQL Connect already owns is two sources of truth racing each other.
+**Validation is not optional.** Generated types would have described the shape the schema
+promised; hand-written SQL describes nothing at all. Every row is parsed with **Zod 4.5.4**
+before it leaves the query module, per Principle V.
 
 **Alternatives considered**:
 
-- **`node-pg-migrate` 9.0.0** — the original plan. Mature and boring, and exactly the kind of
-  redundancy that breaks at 2am on day two when the two tools disagree about what is applied.
-- **Console-authored schema** — forbidden by the constitution, and unreviewable.
+- **Firebase SQL Connect** — adopted, fully implemented, then reverted. Its differentiator is
+  server-deployed operations that clients may safely invoke. Every generated operation ended up
+  annotated `@auth(level: NO_ACCESS)`, because nothing client-side touches the database — route
+  handlers own every read. That left 1.9 MB of Admin SDK, a codegen step, a build-order
+  dependency in CI, and a second connection pool, all serving three one-line queries.
+- **Drizzle ORM / Kysely** — TypeScript 7 inference risk, and unnecessary for three tables.
+- **Plain `pg`** — works, and is the fallback if Neon is ever left behind. The serverless driver
+  is strictly better while on Neon.
 
 ---
 
-## D7: Managed Postgres — Firebase SQL Connect on Cloud SQL
+## D6: Schema and migrations — `node-pg-migrate` 9.0.0
 
-**Decision**: Firebase SQL Connect, default provisioning, same GCP project as Cloud Run.
+**Decision**: Schema lives in SQL migrations under `migrations/`, applied with
+`node-pg-migrate` 9.0.0 and committed to the repository.
 
-**Rationale**: SQL Connect is fully-managed PostgreSQL on Cloud SQL with server-deployed
-operations and typed SDKs on top. It keeps the whole stack in one project, one console, and one
-IAM boundary alongside Cloud Run, Artifact Registry, Secret Manager, and the transient-audio
-bucket. The default configuration (`db-f1-micro`, 1 vCPU, 10 GB, 628.74 MB) carries a three-month
-no-cost trial, one per Firebase project, which covers this challenge outright.
+**Rationale**: Plain `.sql` files, applied in order, tracked in a `pgmigrations` table. It gives
+up/down, an applied-migrations ledger, and a CLI, and it is boring in the way schema tooling
+should be. The initial migration is transcribed directly from [data-model.md](data-model.md) and
+is the authoritative schema — there is no second source.
+
+Migrations run against whichever Neon branch is checked out (D7a), so a schema change is
+developed and tested on an isolated database before it reaches `main`.
+
+**Alternatives considered**:
+
+- **A hand-rolled runner over numbered `.sql` files** — about 25 lines and zero dependencies, but
+  hand-rolling the applied-migrations ledger is what quietly breaks at 2am on day two.
+- **SQL Connect schema SDL** — went away with D5.
+- **An ORM's migration generator** — rejected with the ORM.
+
+---
+
+## D7: Database host — Neon
+
+**Decision**: Neon serverless Postgres. Project `silent-meadow-11692011` in org
+`org-bold-hat-14494774`, region `aws-us-east-2`, Postgres 18.
+
+**Rationale**: Neon was the right answer twice before it was chosen, and the reasons held up.
+
+- **Scale-to-zero and a free tier.** 0.5 GB storage and 100 CU-hours per month, suspending after
+  five minutes idle with a 300–500ms cold start. Against SC-001's ten-second budget that is
+  noise, and the weekend costs nothing.
+- **The selection query survives untouched.** It is Postgres.
+- **Branchable databases**, which D7a builds on.
+- **An HTTP/pooled driver** that sidesteps the Cloud Run connection-pool pressure a
+  conventional instance would create.
 
 **Accepted tradeoffs**:
 
-- **No scale-to-zero.** The instance runs continuously. Free for three months, then from
-  $9.37/month. For a weekend build the cost is nil; past that it is a real, small bill.
-- **A GraphQL layer to learn.** Schema SDL, operations, and codegen are new machinery inside a
-  two-day window. The native-SQL escape hatch limits how much of it has to be mastered up front.
-- **`db-f1-micro` is 628 MB of RAM.** Ample for challenge scale; not a production tier.
+- **A second vendor.** Everything else — Cloud Run, Artifact Registry, Secret Manager, the
+  transient-audio bucket — is GCP. Neon adds one console and one secret. This was the objection
+  that kept Neon out twice; it is smaller than it looked once SQL Connect's differentiator
+  turned out to be disabled.
+- **Region split.** Neon is `aws-us-east-2` (Ohio); Cloud Run is GCP `us-east1` (South
+  Carolina). Single-digit milliseconds of cross-cloud latency on the selection query. Chosen
+  over `us-east-1` because Neon's beta primitives — Object Storage in particular, which 002 may
+  want for transient audio — are region-gated to `us-east-2` and `eu-central-1`.
 
 **Alternatives considered**:
 
-- **Cloud Firestore** — briefly adopted, then reverted. NoSQL: no joins, no cross-collection
-  `NOT EXISTS`, no ordering by a query-time aggregate. It would have forced a denormalized
-  answer counter maintained transactionally, a membership subcollection for the already-answered
-  exclusion, and an application-side tiebreak. That is roughly a day of the two available, and
-  the counter is drift-capable underneath the two rules that must not drift — the fewer-answers
-  bias (FR-018) and the three-answer closure (004 FR-023). `COUNT` cannot drift; a maintained
-  counter can, silently.
-- **Neon serverless Postgres** — genuinely viable and the cheapest long-term: free tier,
-  scale-to-zero after five minutes, 300–500ms cold start, an HTTP driver that sidesteps Cloud Run
-  connection pooling, and the selection query survives with no new machinery at all. Rejected
-  only to stay on one vendor inside the existing GCP project. Revisit if the SQL Connect bill or
-  the GraphQL layer becomes annoying.
-- **Cloud SQL direct with `pg`** — the original plan. Same engine, less tooling, but no
-  server-deployed operations and a Cloud SQL instance to wire up by hand.
+- **Firebase SQL Connect** — see D5. Also never solved the cost floor: Cloud SQL underneath, a
+  three-month trial, then from $9.37/month.
+- **Cloud SQL direct** — GCP-native and boring, but a 24/7 instance with no free tier and no
+  branching.
+- **Supabase** — same second-vendor cost, plus a large surface this project uses none of.
+
+---
+
+## D7a: Branch-first development
+
+**Decision**: Every git branch gets a Neon branch, created with `neon checkout`. Migrations run
+against the checked-out branch. `.neon` and `.env` stay gitignored.
+
+**Rationale**: A Neon branch is a copy-on-write clone, so it costs approximately nothing. This
+project ships as a stack of dependent pull requests, and 002's migrations will change the schema
+underneath 003–005. Without isolation, one branch's migration breaks every other branch's tests.
+
+`neon checkout` re-pulls `DATABASE_URL` on every switch, so changing git branches swaps the
+database under the application with no manual step.
+
+**Known sharp edge**: the Neon skill states that `neon checkout <name>` creates a missing branch.
+**On CLI 4.14.1 it does not** — it errors with "Branch not found." Create it first with
+`neon branches create --name <name> --parent main`. `make db-up` wraps both.
+
+**Alternatives considered**:
+
+- **A single shared database for the weekend** — simpler, and wrong the first time two stacked
+  branches disagree about the schema.
+- **A local Postgres in Docker** — the original plan. Neon branches make it redundant: a real
+  database per branch, no container to run.
 
 ---
 
@@ -361,8 +391,9 @@ token existed only for this label and is removed with it.
 | - | - |
 | Node version | 24 LTS (D1) |
 | TypeScript version and lint consequence | 7.0.2 + Biome (D2, D3) |
-| Data access under TS 7 | SQL Connect operations + native SQL for selection + Zod (D5) |
-| Managed Postgres provider | Firebase SQL Connect on Cloud SQL, same GCP project (D7) |
+| Data access under TS 7 | `@neondatabase/serverless` + parameterized SQL + Zod (D5) |
+| Managed Postgres provider | Neon, aws-us-east-2, Postgres 18 (D7) |
+| Per-branch database isolation | branch-first via `neon checkout` (D7a) |
 | Anonymous identity mechanism | iron-session encrypted cookie (D8) |
 | Selection ordering semantics | strict answer count, creation time, id (D10) |
 | Skip memory durability | tab-local ordered ids and pointer, discarded on reload (D11) |

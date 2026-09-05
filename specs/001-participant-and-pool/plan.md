@@ -18,8 +18,8 @@ other nine screens are assembled from. That foundation is real work and is plann
 than pretended away.
 
 The technical approach: a single Next.js 16 App Router application on Node 24, backed by Cloud
-Firebase SQL Connect — managed PostgreSQL on Cloud SQL — with native SQL for the selection
-query. Identity is an encrypted `iron-session` cookie
+Neon serverless Postgres, reached through `@neondatabase/serverless` with plain parameterized
+SQL. Identity is an encrypted `iron-session` cookie
 that carries a participant id and no authority whatsoever — every eligibility decision reads
 current state from the database. Selection is one SQL statement that filters eligible questions
 and orders them by answer count, creation time, and id. Each tab advances a pointer through
@@ -33,12 +33,13 @@ it. Lint and format move to Biome. Full reasoning in [research.md](research.md) 
 
 **Language/Version**: TypeScript 7.0.2 on Node.js 24 LTS, ESM only
 
-**Primary Dependencies**: Next.js 16.3.4 (App Router), React 19.2.8, Firebase SQL Connect
-(generated SDK + native SQL), `iron-session` 9.0.1, Zod 4.5.4, `next/font/google` (Bricolage
-Grotesque)
+**Primary Dependencies**: Next.js 16.3.4 (App Router), React 19.2.8,
+`@neondatabase/serverless` 1.1.0, `node-pg-migrate` 9.0.0, `iron-session` 9.0.1, Zod 4.5.4,
+`next/font/google` (Bricolage Grotesque)
 
-**Storage**: Firebase SQL Connect — managed PostgreSQL on Cloud SQL (`us-east1`), same GCP
-project as Cloud Run. Schema and operations deployed from the repository.
+**Storage**: Neon serverless Postgres 18 (`aws-us-east-2`), project
+`silent-meadow-11692011`. Schema owned by committed migrations. Every git branch gets its own
+copy-on-write Neon branch.
 
 **Testing**: Vitest 5.0.0 (unit, integration against Dockerized Postgres), Playwright 1.62.1 (E2E,
 mobile viewports)
@@ -85,7 +86,7 @@ Principle II amendment — result unchanged.
 | - | - | - |
 | Cloud Run `us-east1`, root `deploy.sh`, Artifact Registry | **PASS** | Planned in Phase 1 structure. |
 | Secrets in Secret Manager or gitignored `.env` | **PASS** | Session secret and database URL from Secret Manager; `.env.example` committed, `.env` ignored. |
-| Managed Postgres reachable from Cloud Run | **PASS** | Firebase SQL Connect on Cloud SQL, same project. Research D7. |
+| Managed Postgres reachable from Cloud Run | **PASS** | Neon, pooled endpoint, bounded pool. Research D7. |
 | Node 24 LTS, ESM only, no CommonJS | **PASS** | `"type": "module"`, research D1. |
 | Next.js App Router, TypeScript strict | **PASS** | research D4. |
 | pnpm | **PASS** | pnpm 11.25.0. |
@@ -134,10 +135,10 @@ specs/001-participant-and-pool/
 │           └── skip/route.ts        # POST — validate/read the next pointer candidate
 ├── src/
 │   ├── db/
-│   │   ├── client.ts                # SQL Connect generated SDK, server-side only
+│   │   ├── client.ts                # @neondatabase/serverless Pool, server-only
 │   │   └── queries/
-│   │       ├── participants.ts      # find-or-create by session id (generated ops)
-│   │       └── questions.ts         # eligible-question selection (native SQL)
+│   │       ├── participants.ts      # find-or-create by session id
+│   │       └── questions.ts         # eligible-question selection
 │   ├── session/
 │   │   └── session.ts               # iron-session config, get-or-create participant
 │   ├── schema/
@@ -152,9 +153,8 @@ specs/001-participant-and-pool/
 │       ├── ListRow.tsx              # shared response/history row
 │       ├── QuestionCard.tsx         # question + both actions
 │       └── EmptyPool.tsx            # FR-029 — no design, authored
-├── dataconnect/
-│   ├── schema/schema.gql            # SQL Connect schema, deployed from here — never console
-│   └── connector/                   # generated operations + codegen config
+├── migrations/
+│   └── *_initial-schema.sql         # authoritative schema, applied by node-pg-migrate
 ├── seed/
 │   ├── questions.json               # Ashley-authored seeds; content/provenance TBD
 │   └── seed.ts                      # idempotent seeding script

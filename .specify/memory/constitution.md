@@ -15,78 +15,57 @@ principle is MAJOR regardless of how much else came with it.
 Modified principles:
 
   II. Server-Authoritative Reciprocity
-    - Exclusion narrowed: only a PUBLISHED answer bars a question. A withheld or failed attempt
-      never counted and leaves the question eligible.
+    - Exclusion narrowed: only a PUBLISHED answer bars a question.
     - NEW: after any withheld answer the participant is offered a fresh recording for the same
-      question, without relocating it in the pool. A withheld question returns to question
-      recording with its ask intact.
-    - Crisis is NOT exempt from retry. Crisis resources appear alongside it. Rationale recorded
-      in the principle: the model can be wrong about crisis, and a wrong call must not remove
-      the participant's ability to try again.
+      question. Crisis is NOT exempt — the model can be wrong about crisis, and a wrong call
+      must not remove the participant's ability to try again.
 
   III. Aggregate Guardrail Gate
-    - Restructured around a uniform `canPublish` boolean per check; false always means reject,
-      never "no hazard found".
-    - Fail-fast: any definitive NO resolves to Withheld immediately, cancels remaining work
-      where possible, and suppresses later retries and late results. Publication still waits for
-      every applicable YES.
-    - A YES is kept for the active submission. Only timed-out, failed, or schema-invalid checks
-      retry, and only while nothing has rejected.
-    - Withheld is one outcome carrying a reason (crisis, illegal/dangerous, relevance, content),
-      with precedence used for presentation only — never to delay the outcome.
-    - Exhausted infrastructure retries use the processing-failure state, not Withheld.
+    - Restructured around a uniform `canPublish` boolean per check; false always means reject.
+    - Fan-out narrowed: illegal-or-dangerous reads the content call's safety ratings instead of
+      taking its own call, pending spike evidence. Three calls per answer, two per question.
+    - Fail-fast: any definitive NO resolves to Withheld immediately and cancels remaining work.
+    - Withheld is one outcome carrying a reason, with precedence used for presentation only.
 
   IV. Original Audio Is Transient
-    - Deletion triggers restated as publication, Withheld, processing failure, or abandonment.
-      Audio MUST NOT be retained for a later attempt.
     - NEW hard bound: check retries may use the audio only inside the active submission, capped
-      at 90 seconds from server receipt; expiry cancels review and triggers deletion.
-    - NEW: the browser MUST release its recording when the submission ends or the participant
-      leaves. Refresh or return MUST NOT restore a recording or an unpublished attempt.
+      at 90 seconds from server receipt.
+    - NEW: the browser MUST release its recording when the submission ends.
 
   V. Structured Output Or Failure  (the MAJOR)
     - INVERTED: processing state, check results, retry counts, and storage references now exist
-      only in the active request. Previously they were required to live on the question and
-      answer rows.
-    - Only published questions and answers enter the database and `Yours`. Pending, withheld,
-      failed, and abandoned attempts MUST NOT be stored as rows, attempt history, or recovery
-      jobs.
+      only in the active request. Only published questions and answers enter the database.
     - Publication and ask grant/consumption MUST commit atomically.
-    - TTS exempted from structured output; validate returned audio type and non-empty payload.
 
 Modified sections:
 
   Technology And Infrastructure Constraints → Platform
-    - Application state moves from "a managed Postgres instance" to Firebase SQL Connect —
-      fully-managed PostgreSQL on Cloud SQL — in the same GCP project.
-    - NEW: operations deployed server-side and committed to the repo; console-edited schema or
-      operations do not count. This is SQL Connect's own access model, not a rule imposed on it.
-    - NEW: native SQL explicitly permitted where relational expression beats GraphQL, notably
-      the question-selection query.
-    - NEW: denormalized answer counters forbidden. COUNT cannot drift; a maintained counter can.
-    - NEW: cost-envelope note.
-    - Firebase Storage named acceptable for transient audio, provided rules deny client access.
+    - Application state is Neon (serverless Lakebase Postgres) via @neondatabase/serverless.
+    - NEW: database rules — server-side access only, schema owned by committed migrations,
+      parameterized queries, no denormalized counters, bounded connection pools.
+    - NEW: branch-first development — every git branch gets a copy-on-write Neon branch, so
+      each stacked pull request has an isolated database.
 
     Considered and rejected:
+      Firebase SQL Connect — adopted, implemented, then reverted. Every generated operation
+        was annotated @auth(level: NO_ACCESS), which disabled the product's one differentiator:
+        server-deployed operations that clients may safely invoke. Nothing client-side touches
+        the database, so it contributed 1.9MB of Admin SDK and a codegen build step to serve
+        three one-line queries.
       Cloud Firestore — briefly adopted, then reverted. NoSQL: no joins, no cross-collection
-        NOT EXISTS, no ordering by a query-time aggregate. Would have forced denormalized
-        counters, a membership subcollection, and an app-side tiebreak — a day of work in a
-        two-day window, with a drift-capable counter under the two rules that must not drift.
-        It also required legislating against the product's own default, since Firestore expects
-        browser clients.
-      Neon serverless Postgres — genuinely viable: free tier, scale-to-zero, HTTP driver, and
-        the selection query survives untouched with no new machinery. Rejected only to stay on
-        one vendor inside the existing GCP project.
-      Cloud SQL direct with `pg` — the original plan. Superseded; SQL Connect is the same
-        engine with server-deployed operations and typed SDKs on top.
+        NOT EXISTS, no ordering by a query-time aggregate. Would have forced a drift-capable
+        denormalized counter under the two rules that must not drift.
+      Cloud SQL direct with `pg` — superseded by Neon: same SQL, but Neon adds scale-to-zero,
+        a free tier, and branchable databases.
 
   Technology And Infrastructure Constraints → Application Stack
-    - Gemini access MUST use the official `@google/genai` SDK. Hand-rolled REST and the
-      superseded `@google/generative-ai` package are both excluded.
-    - Clients MUST be server-side only; an API key MUST NOT reach the browser.
-    - Model ids pinned per job: content processing on gemini-3.8-flash (GA), the three boolean
-      guardrails on gemini-3.5-flash-lite (GA), TTS on gemini-3.1-flash-tts-preview.
-    - Flash-Lite downgrade gated on spike evidence; Pro recorded as escalation, not default.
+    - Gemini access MUST use the official `@google/genai` SDK, server-side only.
+    - Model ids pinned per job: gemini-3.8-flash for content processing, gemini-3.5-flash-lite
+      for the three boolean guardrails, gemini-3.1-flash-tts-preview for playback.
+    - NEW: the content-processing call sets every safety category to BLOCK_NONE (not OFF, which
+      returns no ratings). Illegal-or-dangerous reads those free ratings rather than a dedicated
+      call unless the spike proves otherwise; a dedicated crisis check exists regardless, since
+      no built-in category covers self-harm. Checks stay separate parallel threads.
     - Live API models forbidden outright, with the Principle I and IV conflicts named.
     - Runtime narrowed from "Node.js 22+" to "Node.js 24 LTS" (Krypton).
 
@@ -94,23 +73,17 @@ Added principles: none
 Removed sections: none
 
 Verified 2026-09-04:
-  Firebase SQL Connect (formerly Data Connect, firebase.google.com/docs/sql-connect) is
-  fully-managed PostgreSQL on Cloud SQL, with GraphQL schema/operation management, typed SDKs,
-  and a native-SQL escape hatch. Deployed operations are stored server-side and are NOT
-  submitted by client code — this is why no client-SDK prohibition is needed. Provisioning the
-  default config (db-f1-micro, 1 vCPU, 10 GB, 628.74 MB) carries a 3-month no-cost trial, one
-  per Firebase project; from $9.37/month after. Operations no-cost to 250,000/month, then
-  $4.00/million; egress no-cost to 10 GiB/month.
-  @google/genai  latest 2.21.0 (2026-09-02), engines: node >=20.0.0 — npm registry.
-  gemini-3.8-flash and gemini-3.5-flash-lite are GA; both accept audio and structured output,
-  1,048,576 in / 65,536 out. All Gemini TTS ids are preview; no GA text-to-speech model exists.
-  gemini-3.5-live-translate-preview is Live-API-only (stateful WebSocket, speech-to-speech) —
-  incompatible with this product's asynchronous pipeline. Not adopted.
-  Node 24 (Krypton) Active LTS through 2026-10-20, maintenance to 2028-04-30. Node 26.8.1 is
-  Current, LTS only from 2026-10-28; considered and rejected.
+  Neon project silent-meadow-11692011 (org org-bold-hat-14494774), aws-us-east-2, Postgres 18.
+  @neondatabase/serverless 1.1.0, node-pg-migrate 9.0.0 — npm registry.
+  @google/genai 2.21.0 (2026-09-02), engines: node >=20.0.0.
+  gemini-3.8-flash and gemini-3.5-flash-lite are GA; both accept audio and structured output.
+  All Gemini TTS ids are preview; no GA text-to-speech model exists.
+  Gemini safety filter exposes HARM_CATEGORY_{HARASSMENT,HATE_SPEECH,SEXUALLY_EXPLICIT,
+  DANGEROUS} and returns ratings automatically. No self-harm or crisis category exists.
+  Node 24 (Krypton) Active LTS through 2026-10-20, maintenance to 2028-04-30.
 
 Deferred TODOs:
-  TODO(TTS_VOICE_ID): exact Gemini TTS voice unresolved. The TTS model is pinned; the voice is not.
+  TODO(TTS_VOICE_ID): exact Gemini TTS voice unresolved. The model is pinned; the voice is not.
   TODO(DISPLAY_LANGUAGE_POLICY): MVP display/translation language unresolved; English is
     the working assumption.
 -->
@@ -165,11 +138,13 @@ wrong about crisis too, so that result MUST NOT remove the participant's ability
 
 - An answer qualifies only when its verified duration is at most 60 seconds and every applicable
   check has completed with validated `canPublish == true`.
-- The gate is the conjunction of four independent Gemini calls — content processing,
-  relevance, crisis, illegal/dangerous — each receiving the original audio. No call may
-  consume another call's transcript.
+- The gate is the conjunction of independent signals, each derived from the original audio.
+  For an answer: content processing, relevance, and crisis as three parallel calls, plus the
+  illegal-or-dangerous rating the content call already returns. For a question: content
+  processing and crisis, two calls; relevance does not apply.
+- No call may consume another call's transcript, and calls MUST NOT be merged into one that
+  returns several verdicts.
 - Relevance MUST NOT substitute for the content, crisis, or illegal-content decisions.
-- Questions run three calls (content, crisis, illegal); relevance does not apply.
 - Every review check MUST return `canPublish`: true means YES and false means NO, including
   crisis and illegal checks. False means rejection, never absence of a detected hazard.
 - Any definitive NO MUST immediately resolve to Withheld, cancel remaining work where possible,
@@ -272,30 +247,34 @@ a performance or a marketing hook is the one failure that cannot be patched late
 - Secrets MUST live in Secret Manager or a local, gitignored `.env`. Real credentials MUST
   NOT appear in the repository, in workflow logs, or in example files.
 - Transient audio MUST live in a Cloud Storage bucket with uniform bucket-level access and
-  no public access, and MUST NOT be served through signed public URLs. Firebase Storage is Cloud
-  Storage and is acceptable, provided the bucket rules deny all client access.
-- Application state (participants, questions, answers) MUST live in **Firebase SQL Connect** —
-  fully-managed PostgreSQL on Cloud SQL — in the same GCP project as Cloud Run.
+  no public access, and MUST NOT be served through signed public URLs..
+- Application state (participants, questions, answers) MUST live in **Neon** — serverless
+  Lakebase Postgres — reached through `@neondatabase/serverless`.
 
-#### SQL Connect rules
+#### Database rules
 
-- Operations MUST be deployed server-side. SQL Connect stores deployed operations on the server
-  and clients invoke only predefined ones; nothing may be assembled and submitted from the
-  browser. This is the product's own model and it MUST NOT be worked around.
-- The GraphQL schema and every operation MUST be committed to the repository and deployed from
-  it. Schema or operations edited by hand in a console do not exist as far as this repository is
-  concerned.
-- **Native SQL is permitted** where a relational query expresses the requirement better than
-  GraphQL does — notably the question-selection query, which filters, excludes, aggregates, and
-  orders in one statement. Prefer clarity over staying inside the GraphQL layer for its own sake.
-- Answer counts MUST be computed relationally. Denormalized counters MUST NOT be introduced: a
-  drifted count silently corrupts both the fewer-answers selection bias and the three-answer
-  closure rule, and `COUNT` cannot drift.
+- All database access MUST happen server-side, in a route handler or a server-only module.
+  The connection string MUST NOT reach the browser; a client that can read it can forge its
+  own ask eligibility, which is a Principle II violation.
+- Schema is owned by SQL migrations under `migrations/`, applied with `node-pg-migrate` and
+  committed to the repository. A schema change made by hand against a branch does not exist
+  as far as this repository is concerned.
+- Every query MUST use `$1`-style placeholders. String-interpolating a value into SQL is
+  forbidden.
+- Answer counts MUST be computed relationally with `COUNT`. Denormalized counters MUST NOT be
+  introduced: a drifted count silently corrupts both the fewer-answers selection bias and the
+  three-answer closure rule, and `COUNT` cannot drift.
 - Every row crossing into application code MUST be validated before use, per Principle V.
-  Generated types describe the shape the schema promised, not the shape that arrived.
-- Cost control: the default provisioning tier carries a no-cost trial and the operation
-  allowance covers challenge-scale traffic. Adding compute, private IP, or read replicas leaves
-  that envelope and MUST be a deliberate, recorded decision.
+- Connection pools MUST cap `max` low enough that the cap multiplied by Cloud Run's
+  `max-instances` stays inside the project's connection limit. Prefer Neon's pooled endpoint.
+
+#### Branch-first development
+
+- Every git branch MUST have a corresponding Neon branch, created with `neon checkout`. A
+  Neon branch is a copy-on-write clone, so this costs approximately nothing and gives each
+  stacked pull request an isolated database.
+- Migrations run against the checked-out branch, never against `main` by hand.
+- `.neon` and `.env` are per-checkout state and MUST stay gitignored.
 
 ### Application Stack
 
