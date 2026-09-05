@@ -497,6 +497,12 @@ Prove before building the full UI:
 
 Kill or simplify any feature that does not work reliably during this spike.
 
+> **Executed 2026-09-05, scoped down.** Items 1-2 and 4-6 and 9 were covered by hand
+> beforehand; item 4's dialect test was dropped as a gimmick. Items 3, 7 and 10 were measured:
+> see [spike-002-guardrails](spike-002-guardrails.md). The provider returns no safety ratings
+> and its default filter passes 7 of 8 must-not-publish recordings, so illegal-or-dangerous
+> became a dedicated call. Cost was not measured.
+
 ## Day 1
 
 - Build responsive shell and anonymous participant identity.
