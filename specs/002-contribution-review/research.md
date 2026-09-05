@@ -361,9 +361,11 @@ it loses:
   roughly a second to every successful submission to save money on the minority that do not.
 - Cost protection already belongs to the rate limiter (FR-048). Using check ordering as a second
   cost control duplicates it worse.
-- Fail-fast already recovers most of the saving: the judgment call returns at ~1.1 s, less than
-  half the content call's median, so a refusal aborts content processing mid-generation anyway.
-  Staging would buy the difference between an aborted call and no call at all.
+- Fail-fast bounds the latency, though **not** the cost. The SDK's `abortSignal` is documented
+  as client-side only: aborting stops us waiting, it does not stop the provider working, and
+  usage is still billed. So staging would buy the full price of the content call on every
+  rejection, not merely the unconsumed remainder — a larger saving than an earlier draft of
+  this decision claimed, and still not worth a second on every successful submission.
 
 **The deadline makes it a requirement, not a preference.** A call that faults retries up to
 3 x 20 s. With two calls dispatched together the worst case stays near 60 s inside the 90 s budget

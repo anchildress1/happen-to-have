@@ -370,8 +370,10 @@ Rules, in force order:
 3. **Precedence is for copy only.** Among refusals *already known* at resolution, order is
    **crisis → illegal → relevance → content**. The gate never waits for an unfinished check to
    discover a better reason (FR-022, edge case *Multiple known rejections*).
-4. **Abort is best-effort.** Cancellation reduces cost; it is not required for correctness. A
-   late result that arrives anyway is ignored.
+4. **Abort bounds latency, not cost.** The SDK's `abortSignal` is client-side only — it stops
+   this system waiting, it does not stop the provider working, and usage is billed either way.
+   Cancellation is therefore not a cost control and not required for correctness. A late result
+   that arrives anyway is ignored.
 5. **Release the audio** on every exit — publish, withheld, failure, rate limit, abort.
 
 ### Why precedence is presentation-only
