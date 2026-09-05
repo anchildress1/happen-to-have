@@ -70,11 +70,11 @@ endpoints that call this module ([research D10](research.md)).
 
 ### Rate limiting
 
-- [ ] T016 Create `migrations/<ts>_rate-limits.sql` adding `submission_rate_limits` (`participant_id` PK referencing `participants`, `window_started_at`, `submission_count`) with a Down migration; add no contribution, outcome, or audio column
-- [ ] T017 [P] Add `rateLimitRowSchema` to `src/schema/rows.ts`, matching 001's row-parsing boundary rule
-- [ ] T018 Create `src/db/queries/rateLimits.ts` with a single upsert-on-conflict that opens or increments the window and returns the count plus `retryAt`, reading limits from `HTH_RATE_LIMIT_MAX` and `HTH_RATE_LIMIT_WINDOW_SECONDS` with in-code defaults (FR-048)
-- [ ] T019 [P] Integration-test the limiter in `tests/integration/rate-limit.test.ts` against PGlite: window opens, increments, refuses past the max, reopens after expiry, and concurrent submissions cannot create a second row
-- [ ] T020 [P] Extend the existing `db-sweep` job in `scripts/sweep-participants.ts` to delete rate-limit rows whose window closed long ago; do not add a second scheduled task
+- [x] T016 Create `migrations/<ts>_rate-limits.sql` adding `submission_rate_limits` (`participant_id` PK referencing `participants`, `window_started_at`, `submission_count`) with a Down migration; add no contribution, outcome, or audio column
+- [x] T017 [P] Add `rateLimitRowSchema` to `src/schema/rows.ts`, matching 001's row-parsing boundary rule
+- [x] T018 Create `src/db/queries/rateLimits.ts` with a single upsert-on-conflict that opens or increments the window and returns the count plus `retryAt`, reading limits from `HTH_RATE_LIMIT_MAX` and `HTH_RATE_LIMIT_WINDOW_SECONDS` with in-code defaults (FR-048)
+- [x] T019 [P] Integration-test the limiter in `tests/integration/rate-limit.test.ts` against PGlite: window opens, increments, refuses past the max, reopens after expiry, and concurrent submissions cannot create a second row
+- [x] T020 [P] Extend the existing `db-sweep` job in `scripts/sweep-participants.ts` to delete rate-limit rows whose window closed long ago; do not add a second scheduled task
 
 ### Copy
 
