@@ -208,6 +208,17 @@ It also removes durable unpublished attempts and restricts structured output to 
 TTS validates returned audio. Selection uses strict ordering and tab-local pointer traversal.
 The session is established in the first selection POST, never during Server Component rendering.
 
+### Known debt introduced by the scaffold
+
+`package.json`'s `test:integration` script carries `--passWithNoTests`. Vitest exits non-zero on a
+project with no test files, and the integration suite does not exist until T027 and T032, so
+without the flag `make ai-checks` could never pass during Phase 1.
+
+It is **temporary and must be removed by T032a**. Left in place past that point it hides a real
+failure mode: integration tests that stop being discovered — a renamed directory, a broken glob,
+a misconfigured project — would report green instead of red. A suite that passes because it found
+nothing is worse than no suite, because it buys false confidence in the reciprocity gate.
+
 ### Deviation notes
 
 The full database schema from the handoff is **not** created in this feature's migration. Only

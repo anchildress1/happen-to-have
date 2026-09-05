@@ -1,0 +1,9 @@
+# Admin Node SDK only: this connector is called exclusively from src/db/client.ts, which is
+# server-side only (see that file). No web/client SDK target exists on purpose — a browser
+# bundle importing generated operations here would be a Principle II violation.
+connectorId: "participants-and-questions"
+generate:
+  adminNodeSdk:
+    - outputDir: "../../src/db/dataconnect-generated"
+      package: "@happen-to-have/dataconnect-generated"
+      packageJsonDir: "../.."

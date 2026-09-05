@@ -1,0 +1,17 @@
+# Generated operation for the Question table (data-model.md#questions).
+# NO_ACCESS: Admin Node SDK only, called from src/db/client.ts. Used by the selection flow's
+# server-side re-check (data-model.md "Selection query": status, authorship, and answer
+# absence are re-verified before the selected id's text is returned).
+
+query GetQuestionById($id: UUID!) @auth(level: NO_ACCESS) {
+  question(id: $id) {
+    id
+    displayText
+    sourceLanguage
+    status
+    createdAt
+    participant {
+      id
+    }
+  }
+}

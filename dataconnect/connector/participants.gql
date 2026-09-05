@@ -1,0 +1,16 @@
+# Generated operations for the Participant table (data-model.md#participants).
+# NO_ACCESS: these run only through the Admin Node SDK from src/db/client.ts, never from a
+# client-bearing auth context. The Next.js server route is the actual authority.
+
+query FindParticipantById($id: UUID!) @auth(level: NO_ACCESS) {
+  participant(id: $id) {
+    id
+    canAsk
+    createdAt
+  }
+}
+
+# All columns default (id, can_ask, created_at) — lazy creation on first interaction, FR-001.
+mutation CreateParticipant @auth(level: NO_ACCESS) {
+  participant_insert(data: {})
+}

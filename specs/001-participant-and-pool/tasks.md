@@ -83,6 +83,7 @@ and every later spec builds on. **No user story can start until this phase compl
 - [ ] T030 Implement `getOrCreateParticipant` in `src/session/session.ts` covering all three branches from [contracts/session.md](contracts/session.md), including the **missing-row branch** that must not 500
 - [ ] T031 Implement participant queries in `src/db/queries/participants.ts` using generated SQL Connect operations
 - [ ] T032 [P] Write integration tests in `tests/integration/session.test.ts`: no cookie creates a participant; a valid cookie reuses it; a cookie referencing a deleted row creates a new one without a 500; a tampered cookie does the same; an unreachable database returns 500 and never a silent new identity
+- [ ] T032a **Remove `--passWithNoTests` from the `test:integration` script in `package.json`.** It was added during the scaffold so `make ai-checks` could pass before any integration test existed. Once T027 and T032 land it is not merely redundant — it actively masks integration tests silently failing to be *discovered*, which is exactly the failure a green suite should never hide
 - [ ] T033 [P] Write a unit test in `tests/unit/session-authority.test.ts` asserting the serialized session contains only `participantId` — no `canAsk`, no counts, no history
 
 ### Design system
@@ -257,7 +258,8 @@ Setup ──► Foundational ──► US1 ──┬──► US2
 
 - **Phase 1**: T002, T005–T008, T010–T016 all run in parallel
 - **Phase 2**: the design-system block (T034–T038) is independent of the database block
-  (T019–T025) and the identity block (T028–T033); three people could work at once
+  (T019–T025) and the identity block (T028–T033); three people could work at once. T032a must
+  follow T027 and T032, never precede them
 - **Phase 3–6**: every test task marked `[P]` writes to a different file
 - **Phase 7**: T080–T087 are all independent
 

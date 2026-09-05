@@ -1,0 +1,13 @@
+specVersion: "v1"
+serviceId: "happen-to-have"
+location: "us-east1"
+schema:
+  source: "./schema"
+  datasource:
+    postgresql:
+      database: "happen_to_have"
+      cloudSql:
+        instanceId: "happen-to-have-fdc"
+        # schemaValidation: "STRICT" makes Postgres match this schema exactly.
+        # Left unset for the human-run provisioning step to decide.
+connectorDirs: ["./connector"]
