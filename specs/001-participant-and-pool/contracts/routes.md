@@ -48,8 +48,8 @@ The shell renders these request states:
 | Zero rows | Empty state (FR-029) |
 | POST fails | Client failure state with retry (FR-031); `error.tsx` covers route-render failures |
 
-`loading.tsx` covers route loading; the client shell also shows loading while selection POSTs
-are pending and provides retry on failures (FR-030, FR-031).
+The client shell owns loading and retry (FR-030, FR-031). There is no `loading.tsx`: `/answer`
+awaits nothing, so no Suspense boundary ever suspends and the file could never execute.
 
 `I can answer this` is the boundary of this feature. It links to `/answer/record?questionId=<displayed-id>`, which does not
 exist yet and is delivered by 003. Until then it is a disabled or placeholder target — it must
@@ -96,14 +96,14 @@ public browse API. The browser stores the list and pointer only in page memory.
     "displayText": "How do you tell a friend their business idea has a hole in it?",
     "publishedAnswers": 1
   },
-  "questionIds": ["b6f1c2e8-....", "c7f2d3e9-...."]
+  "queue": [{ "id": "b6f1c2e8-....", "displayText": "...", "publishedAnswers": 1 }]
 }
 ```
 
 **200 — empty pool** (FR-029; not an error)
 
 ```json
-{ "question": null, "questionIds": [] }
+{ "question": null, "queue": [] }
 ```
 
 **200 — empty pool** still establishes the session; a later request can find newly published questions.
@@ -141,16 +141,14 @@ an outcome — at submission — not where it only changes a display.
 1. Advance the pointer by one; never mutate or reorder the queue.
 2. Wrap to index 0 past the end, rather than rendering a false empty state (FR-025 — a skipped
    question stays permanently eligible).
-3. **Re-request on that wrap, and only on that wrap.** FR-025 makes the end of a pass a refresh
-   point: the list is re-fetched and re-sorted so a question published mid-traversal can appear
-   and moved answer counts are re-read. Wrap the pointer first and let the new queue land
-   underneath — blanking to the loading state here would render as the false empty state item 2
-   forbids. The in-flight response must not move the pointer again; the participant may have
-   skipped on, and yanking them back re-shows a question they just left (FR-024).
+3. Re-request on that wrap, and only on that wrap (FR-025). Wrap the pointer first, then let
+   the new queue land underneath — blanking to the loading state renders as the false empty
+   state item 2 forbids. The in-flight response must not move the pointer again: the
+   participant may have skipped on, and yanking them back breaks FR-024.
 4. Never write a cookie, never re-request mid-pass, never touch a recording API.
-5. With `queue.length === 1` there is nowhere to advance: keep the question rendered and show
-   `This is the only question waiting right now.` (FR-024). Do not re-request — a refresh per
-   press on a pool of one is a request loop, and item 2 already keeps the question eligible.
+5. With `queue.length === 1`, hold the question and show
+   `This is the only question waiting right now.` (FR-024). No re-request — that would be a
+   request per press.
 6. Treat `queue.length === 0` as the only empty-pool case (FR-029).
 
 **Hard requirements** — verifiable by reading `QuestionCard.tsx` and confirming what is absent:
@@ -159,8 +157,7 @@ an outcome — at submission — not where it only changes a display.
 - **No write to `answers`.** A skip is not a contribution.
 - **No penalty, cooldown, or counter** of any kind (FR-023).
 - **No rate limit, and no network call inside a pass.** Skipping is unlimited (FR-020). The one
-  call a traversal makes is the FR-025 refresh at a pass boundary — a read, bounded by pool size,
-  and it writes nothing.
+  call a traversal makes is the FR-025 refresh at a pass boundary — a read that writes nothing.
 
 ---
 
