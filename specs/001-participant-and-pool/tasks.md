@@ -88,7 +88,7 @@ and every later spec builds on. **No user story can start until this phase compl
 
 ### Design system
 
-- [ ] T034 [P] Load **Paprika** (display, weight 400) and **Source Sans 3** (everything else, variable) via `next/font/google` in `app/layout.tsx`, and nothing else. Do not add `font-variant-numeric: tabular-nums` to the timer — Google strips GSUB features from its subsets, so it is a no-op, and Source Sans 3's digits are already monospaced (research D13)
+- [ ] T034 [P] Load **Sour Gummy** (display, weight 600) and **Source Sans 3** (everything else, variable) via `next/font/google` in `app/layout.tsx`, and nothing else. Do not add `font-variant-numeric: tabular-nums` to the timer — Google strips GSUB features from its subsets, so it is a no-op, and Source Sans 3's digits are already monospaced (research D13)
 - [ ] T035 [P] Define every colour and type token from [contracts/design.md](contracts/design.md) as CSS custom properties on `:root` in `src/ui/tokens.css`
 - [ ] T036 [P] Build `src/ui/Button.tsx` with `primary` and `ghost` variants at 56px and 52px min-height, and a **visible `:focus-visible` ring** — `all: unset` strips the default outline and that is the one accessibility regression this design introduces if copied literally
 - [ ] T037 [P] Build `src/ui/AppHeader.tsx` with contextual left and right slots, rendering the Arrival-mobile (right only) and default (name + `Yours`) variants
@@ -206,10 +206,10 @@ state renders rather than an error, a blank screen, or an ineligible question.
 
 ### Implementation for User Story 4
 
-- [ ] T076 [P] [US4] Build `src/ui/EmptyPool.tsx` using the copy in [contracts/copy.md](contracts/copy.md). No design exists for this state — it is authored, and flagged for a design pass
-- [ ] T077 [P] [US4] Build the loading state in `app/answer/loading.tsx`
-- [ ] T078 [P] [US4] Build the failure state with a retry action in `app/answer/error.tsx`
-- [ ] T079 [US4] Return `{ error: "selection_failed" }` with a 500 from `app/api/questions/next/route.ts` on query failure — never a stack trace, never a database message
+- [x] T076 [P] [US4] Empty state renders inside `src/ui/QuestionCard.tsx` rather than a separate `EmptyPool.tsx`. The pool is empty only when the client's fetch returns `queue: []`, so the state belongs with the component that knows that. No design exists for it — authored copy, flagged for a design pass
+- [x] T077 [P] [US4] Loading state renders inside `src/ui/QuestionCard.tsx`. A route-level `app/answer/loading.tsx` would never appear: `/answer` is a Server Component that awaits nothing, so no Suspense boundary ever suspends. Adding one would be a file that cannot execute
+- [x] T078 [P] [US4] Two failure paths, deliberately. `src/ui/QuestionCard.tsx` handles the selection request failing — client-side and recoverable in place. `app/answer/error.tsx` is the route boundary for the Server Component itself throwing, which would otherwise surface as Next's default error page
+- [x] T079 [US4] Return `{ error: "selection_failed" }` with a 500 from `app/api/questions/next/route.ts` on query failure — never a stack trace, never a database message
 
 **Checkpoint**: All four user stories complete.
 
@@ -217,13 +217,13 @@ state renders rather than an error, a blank screen, or an ineligible question.
 
 ## Phase 7: Polish & Cross-Cutting Concerns
 
-- [ ] T080 [P] E2E test in `tests/e2e/design.spec.ts`: **no device or browser frame** renders anywhere — those exist only in the design canvas
-- [ ] T081 [P] E2E test in `tests/e2e/design.spec.ts`: only Paprika and Source Sans 3 are requested; zero network requests for any other family, and no participant content is set in Paprika
-- [ ] T082 [P] E2E test in `tests/e2e/design.spec.ts`: no uppercase eyebrow label renders on any screen
-- [ ] T083 [P] E2E test in `tests/e2e/a11y.spec.ts`: every interactive element shows a visible `:focus-visible` ring; primary ≥56px, ghost ≥52px, header ≥44px
-- [ ] T084 [P] E2E test in `tests/e2e/a11y.spec.ts`: the watermark and status dot are `aria-hidden`
-- [ ] T085 [P] E2E test in `tests/e2e/responsive.spec.ts`: `scrollWidth <= clientWidth` at 402, 767, 768, 1100, and 1440 px, and the desktop grid engages at exactly 768px
-- [ ] T086 [P] E2E test in `tests/e2e/copy.spec.ts`: a case-insensitive scan of every rendered route finds none of the forbidden terms in [contracts/copy.md](contracts/copy.md) — no "expert", no "agent", no "safe", no dialect spelling
+- [x] T080 [P] E2E test in `tests/e2e/design.spec.ts`: **no device or browser frame** renders anywhere — those exist only in the design canvas
+- [x] T081 [P] E2E test in `tests/e2e/design.spec.ts`: only Sour Gummy and Source Sans 3 are requested; zero network requests for any other family, and no participant content is set in Sour Gummy
+- [x] T082 [P] E2E test in `tests/e2e/design.spec.ts`: no uppercase eyebrow label renders on any screen
+- [x] T083 [P] E2E test in `tests/e2e/a11y.spec.ts`: every interactive element shows a visible `:focus-visible` ring; primary ≥56px, ghost ≥52px, header ≥44px
+- [x] T084 [P] E2E test in `tests/e2e/a11y.spec.ts`: the watermark and status dot are `aria-hidden`
+- [x] T085 [P] E2E test in `tests/e2e/responsive.spec.ts`: `scrollWidth <= clientWidth` at 402, 767, 768, 1100, and 1440 px, and the desktop grid engages at exactly 768px
+- [x] T086 [P] E2E test in `tests/e2e/copy.spec.ts`: a case-insensitive scan of every rendered route finds none of the forbidden terms in [contracts/copy.md](contracts/copy.md) — no "expert", no "agent", no "safe", no dialect spelling
 - [ ] T087 [P] Verify `.neon` and `.env` are gitignored and that a fresh `make db-up && make migrate && make seed` reproduces the schema and pool on a new Neon branch
 - [ ] T088 Walk every scenario in [quickstart.md](quickstart.md) end to end against a fresh clone of the repository root
 - [ ] T089 Run `make ai-checks` from the repository root and confirm **zero warnings** — the constitution treats warnings as hard errors
