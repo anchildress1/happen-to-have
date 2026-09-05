@@ -125,4 +125,23 @@ describe('question selection exclusions (real Postgres SQL via PGlite)', () => {
 
     expect(idsOf(eligible)).toContain(seededQuestionId);
   });
+
+  it('returns the same list for a participant id with no row as for a real one', async () => {
+    // The read path in app/api/questions/next/route.ts trusts the signed cookie and does
+    // not confirm the participant row still exists. That is only safe while this holds:
+    // selection filters on `participant_id IS DISTINCT FROM $1` and `NOT EXISTS (their
+    // answers)`, which an id with no rows satisfies exactly as a new participant does.
+    // Add an INNER JOIN on participants and the route starts returning an empty pool
+    // after a database reset instead of a full one.
+    const real = await createParticipant();
+    const ghost = randomUUID();
+    await createQuestion({ authorId: null });
+    await createQuestion({ authorId: null });
+
+    const forReal = await listEligibleQuestions(real, db);
+    const forGhost = await listEligibleQuestions(ghost, db);
+
+    expect(idsOf(forGhost)).toEqual(idsOf(forReal));
+    expect(forGhost).toHaveLength(2);
+  });
 });

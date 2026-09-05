@@ -17,9 +17,8 @@ const SESSION_COOKIE_NAME = 'hth_session';
 const SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 30; // 30 days
 
 /**
- * The ONLY data the cookie carries: `participantId`. No ask-eligibility flag,
- * no counts, no contribution history. Every eligibility decision re-reads the
- * database (contracts/session.md, constitution Principle II).
+ * The only data the cookie carries. No ask-eligibility flag, no counts, no history:
+ * every eligibility decision re-reads the database (constitution Principle II).
  */
 export interface SessionData {
   participantId: string;
@@ -51,20 +50,12 @@ export interface GetOrCreateParticipantResult {
 }
 
 /**
- * Resolves the participant behind a request, per contracts/session.md.
+ * Resolves the participant behind a request, creating one when the cookie is absent,
+ * undecryptable, or names a row that no longer exists (contracts/session.md).
  *
- * Only a Route Handler or a client-invoked Server Action may call this — it
- * mutates state (may insert a participant row and write a session cookie).
- * Server Components must not call it during rendering.
- *
- * Branches:
- * 1. No cookie, or an undecryptable/tampered one → new participant, new session.
- * 2. Cookie holds a `participantId` whose row exists → reuse it, no writes.
- * 3. Cookie holds a `participantId` whose row is missing (e.g. after a database
- *    reset) → must NOT 500 and must NOT be trusted. New participant, new session.
- *
- * A database that cannot be reached is a 500 (thrown here, handled by the
- * caller) in every branch — never silently treated as "new participant."
+ * May write, so only a Route Handler or client-invoked Server Action may call it — never
+ * a Server Component during render. An unreachable database throws rather than quietly
+ * minting a new identity, which would discard someone's history.
  */
 export async function getOrCreateParticipant(
   request: Request,
@@ -90,19 +81,11 @@ export async function getOrCreateParticipant(
 }
 
 /**
- * The participant id the cookie claims, without touching the database.
+ * The participant id the cookie claims, decrypted locally with no database round-trip.
+ * Null when the cookie is absent, tampered, or malformed.
  *
- * iron-session decrypts and authenticates locally, so this is free: a caller learns the
- * id, and learns nothing about whether the row still exists. That separation is the point.
- * `getOrCreateParticipant` must still run before anything is written, because an id that
- * decrypts is not the same as an id that exists (branch 3 above).
- *
- * It exists so a read path can start its own query in parallel with that existence check
- * instead of waiting for it. Two sequential round-trips to a remote Postgres cost double
- * the latency of two concurrent ones, and the selection query never needed the answer.
- *
- * Returns null when there is no cookie, or when it is absent, tampered, or malformed —
- * every case where the caller must fall back to `getOrCreateParticipant`.
+ * An id that decrypts is not an id that exists, so any path that writes must still go
+ * through `getOrCreateParticipant`.
  */
 export async function readParticipantId(request: Request): Promise<string | null> {
   const session = await getIronSession<SessionData>(

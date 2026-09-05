@@ -72,8 +72,18 @@ getOrCreateParticipant(request) -> { participantId, isNew }
    - **Row missing** → treat as new. A cookie referencing a deleted or foreign participant must
      not produce a 500 and must not be trusted. Insert a new participant, overwrite the session.
 
-Step 3's missing-row branch is the one that gets skipped and then bites in a demo after a
-database reset. It is a required behavior, not an edge case.
+Step 3's missing-row branch is a required behavior, not an edge case: it is what stops a
+cookie left over from a database reset producing a 500 on the next write.
+
+**Read paths do not call this.** `POST /api/questions/next` uses `readParticipantId`, which
+decrypts the cookie and touches no database, then runs selection against whatever id it
+finds. Selection filters on `participant_id IS DISTINCT FROM $1` and `NOT EXISTS (their
+answers)`, so an id with no row returns exactly what a brand-new participant would — proven
+in `tests/integration/exclusions.test.ts`. Verifying the row there could only confirm what
+the result already implied, and cost a second round-trip on every question load.
+
+A missing row is a **write** concern, enforced by the foreign key on `answers`. 003 submits
+against this id and must call `getOrCreateParticipant` before it does.
 
 **Failure to reach the database** is a 500 rendered as the FR-031 failure state with a retry
 action. It is never silently treated as "new participant" — that would hand someone a fresh
@@ -108,6 +118,7 @@ It must be stated in the README, not hidden.
 | No cookie → participant created, cookie written | Integration |
 | Valid cookie → same `participantId` returned, no new row | Integration |
 | Cookie referencing a missing row → new participant, no 500 | Integration |
+| Missing row yields the same eligible list as a real participant | Integration |
 | Tampered or undecryptable cookie → new participant, no 500 | Integration |
 | Database unreachable → 500 and failure state, never a silent new identity | Integration |
 | First visit to `/answer` creates identity through POST, not Server Component rendering | E2E |
