@@ -116,6 +116,7 @@ test.describe('handoff-fixed strings render verbatim (T086b)', () => {
     await expect(page.getByRole('heading', { level: 1 })).toHaveText(copy.product.name);
     await expect(page.getByText(copy.product.tagline, { exact: true })).toBeVisible();
     await expect(page.getByRole('link', { name: copy.action.findQuestion })).toBeVisible();
+    await expect(page.getByText(copy.arrival.helper, { exact: true })).toBeVisible();
   });
 
   test('Selection (/answer) renders the answer and skip actions verbatim', async ({ page }) => {
