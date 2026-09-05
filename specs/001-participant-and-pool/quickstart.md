@@ -32,8 +32,14 @@ Fill `.env`:
 
 | Variable | Local value | Production source |
 | - | - | - |
-| `DATABASE_URL` | pulled by `neon checkout` | Secret Manager |
-| `SESSION_SECRET` | any 32+ char string — `openssl rand -base64 32` | Secret Manager |
+| `SESSION_SECRET` | any 32+ char string — `openssl rand -base64 32` | `hth-session-secret` |
+| `DATABASE_URL` | written by `neon checkout` (pooled) | `hth-database-url` |
+| `DATABASE_URL_UNPOOLED` | written by `neon checkout` (direct) | n/a — migrations only |
+| `NEON_BRANCH` | written by `neon checkout` | n/a — informational |
+| `GEMINI_API_KEY` | leave empty; 001 never reads it | `hth-gemini-api-key` (002/003) |
+
+Only `SESSION_SECRET` is filled in by hand. Production ids assume the default
+`HTH_SECRET_PREFIX=hth` — see [Deploy](#deploy).
 
 Do not set `NODE_ENV` in `.env`. Next sets it per command, and pinning it to `development`
 breaks `next start` and would drop the session cookie's `secure` flag in a deployment.
