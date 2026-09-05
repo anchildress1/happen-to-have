@@ -16,5 +16,3 @@ tests
 .env.*
 !.env.example
 *.md
-Dockerfile
-.dockerignore
