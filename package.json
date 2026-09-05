@@ -20,7 +20,8 @@
     "e2e": "playwright test",
     "migrate": "node-pg-migrate -m migrations -j sql up",
     "migrate:down": "node-pg-migrate -m migrations -j sql down",
-    "seed": "node --conditions=react-server seed/seed.ts"
+    "seed": "node --conditions=react-server seed/seed.ts",
+    "prepare": "lefthook install"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.1.0",
@@ -41,6 +42,7 @@
     "@types/react": "19.2.8",
     "@types/react-dom": "^19.2.7",
     "commitlint-plugin-rai": "1.0.2",
+    "lefthook": "^2.1.12",
     "node-pg-migrate": "^9.0.0",
     "typescript": "7.0.2",
     "vitest": "5.0.0"

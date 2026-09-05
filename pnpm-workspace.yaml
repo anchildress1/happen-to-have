@@ -1,7 +1,4 @@
-# Postinstall scripts are denied by default. These two are required for the
-# Firebase Admin SDK to function: protobufjs generates its runtime bundles and
-# @firebase/util resolves platform entry points. Both are first-party Google /
-# protobuf packages already pinned by integrity hash in the lockfile.
+# Postinstall scripts are denied by default. Lefthook's fetches the platform binary its
+# `prepare` script needs to write the git hooks.
 allowBuilds:
-  '@firebase/util': true
-  protobufjs: true
+  lefthook: true
