@@ -1,5 +1,5 @@
 import { expect, type Page, type Route, test } from '@playwright/test';
-import { copy } from '../../src/copy';
+import { copy } from '../../src/copy.js';
 
 /**
  * `/answer` (User Story 2, FR-020 through FR-025, SC-003). Per contracts/routes.md

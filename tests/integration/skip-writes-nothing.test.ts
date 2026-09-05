@@ -62,7 +62,7 @@ async function snapshotParticipant(participantId: string): Promise<ParticipantSn
     [participantId],
   );
   const { rows: answerRows } = await db.query<{ count: number }>(
-    'SELECT COUNT(*) AS count FROM answers WHERE participant_id = $1',
+    'SELECT COUNT(*)::int AS count FROM answers WHERE participant_id = $1',
     [participantId],
   );
   return {

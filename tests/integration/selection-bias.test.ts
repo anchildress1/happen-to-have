@@ -48,6 +48,17 @@ async function createSeededQuestion(): Promise<string> {
   return rows[0].id;
 }
 
+/** Explicit id and created_at, so tie order is a property of the fixture, not of clock skew. */
+async function createQuestionAt(id: string, createdAt: string): Promise<string> {
+  const { rows } = await db.query<{ id: string }>(
+    `INSERT INTO questions (id, participant_id, display_text, status, created_at)
+     VALUES ($1, NULL, $2, 'open', $3)
+     RETURNING id`,
+    [id, `selection-bias.test.ts tie fixture ${id}`, createdAt],
+  );
+  return rows[0].id;
+}
+
 async function publishAnswers(questionId: string, forParticipantIds: string[]): Promise<void> {
   await db.query(
     `INSERT INTO answers (question_id, participant_id)
@@ -66,8 +77,11 @@ const HIGH_COUNT_HEADSTART = SELECTIONS + 50;
 
 describe('question selection bias toward fewer published answers (real Postgres SQL via PGlite)', () => {
   it(`prefers the lower-answer-count question in a large majority of ${SELECTIONS} selections`, async () => {
-    const lowCountQuestionId = await createSeededQuestion();
+    // The high-count question is created FIRST on purpose. It therefore also wins the
+    // created_at/id tie-break, so only `published_answers ASC` can put the low-count one
+    // ahead — delete that clause and this test goes red instead of staying green.
     const highCountQuestionId = await createSeededQuestion();
+    const lowCountQuestionId = await createSeededQuestion();
 
     const headstartParticipants = await createParticipants(HIGH_COUNT_HEADSTART);
     await publishAnswers(highCountQuestionId, headstartParticipants);
@@ -101,5 +115,39 @@ describe('question selection bias toward fewer published answers (real Postgres 
     // large majority of a 100-selection sample rather than matching one specific number.
     expect(lowCountWins).toBeGreaterThan(highCountWins);
     expect(lowCountWins).toBeGreaterThanOrEqual(SELECTIONS * 0.9);
+  });
+});
+
+describe('stable ties: equal counts fall back to created_at then id (SC-004)', () => {
+  it('orders equal-count questions by created_at ascending', async () => {
+    const participantId = (await createParticipants(1))[0];
+    const newest = await createQuestionAt(
+      '33333333-3333-4333-8333-333333333333',
+      '2026-03-03T00:00:00Z',
+    );
+    const oldest = await createQuestionAt(
+      '11111111-1111-4111-8111-111111111111',
+      '2026-01-01T00:00:00Z',
+    );
+    const middle = await createQuestionAt(
+      '22222222-2222-4222-8222-222222222222',
+      '2026-02-02T00:00:00Z',
+    );
+
+    const eligible = await listEligibleQuestions(participantId, db);
+
+    // Inserted newest-first, so insertion order cannot be what produces this.
+    expect(eligible.map((q) => q.id)).toEqual([oldest, middle, newest]);
+  });
+
+  it('orders questions sharing a created_at by id ascending', async () => {
+    const participantId = (await createParticipants(1))[0];
+    const sameInstant = '2026-04-04T00:00:00Z';
+    const higherId = await createQuestionAt('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', sameInstant);
+    const lowerId = await createQuestionAt('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', sameInstant);
+
+    const eligible = await listEligibleQuestions(participantId, db);
+
+    expect(eligible.map((q) => q.id)).toEqual([lowerId, higherId]);
   });
 });

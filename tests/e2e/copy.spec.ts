@@ -1,5 +1,5 @@
 import { expect, type Page, test } from '@playwright/test';
-import { copy } from '../../src/copy';
+import { copy } from '../../src/copy.js';
 
 /**
  * Copy-compliance checks (Phase 7, T086/T086b). Source of truth is

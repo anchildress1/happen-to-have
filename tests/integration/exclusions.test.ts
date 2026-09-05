@@ -92,7 +92,7 @@ describe('question selection exclusions (real Postgres SQL via PGlite)', () => {
     const questionId = await createQuestion({ authorId: null });
 
     const { rows } = await db.query<{ count: number }>(
-      'SELECT COUNT(*) AS count FROM answers WHERE participant_id = $1 AND question_id = $2',
+      'SELECT COUNT(*)::int AS count FROM answers WHERE participant_id = $1 AND question_id = $2',
       [participantId, questionId],
     );
     expect(rows[0].count).toBe(0);
