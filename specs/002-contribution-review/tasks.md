@@ -35,7 +35,7 @@ endpoints that call this module ([research D10](research.md)).
 
 - [ ] T001 Install `@google/genai` 2.21.0 as a production dependency in `package.json`; do not add any other provider SDK
 - [ ] T002 [P] Add `HTH_RATE_LIMIT_MAX` and `HTH_RATE_LIMIT_WINDOW_SECONDS` to `.env.example` with commented defaults and the Secret Manager id convention, matching the existing `GEMINI_API_KEY` entry
-- [x] T003 [P] Create `tests/fixtures/audio/` and commit the 16 spike recordings; note in a sibling `README.md` that they are generated speech, not participant data
+- [x] T003 [P] Commit the fixture source and results under `tests/fixtures/`, and document generating the audio from `cases.ts` via `scripts/spike/tts.js`. The recordings themselves stay out of git: `.gitignore` blocks `*.wav` so original recordings can never be committed, and that guard is worth more than shipping 8 MB of derivable binaries
 - [x] T004 [P] Create `tests/fixtures/cases.ts` carrying each fixture's id, kind, question text, and adjudicated `{ illegal, crisis, relevant }` labels from [research D11](research.md)
 - [ ] T005 [P] Add a `fixtures` target to the `Makefile` that runs the live-provider fixture script, kept out of `ai-checks` so the default loop stays free and deterministic ([research D12](research.md))
 

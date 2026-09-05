@@ -4,16 +4,29 @@ The 16 recordings and adjudicated labels behind every measured claim in
 [docs/spike-002-guardrails.md](../../docs/spike-002-guardrails.md) and
 [specs/002-contribution-review/research.md](../../specs/002-contribution-review/research.md).
 
-Committed because regenerating them costs provider spend, and because a number in a document is
-not evidence unless the input that produced it still exists.
+Committed because a number in a document is not evidence unless the input that produced it still
+exists. The source text and labels are here; the audio regenerates from them.
 
 ## Contents
 
-| Path | What |
-| - | - |
-| `audio/*.wav` | 16 recordings, 12–16 s, 24 kHz 16-bit mono |
-| `cases.ts` | Each recording's id, kind, question, source text, and adjudicated verdict |
-| `results/*.json` | Raw provider responses from each experiment, including token counts and latency |
+| Path | What | Committed |
+| - | - | - |
+| `cases.ts` | Each fixture's id, kind, question, source text, and adjudicated verdict | yes |
+| `results/*.json` | Raw provider responses from each experiment, with token counts and latency | yes |
+| `audio/*.wav` | 16 recordings, 12–16 s, 24 kHz 16-bit mono | **no — generated locally** |
+
+**The audio is not in the repository.** `.gitignore` blocks `*.wav` under a deliberate rule —
+*"original recordings must never be committed"* — which enforces Principle IV. These fixtures are
+synthetic rather than participant audio, so they are not what that rule aims at, but the guard is
+worth more than the convenience of shipping 8 MB of binaries.
+
+The text in `cases.ts` **is** the fixture. The audio is derived from it, so run `tts.js` once
+after cloning:
+
+```bash
+pnpm add @google/genai      # T001
+node scripts/spike/tts.js   # writes any missing recording; existing files are skipped
+```
 
 **The recordings are synthetic.** Every one was generated with `gemini-3.1-flash-tts-preview`
 (voice `Kore`) from text written for the test set. No participant audio exists in this repository
