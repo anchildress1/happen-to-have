@@ -116,22 +116,22 @@ browser, and confirm the landing screen and a question both render correctly.
 
 ### Tests for User Story 1
 
-- [ ] T043 [P] [US1] E2E test in `tests/e2e/arrival.spec.ts`: `/` renders `Happen to Have?`, `Answer one. Ask one.`, `Find me a question`, and the helper line verbatim from [contracts/copy.md](contracts/copy.md)
-- [ ] T044 [P] [US1] E2E test in `tests/e2e/arrival.spec.ts`: the product name retains its question mark, including in `<title>`
-- [ ] T045 [P] [US1] Integration test in `tests/integration/identity-on-interaction.test.ts`: loading `/` creates **no** participant row; interacting does
-- [ ] T046 [P] [US1] E2E test in `tests/e2e/selection.spec.ts`: `/answer` renders one question with `I can answer this` and `Try another question`
-- [ ] T047 [P] [US1] E2E test in `tests/e2e/no-microphone.spec.ts`: `navigator.mediaDevices.getUserMedia` is never invoked on any route (SC-005)
+- [x] T043 [P] [US1] E2E test in `tests/e2e/arrival.spec.ts`: `/` renders `Happen to Have?`, `Answer one. Ask one.`, `Find me a question`, and the helper line verbatim from [contracts/copy.md](contracts/copy.md)
+- [x] T044 [P] [US1] E2E test in `tests/e2e/arrival.spec.ts`: the product name retains its question mark, including in `<title>`
+- [x] T045 [P] [US1] Integration test in `tests/integration/identity-on-interaction.test.ts`: loading `/` creates **no** participant row; interacting does
+- [x] T046 [P] [US1] E2E test in `tests/e2e/selection.spec.ts`: `/answer` renders one question with `I can answer this` and `Try another question`
+- [x] T047 [P] [US1] E2E test in `tests/e2e/no-microphone.spec.ts`: `navigator.mediaDevices.getUserMedia` is never invoked on any route (SC-005)
 
 ### Implementation for User Story 1
 
-- [ ] T048 [US1] Build the landing screen in `app/page.tsx` — status dot, H1, tagline, primary action, helper; desktop adds the footer line and the `1fr 1fr` grid with a 520px copy column
-- [ ] T049 [US1] Write the native-SQL selection query in `src/db/queries/questions.ts` exactly as specified in [data-model.md](data-model.md). Use `IS DISTINCT FROM` for the own-question exclusion — plain `<>` silently drops every seeded row, whose `participant_id` is `NULL`. This is the easiest bug in the feature to write
-- [ ] T050 [US1] Compute published-answer counts relationally with `COUNT` in `src/db/queries/questions.ts`. Introducing a denormalized counter is forbidden by the constitution: it drifts, and a drifted count silently corrupts both the fewer-answers bias and 004's closure rule
-- [ ] T051 [US1] Implement `POST /api/questions/next` in `app/api/questions/next/route.ts` per [contracts/routes.md](contracts/routes.md), returning `{ question }` or `{ question: null }`, and `export const dynamic = 'force-dynamic'`
-- [ ] T052 [US1] Build `src/ui/QuestionCard.tsx` — question text and both actions, **with no eyebrow label above it** (research D15)
-- [ ] T053 [US1] Build the selection screen in `app/answer/page.tsx` using QuestionCard; desktop uses the `minmax(0,1.4fr) minmax(0,1fr)` grid with the actions in a `--green-06` panel
-- [ ] T054 [US1] Create identity through `POST /api/questions/next`, not during Server Component rendering, per [contracts/session.md](contracts/session.md)
-- [ ] T055 [US1] Point `I can answer this` at a disabled or placeholder target for `/answer/record`; 003 delivers it, and it must never request microphone permission from this feature's code
+- [x] T048 [US1] Build the landing screen in `app/page.tsx` — status dot, H1, tagline, primary action, helper; desktop adds the footer line and the `1fr 1fr` grid with a 520px copy column
+- [x] T049 [US1] Write the native-SQL selection query in `src/db/queries/questions.ts` exactly as specified in [data-model.md](data-model.md). Use `IS DISTINCT FROM` for the own-question exclusion — plain `<>` silently drops every seeded row, whose `participant_id` is `NULL`. This is the easiest bug in the feature to write
+- [x] T050 [US1] Compute published-answer counts relationally with `COUNT` in `src/db/queries/questions.ts`. Introducing a denormalized counter is forbidden by the constitution: it drifts, and a drifted count silently corrupts both the fewer-answers bias and 004's closure rule
+- [x] T051 [US1] Implement `POST /api/questions/next` in `app/api/questions/next/route.ts` per [contracts/routes.md](contracts/routes.md), returning `{ question }` or `{ question: null }`, and `export const dynamic = 'force-dynamic'`
+- [x] T052 [US1] Build `src/ui/QuestionCard.tsx` — question text and both actions, **with no eyebrow label above it** (research D15)
+- [x] T053 [US1] Build the selection screen in `app/answer/page.tsx` using QuestionCard; desktop uses the `minmax(0,1.4fr) minmax(0,1fr)` grid with the actions in a `--green-06` panel
+- [x] T054 [US1] Create identity through `POST /api/questions/next`, not during Server Component rendering, per [contracts/session.md](contracts/session.md)
+- [x] T055 [US1] Point `I can answer this` at a disabled or placeholder target for `/answer/record`; 003 delivers it, and it must never request microphone permission from this feature's code
 
 **Checkpoint**: US1 is independently demoable. This is the MVP.
 
