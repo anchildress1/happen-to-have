@@ -47,8 +47,8 @@ and confirm each returns validated, structurally correct text and a single decis
 2. **Given** a recording in a language other than the display language, **When** the review runs, **Then** the returned text is in the display language and is readable, with no participant asked to approve it.
 3. **Given** a recording naming a person, an employer, a street address, or a phone number, **When** the review runs, **Then** those details are removed or generalized from the returned text.
 4. **Given** a recording, **When** the review runs, **Then** the returned text contains no advice, facts, recommendations, or judgments that were not in the recording, and does not alter the substance of what was said.
-5. **Given** an answer submission, **When** the review runs, **Then** three independent parallel calls are made on the original recording — content processing, relevance to the question, and crisis signalling — and illegal-or-dangerous is read from the content call's safety ratings.
-6. **Given** a question submission, **When** the review runs, **Then** two independent parallel calls are made — content processing and crisis signalling — and relevance is not evaluated.
+5. **Given** an answer submission, **When** the review runs, **Then** four independent parallel calls are made on the original recording — content processing, relevance to the question, crisis signalling, and illegal-or-dangerous.
+6. **Given** a question submission, **When** the review runs, **Then** three independent parallel calls are made — content processing, crisis signalling, and illegal-or-dangerous — and relevance is not evaluated.
 7. **Given** any check, **When** it runs, **Then** it receives the original recording directly and does not consume another check's transcript or output.
 8. **Given** all applicable checks return validated permission to publish, **When** the decision resolves, **Then** it permits publication.
 8a. **Given** any check rejects, **When** its validated result arrives, **Then** Withheld renders immediately, other work is cancelled where possible, and later results cannot publish anything.
@@ -176,18 +176,20 @@ no stored copy remains.
 #### Review structure
 
 - **FR-001**: The system MUST review every submitted recording before publishing it.
-- **FR-002**: An answer review MUST perform content processing, a relevance check, and a crisis check as independent parallel calls. Illegal-or-dangerous is read from the content call's safety ratings (FR-008c), so the default answer fan-out is three calls, not four.
-- **FR-003**: A question review MUST perform content processing and a crisis check as independent parallel calls. Relevance MUST NOT be evaluated for a question. The default question fan-out is two calls.
+- **FR-002**: An answer review MUST perform content processing, a relevance check, a crisis check, and an illegal-or-dangerous check as independent parallel calls. The answer fan-out is four calls.
+- **FR-003**: A question review MUST perform content processing, a crisis check, and an illegal-or-dangerous check as independent parallel calls. Relevance MUST NOT be evaluated for a question. The question fan-out is three calls.
 - **FR-004**: Each check MUST receive the original recording independently.
 - **FR-005**: A check MUST NOT consume another check's transcript, text, or output.
 - **FR-006**: The relevance check MUST additionally receive the text of the question being answered.
 - **FR-007**: Publication MUST wait for every applicable check to pass; a definitive rejection MUST resolve immediately to Withheld without waiting for the other checks.
 - **FR-008**: The system MUST NOT substitute relevance alone, or any single check alone, for the full set.
 - **FR-008a**: Every check MUST run as its own parallel thread. Checks MUST NOT be merged into a single call that returns several verdicts, because a prompt judging one thing classifies more reliably than a prompt judging two.
-- **FR-008b**: The content-processing call MUST set every safety category to a threshold that never blocks, while leaving the filter active so ratings are still produced. The provider distinguishes *disabling* filtering from *never blocking*; this system needs the second. A blocked response returns no ratings and no text, which is strictly less information than an unblocked response the system then judges for itself.
-- **FR-008c**: The illegal-or-dangerous decision MUST be taken from the content-processing call's safety ratings, not a dedicated review call, unless the technical spike shows the ratings insufficient. A separate call to re-derive a signal the provider already returns for free must earn its latency and cost with evidence.
-- **FR-008d**: A dedicated crisis check MUST exist regardless of what the safety ratings say. No built-in category covers self-harm or crisis, and content moderation answers a different question — *is this content harmful to distribute* — than the crisis check, which asks *is this person in trouble*. Someone saying they do not want to be here any more trips no moderation filter, and is exactly the person the crisis routing exists for.
+- **FR-008b**: The content-processing call MUST set every safety category to a threshold that never blocks. The purpose is to stop the provider silently swallowing a recording this system is required to judge for itself — not to obtain ratings, which it does not return (FR-008c). Even at a never-block threshold the provider still returns an empty candidate on some recordings, so the caller MUST treat a response with no candidate as a provider fault and route it to the illegal-or-dangerous check's verdict rather than inferring a decision from the absence.
+- **FR-008c**: The illegal-or-dangerous decision MUST be taken by its own dedicated check, on the same terms as every other check. The spike settled this: the provider returns **no safety ratings at all** on this path — the field is absent from the response at a never-block threshold, at default thresholds, and with no safety configuration supplied. There is no free signal to read, so the exception this requirement previously reserved has fired. Evidence: [spike-002-guardrails](../../docs/spike-002-guardrails.md).
+- **FR-008d**: A dedicated crisis check MUST exist. No built-in category covers self-harm or crisis, and content moderation answers a different question — *is this content harmful to distribute* — than the crisis check, which asks *is this person in trouble*. The spike confirmed this at the provider's default guardrails: every crisis recording in the test set, including one naming a method and a written letter, was transcribed and returned clean.
 - **FR-008e**: Where a contribution is withheld, the system MUST record which signal rejected it. The transcript of a withheld contribution is never published, so its only remaining value is selecting the correct reason text.
+- **FR-008f**: The crisis check MUST treat indirect and understated phrasing as a crisis signal, and MUST NOT require an explicit method, plan, or the word *suicide*. A check that waits for a declaration misses the people it exists for: the spike's first crisis prompt passed "I don't think I want to keep doing this" as safe, and raising the model tier did not fix it. It MUST NOT reject grief, burnout, or figures of speech such as *that job was killing me*.
+- **FR-008g**: The relevance check MUST judge only whether the answer addresses the question, and MUST NOT reject an answer for being unlawful, dangerous, or offensive. In the spike, relevance rejected on-topic answers purely because their content was unsafe, which destroys the system's ability to tell an off-topic contribution from an unsafe one and so selects the wrong Withheld reason under FR-008e.
 
 #### Content processing
 
@@ -281,24 +283,27 @@ no stored copy remains.
 - **SC-011**: The complete answer-then-ask cycle at normal participant pace never triggers the rate limit.
 - **SC-012**: Measured cost per contribution, including the maximum independent retries, is recorded before interface work depends on it.
 
-## Spike questions — answer before writing review code
+## Spike questions — answered 2026-09-05
 
-These gate design decisions. Measuring them costs a morning; guessing them costs a rewrite.
+Run against 16 prepared recordings covering the compositional illegal pair, crisis with and
+without moderation-flagged content, relevance, and benign controls. Full method and results:
+[spike-002-guardrails](../../docs/spike-002-guardrails.md).
 
-1. **Are the provider's dangerous-content ratings sufficient for illegal-or-dangerous?** Run the
-   illegal test set through content processing at a never-block threshold and compare the
-   returned ratings against the expected verdicts. If they hold, the dedicated call is never
-   written. If they miss, FR-008c's exception applies and the call gets built with evidence
-   behind it. The compositional cases are the ones that matter: a hunting question and a
-   question about buying a firearm without a permit must land differently.
-2. **What does a never-block threshold actually return?** Confirm the response arrives with
-   ratings attached rather than an empty candidate, and record the rating shape the code will
-   read.
-3. **Does the crisis check catch what moderation misses?** Run crisis-signalling recordings that
-   carry no moderation-flagged content. This is the case that justifies the dedicated call, and
-   it is the one that causes harm outside the software if it fails.
-4. **Latency of the real fan-out.** Three parallel calls for an answer, two for a question, each
-   carrying the original audio. Measure end-of-recording to gate decision.
+1. **Are the provider's dangerous-content ratings sufficient for illegal-or-dangerous?**
+   **No — the ratings do not exist.** `safetyRatings` is absent from the response at a
+   never-block threshold, at default thresholds, and with no safety configuration at all.
+   FR-008c's exception applies and the dedicated call is built.
+2. **What does a never-block threshold actually return?** A candidate carrying only content,
+   finish reason, and index. No ratings, no prompt feedback. It still returns an empty
+   candidate on some illegal recordings, and it did so inconsistently for the same audio
+   across runs — the absence of a candidate is not a usable signal.
+3. **Does the crisis check catch what moderation misses?** **Yes, and moderation misses nearly
+   all of it.** At the provider's default guardrails, 7 of 8 must-not-publish recordings came
+   back with clean transcribed text, including every crisis case. The dedicated check caught
+   them. It needed FR-008f's wording to catch understated phrasing; a higher model tier did not.
+4. **Latency of the real fan-out.** Median 2.4s, p90 3.6s, measured on 12–16 second clips.
+   Comfortably inside SC-001, but **not yet proven at the 60-second ceiling**, which carries
+   roughly four times the audio.
 
 ---
 
@@ -311,12 +316,11 @@ These gate design decisions. Measuring them costs a morning; guessing them costs
 - **Rate limit values**: specific numbers come from testing a complete cycle, not from another product. They are configurable without a code change.
 - **Checks stay separate**: each check is its own parallel thread. Combining two judgments into
   one prompt anchors the second on the first, and the fan-out is already narrow enough without it.
-- **Illegal-or-dangerous is a spike question, not a build item**: the provider returns a
-  dangerous-content rating on the content call at no extra latency or cost. The spike measures
-  those ratings against the illegal test set before anyone writes a dedicated call. Building the
-  call first and measuring later is how a pipeline acquires a redundant round trip nobody
-  revisits.
-- **Latency budget**: the fifteen-second median in SC-001 is a target set before measurement. The technical spike measures the real figure first; if the real figure is materially worse, either the check structure or the checking-state experience changes before interface work proceeds.
+- **Illegal-or-dangerous is a build item**: settled by the spike. The provider returns no
+  dangerous-content rating to read, and its default guardrails passed 7 of 8 must-not-publish
+  recordings, so the dedicated call is the only screening that exists. This reverses the earlier
+  assumption that the rating came free with the content call.
+- **Latency budget**: the spike measured a 2.4s median and 3.6s p90 fan-out on 12–16 second clips, well inside SC-001. This is not yet proof at the 60-second ceiling; the figure MUST be re-measured on full-length recordings before the checking-state experience is treated as settled.
 - **Lifetime**: only the active submission owns temporary audio and check results. A fresh recording is a new submission; it does not recover an earlier attempt.
 
 ## Out of Scope

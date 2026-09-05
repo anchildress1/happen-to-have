@@ -79,6 +79,7 @@ The handoff's validation cases map to the specs below; this is planned coverage,
 | Identifying info removed | 002 |
 | Crisis is Withheld with resources and a fresh-recording action | 002, 003, 004 |
 | Illegal withheld with distinct text | 002 |
+| Provider's own safety filter is insufficient on its own | 002 — proven, spike |
 | Cannot answer own question | 001, 003 |
 | No repeat question after answering | 001, 003 |
 | Multiple answers, no ranking | 005 |
@@ -91,6 +92,10 @@ The handoff's validation cases map to the specs below; this is planned coverage,
 
 ## Weekend build order
 
-The initial kill spike is prerequisite to **002** and gates the whole plan. Run it first.
+The kill spike ran on 2026-09-05, scoped down to the guardrail checks
+([results](../docs/spike-002-guardrails.md)). It found the provider returns no safety ratings
+and its default filter passes 7 of 8 must-not-publish recordings, so 002 gained a dedicated
+illegal-or-dangerous call and the constitution was amended to 2.1.0. Cost and 60-second latency
+remain unmeasured.
 
 Day 1 → 001, 002, 003. Day 2 → 004, 005, deploy, demo.
