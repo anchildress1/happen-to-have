@@ -252,17 +252,34 @@ the swap in `research.md` if you take it.
 ./deploy.sh    # build, push to Artifact Registry, deploy to Cloud Run ($REGION, default us-east1)
 ```
 
-Secret Manager ids are prefixed, because the project's Secret Manager is shared:
+Secret Manager ids are prefixed, because the project's Secret Manager is shared and a bare
+`session-secret` would collide with whoever claimed it first. One variable sets the prefix
+for all three:
 
-| Env var | Secret id | Required by |
+| Env var in the container | Secret id | Required by |
 | - | - | - |
-| `SESSION_SECRET` | `hth-session-secret` | 001 |
-| `DATABASE_URL` | `hth-database-url` | 001 |
-| `GEMINI_API_KEY` | `hth-gemini-api-key` | 002/003 — bound when it exists, skipped when it does not |
+| `SESSION_SECRET` | `$HTH_SECRET_PREFIX-session-secret` | 001 |
+| `DATABASE_URL` | `$HTH_SECRET_PREFIX-database-url` | 001 |
+| `GEMINI_API_KEY` | `$HTH_SECRET_PREFIX-gemini-api-key` | 002/003 — bound when it exists, skipped when it does not |
 
-`deploy.sh` checks the first two before building and names any that are missing. Also
-requires the Neon project reachable and migrations applied against `main`.
+`HTH_SECRET_PREFIX` defaults to `hth`, so the ids are `hth-session-secret`,
+`hth-database-url`, `hth-gemini-api-key`. Point a deploy at a different set without editing
+the script:
+
+```bash
+HTH_SECRET_PREFIX=staging ./deploy.sh
+```
+
+Every other identifier overrides the same way — `PROJECT_ID`, `SERVICE_NAME`, `REGION`,
+`REPOSITORY`, `IMAGE_TAG`, `KEEP_DEPLOYS`.
+
+`deploy.sh` checks the two required secrets **before** building, and names any that are
+missing: `gcloud run deploy` reports a missing secret as a generic IAM error naming neither
+the secret nor the fix, by which point the image is already built and pushed. Also requires
+the Neon project reachable and migrations applied against `main`.
 
 After a successful deploy it prunes to the newest `KEEP_DEPLOYS` (default 3) Cloud Run
 revisions and Artifact Registry images. A revision serving traffic is never deleted, even
-when it is older than the cutoff — that is what a rollback looks like.
+when it is older than the cutoff — that is what a rollback looks like. Pruning is best
+effort: it runs after the deploy has succeeded, so a cleanup that cannot reach the API warns
+rather than failing the run.
