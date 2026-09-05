@@ -33,6 +33,8 @@ export function QuestionCard() {
   const [isOnlyQuestion, setIsOnlyQuestion] = useState(false);
   // Guards against a slow first request resolving after a retry supersedes it.
   const requestId = useRef(0);
+  // The queue as of now, readable from a response handler closed over an older render.
+  const queueRef = useRef<Question[]>([]);
 
   // `keepVisible` swaps the queue underneath the rendered card: blanking mid-traversal
   // reads as the false empty state FR-029 forbids, and removes the button mid-press.
@@ -48,19 +50,26 @@ export function QuestionCard() {
       })
       .then((data) => {
         if (id !== requestId.current) return;
+        // A refresh re-sorts, so the old index points at a different question. Re-find
+        // the one on screen by id; carrying the index re-shows a question just left.
+        setPointer((p) => {
+          if (!options?.keepVisible) return 0;
+          const currentId = queueRef.current[p]?.id;
+          const found = data.queue.findIndex((q) => q.id === currentId);
+          return found === -1 ? 0 : found;
+        });
         setQueue(data.queue);
-        // A wrap refresh must not move the pointer: it already jumped to 0, and the
-        // participant may have skipped on since. Modulo guards a shorter queue.
-        setPointer((p) =>
-          options?.keepVisible ? (data.queue.length ? p % data.queue.length : 0) : 0,
-        );
-        setStatus(data.question ? 'ready' : 'empty');
+        setStatus(data.queue.length > 0 ? 'ready' : 'empty');
       })
       .catch(() => {
         if (id !== requestId.current) return;
         setStatus('error');
       });
   }, []);
+
+  useEffect(() => {
+    queueRef.current = queue;
+  }, [queue]);
 
   useEffect(() => {
     load();
@@ -95,9 +104,9 @@ export function QuestionCard() {
     );
   }
 
-  // status === 'ready': route.ts only reports 'ready' when `question` (===
-  // `queue[0]`) is non-null, so `queue` always has at least one entry here.
-  const current = queue[pointer] as Question;
+  // 'ready' is keyed off queue.length, so there is always an entry here. Modulo guards
+  // a pointer left past the end by a refresh that returned fewer questions.
+  const current = queue[pointer % queue.length];
 
   const handleTryAnother = () => {
     // FR-024: nowhere to advance to, so hold the question and say why.
@@ -106,16 +115,14 @@ export function QuestionCard() {
       return;
     }
 
+    // Discrete click events flush synchronously, so `pointer` is this press's value.
     const next = pointer + 1;
-    if (next < queue.length) {
-      setPointer(next);
-      return;
-    }
+    const wrapped = next >= queue.length;
+    setPointer(wrapped ? 0 : next);
 
-    // FR-025: a new pass re-fetches and re-sorts. Wrap first so the press changes the
-    // screen now, not a round trip later.
-    setPointer(0);
-    load({ keepVisible: true });
+    // FR-025: a new pass re-fetches and re-sorts. The wrap above already moved the
+    // screen, so the request only replaces the queue underneath it.
+    if (wrapped) load({ keepVisible: true });
   };
 
   return (
