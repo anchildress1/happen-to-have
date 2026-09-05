@@ -7,7 +7,11 @@
  * See specs/002-contribution-review/data-model.md, which is the authoritative field list.
  */
 
-/** Which of the two parallel calls produced a result (FR-002, FR-003). */
+/**
+ * The fan-out is split here and nowhere else: content processing reproduces the recording as
+ * text and is the call the provider's core-harm protections trip, while the judgment call
+ * emits booleans and has not been observed blocking (FR-008a).
+ */
 export type ReviewCall = 'content' | 'judgment';
 
 /**
@@ -18,9 +22,11 @@ export type ReviewCall = 'content' | 'judgment';
 export type WithheldReason = 'crisis' | 'illegal' | 'relevance' | 'content';
 
 /**
- * Which of the three content headings to render (FR-008h, contracts/copy.md). Only the
- * content call can distinguish these, which is why it returns the value rather than the
- * renderer inferring it.
+ * Which of the three content headings to render (contracts/copy.md).
+ *
+ * Returned by the content call when it refuses. When it refuses WITHOUT one — or never
+ * returns at all — the gate falls back to the judgment call's `audioQuality`, which is what
+ * FR-008h exists for.
  */
 export type ContentReason = 'silence' | 'unintelligible' | 'unpublishable';
 
@@ -32,7 +38,7 @@ export interface ContentPayload {
   /** Intelligibility and privacy-safety only — never relevance or legality. */
   canPublish: boolean;
   displayText: string;
-  sourceLanguage: string;
+  sourceLanguage: string | null;
   /**
    * Broad direction, `null` when none is reliably detectable. Null rather than an empty
    * string on purpose: the spec requires recording *no* direction, and `''` is a value.
@@ -66,19 +72,32 @@ export interface JudgmentPayload {
 }
 
 /**
- * A call's result, in the one envelope the gate treats uniformly (Principle III).
- *
  * `fault` and `refuse` are different states and MUST NOT collapse into one. A `fault`
  * retries; a `refuse` ends the submission. Conflating them turns a provider outage into a
  * participant rejection, which FR-038 forbids in those words.
  */
-export interface CheckResult {
-  call: ReviewCall;
-  outcome: 'permit' | 'refuse' | 'fault';
-  payload: ContentPayload | JudgmentPayload | null;
-  /** 1–3 (FR-039). */
-  attempts: number;
-}
+type Settled<C extends ReviewCall, P> =
+  | {
+      call: C;
+      /** A validated result. `refuse` keeps its payload: rule 2a reads the reason off it. */
+      outcome: 'permit' | 'refuse';
+      payload: P;
+      attempts: number;
+    }
+  | { call: C; outcome: 'fault'; payload: null; attempts: number };
+
+/**
+ * A call's result, in the one envelope the gate treats uniformly (Principle III).
+ *
+ * Written as a union so the compiler refuses the two shapes that would be wrong rather than
+ * leaving them to review: a payload belonging to the other call, and a `permit` carrying no
+ * payload at all. The second is the dangerous one — rule 2 says a missing result is not a
+ * permit, and a lost transcript can never publish.
+ *
+ * `attempts` is 0–3, not 1–3: a call aborted or past the deadline before its first
+ * invocation returns zero (FR-039).
+ */
+export type CheckResult = Settled<'content', ContentPayload> | Settled<'judgment', JudgmentPayload>;
 
 /** What `reviewContribution` was asked to judge. */
 export interface ReviewInput {
@@ -113,12 +132,12 @@ export type ReviewOutcome =
       sourceLanguage: string;
       emotion: string | null;
     }
-  | {
-      status: 'withheld';
-      reason: WithheldReason;
-      /** Set when `reason` is `'content'`; selects among the three content headings. */
-      contentReason: ContentReason | null;
-    }
+  // Split rather than one variant with a nullable field. `copy.review.withheld.content` is
+  // keyed by exactly the three ContentReason values, so a null there indexes nothing — and
+  // the gate's rule 2c already resolves it from audioQuality BEFORE returning. By the time a
+  // ReviewOutcome exists the null is always illegal, so the type says so.
+  | { status: 'withheld'; reason: Exclude<WithheldReason, 'content'> }
+  | { status: 'withheld'; reason: 'content'; contentReason: ContentReason }
   | {
       /**
        * Retries exhausted or the 90s deadline expired. Never a participant rejection: the

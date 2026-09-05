@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import type { ContentPayload, JudgmentPayload } from './types';
 
 /**
  * Parsers for every provider response before it is used (FR-036, FR-037, Principle V).
@@ -22,10 +23,11 @@ export const contentReasonSchema = z.enum(['silence', 'unintelligible', 'unpubli
 /**
  * Content processing (FR-009 – FR-013, FR-017).
  *
- * `displayText` is bounded 1–2000 to match the `questions.display_text` CHECK constraint
- * 001's migration already enforces. Parsing it here means an over-long transcript fails as
- * a fault and retries, rather than reaching 003 and dying on a database constraint after
- * the ask has already been granted.
+ * `displayText` is capped at 2000 to match the upper half of the `questions.display_text`
+ * CHECK constraint 001's migration enforces, so an over-long transcript fails here as a
+ * retryable fault rather than reaching 003 and dying on a database constraint after the ask
+ * has been granted. The constraint's LOWER bound is deliberately not mirrored — see the
+ * field comment.
  */
 export const contentResultSchema = z
   .object({
@@ -39,10 +41,15 @@ export const contentResultSchema = z
     // discernible speech has no source language either, and `''` or null is its natural
     // emission. Every fixture is a clear recording, so this path has no observations behind
     // it — which argues for accepting what the model sends, not for guessing a floor.
-    sourceLanguage: z.string().nullable(),
+    sourceLanguage: z.string().trim().min(1).nullable(),
     // Nullable, never optional: the model must state that it found no reliable direction
     // rather than omitting the field, so a missing key stays a schema failure.
-    emotion: z.string().nullable(),
+    //
+    // Capped because this is the ONLY model-generated string that leaves the module — it
+    // rides ReviewOutcome into 003 and 004. displayText and reasonDetail are both bounded
+    // for the same reason reasonDetail gives: an unbounded field is somewhere a model can
+    // put the transcript it was told not to repeat. This one would carry it downstream.
+    emotion: z.string().max(40).nullable(),
     contentReason: contentReasonSchema.nullable(),
   })
   // The 1-character floor belongs only to text that will actually be published. That is the
@@ -51,11 +58,14 @@ export const contentResultSchema = z
     message: 'a publishable result must carry non-empty displayText',
     path: ['displayText'],
   })
-  // There is deliberately NO rule requiring a refusal to carry a contentReason. The gate's
-  // rule 2c already handles that shape: a refusal without a stated reason falls back to the
-  // judgment call's audioQuality to pick the heading. Rejecting it here would make that rule
-  // unreachable and turn a silent recording — the exact case FR-021 wants withheld — into
-  // three faults and a processing failure.
+  // A contentReason on a PUBLISHABLE result is incoherent: the field names why something was
+  // refused, so its presence beside a permit means the two disagree. Refusals may still omit
+  // it — the gate's rule 2c falls back to audioQuality — which is why this is one-directional
+  // rather than the biconditional the judgment call uses.
+  .refine((result) => !result.canPublish || result.contentReason === null, {
+    message: 'a publishable result must not carry a refusal reason',
+    path: ['contentReason'],
+  })
   .refine((result) => !result.canPublish || result.sourceLanguage !== null, {
     message: 'a publishable result must name the language it was translated from',
     path: ['sourceLanguage'],
@@ -170,3 +180,16 @@ export function parseResult<T>(schema: z.ZodType<T>, raw: string | undefined): T
   const parsed = schema.safeParse(json);
   return parsed.success ? parsed.data : null;
 }
+
+/**
+ * Compile-time gate keeping the hand-written interfaces in `types.ts` exactly in step with
+ * what these schemas actually infer.
+ *
+ * Without it, adding a field here leaves `types.ts` silently stale — and because nothing
+ * imports `types.ts` yet, no build would break. The gate is what makes the duplication safe
+ * rather than merely tidy.
+ */
+type Exact<A, B> = [A] extends [B] ? ([B] extends [A] ? true : never) : never;
+
+export const _contentPayloadMatchesSchema: Exact<ContentPayload, ContentResult> = true;
+export const _judgmentPayloadMatchesSchema: Exact<JudgmentPayload, JudgmentResult> = true;
