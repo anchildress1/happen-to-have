@@ -88,3 +88,27 @@ export async function getOrCreateParticipant(
   await session.save();
   return { participantId: created.id, isNew: true, headers };
 }
+
+/**
+ * The participant id the cookie claims, without touching the database.
+ *
+ * iron-session decrypts and authenticates locally, so this is free: a caller learns the
+ * id, and learns nothing about whether the row still exists. That separation is the point.
+ * `getOrCreateParticipant` must still run before anything is written, because an id that
+ * decrypts is not the same as an id that exists (branch 3 above).
+ *
+ * It exists so a read path can start its own query in parallel with that existence check
+ * instead of waiting for it. Two sequential round-trips to a remote Postgres cost double
+ * the latency of two concurrent ones, and the selection query never needed the answer.
+ *
+ * Returns null when there is no cookie, or when it is absent, tampered, or malformed —
+ * every case where the caller must fall back to `getOrCreateParticipant`.
+ */
+export async function readParticipantId(request: Request): Promise<string | null> {
+  const session = await getIronSession<SessionData>(
+    webCookies(request, new Headers()),
+    sessionOptions,
+  );
+  const parsed = sessionDataSchema.safeParse(session);
+  return parsed.success ? parsed.data.participantId : null;
+}
