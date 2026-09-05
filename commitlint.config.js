@@ -1,10 +1,7 @@
 // ESM only — no CommonJS (constitution, Application Stack).
 //
-// Every commit also carries an AI-attribution trailer (e.g. `Co-Authored-By: <model>
-// <noreply@anthropic.com>`) per the constitution's Repository section. commitlint
-// cannot see trailer content through config alone; the generate-commit-message
-// workflow is what actually appends it. If enforcement in CI is ever wanted, add
-// `commitlint-plugin-rai` is wired in below and enforces that trailer.
+// `rai-footer-exists` enforces the AI-attribution trailer the constitution's Repository
+// section requires. Loading the plugin alone enforces nothing — the rule has to be on.
 export default {
   plugins: ['commitlint-plugin-rai'],
   extends: ['@commitlint/config-conventional'],
@@ -29,5 +26,6 @@ export default {
     'subject-max-length': [2, 'always', 72],
     'body-max-line-length': [2, 'always', 100],
     'footer-max-line-length': [2, 'always', 100],
+    'rai-footer-exists': [2, 'always'],
   },
 };

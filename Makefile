@@ -32,7 +32,7 @@ format-check: ## Verify formatting without writing (CI-safe)
 ## with the whole-repo `format` target above — lefthook would re-stage every file the
 ## formatter touched, including unrelated working-tree drift. FILES is the staged list.
 format-files:
-	@if [ -n "$(FILES)" ]; then pnpm exec biome format --write $(FILES); fi
+	@if [ -n "$(FILES)" ]; then pnpm exec biome format --write -- $(FILES); fi
 
 lint: ## Lint the repository
 	pnpm run lint
