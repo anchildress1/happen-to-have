@@ -88,17 +88,17 @@ and every later spec builds on. **No user story can start until this phase compl
 
 ### Design system
 
-- [ ] T034 [P] Load **Sour Gummy** (display, variable wght + wdth) and **Source Sans 3** (everything else, variable) via `next/font/google` in `app/layout.tsx`, and nothing else. Do not add `font-variant-numeric: tabular-nums` to the timer — Google strips GSUB features from its subsets, so it is a no-op, and Source Sans 3's digits are already monospaced (research D13)
-- [ ] T035 [P] Define every colour and type token from [contracts/design.md](contracts/design.md) as CSS custom properties on `:root` in `src/ui/tokens.css`
-- [ ] T036 [P] Build `src/ui/Button.tsx` with `primary` and `ghost` variants at 56px and 52px min-height, and a **visible `:focus-visible` ring** — `all: unset` strips the default outline and that is the one accessibility regression this design introduces if copied literally
-- [ ] T037 [P] Build `src/ui/AppHeader.tsx` with contextual left and right slots, rendering the Arrival-mobile (right only) and default (name + `Yours`) variants
-- [ ] T038 [P] Build `src/ui/Watermark.tsx` — the decorative `?` at 9% opacity, `aria-hidden="true"`, clipped by the screen container
-- [ ] T039 Create the responsive screen shell in `app/layout.tsx` and a shared screen wrapper: mobile padding `78px 28px 52px`, desktop `28px 56px 40px`, breakpoint **768px**, `overflow: hidden` for the watermark
-- [ ] T040 Point the header's `Yours` link in `src/ui/AppHeader.tsx` at a placeholder route so it **does not 404**; the real area is delivered by 005 ([contracts/routes.md](contracts/routes.md))
+- [x] T034 [P] Load **Sour Gummy** (display, variable wght + wdth) and **Source Sans 3** (everything else, variable) via `next/font/google` in `app/layout.tsx`, and nothing else. Do not add `font-variant-numeric: tabular-nums` to the timer — Google strips GSUB features from its subsets, so it is a no-op, and Source Sans 3's digits are already monospaced (research D13)
+- [x] T035 [P] Define every colour and type token from [contracts/design.md](contracts/design.md) as CSS custom properties on `:root` in `src/ui/tokens.css`
+- [x] T036 [P] Build `src/ui/Button.tsx` with `primary` and `ghost` variants at 56px and 52px min-height, and a **visible `:focus-visible` ring** — `all: unset` strips the default outline and that is the one accessibility regression this design introduces if copied literally
+- [x] T037 [P] Build `src/ui/AppHeader.tsx` with contextual left and right slots, rendering the Arrival-mobile (right only) and default (name + `Yours`) variants
+- [x] T038 [P] Build `src/ui/Watermark.tsx` — the decorative `?` at 9% opacity, `aria-hidden="true"`, clipped by the screen container
+- [x] T039 Create the responsive screen shell in `app/layout.tsx` and a shared screen wrapper: mobile padding `78px 28px 52px`, desktop `28px 56px 40px`, breakpoint **768px**, `overflow: hidden` for the watermark
+- [x] T040 Point the header's `Yours` link in `src/ui/AppHeader.tsx` at a placeholder route so it **does not 404**; the real area is delivered by 005 ([contracts/routes.md](contracts/routes.md))
 
 ### Seed content
 
-- [x] T041 Reach the 15-question floor in `seed/questions.json`. Six are authored; roughly nine remain. Ids are uuid5 over the file's namespace and `displayText`, so a new question needs no hand-picked id and reseeding stays idempotent
+- [ ] T041 Reach the 15-question floor in `seed/questions.json`. Six are authored; roughly nine remain. Ids are uuid5 over the file's namespace and `displayText`, so a new question needs no hand-picked id and reseeding stays idempotent
 - [x] T042 Implement the idempotent seeding script in `seed/seed.ts`: upsert each entry from `seed/questions.json` by `id`, with `participant_id = NULL` and `status = 'open'`, and wire `make seed`. Runs under `node --conditions=react-server` so the `server-only` guard in `client.ts` resolves to its empty build
 
 **Checkpoint**: Database, identity, validation, and the design system all work and are tested.
@@ -116,11 +116,11 @@ browser, and confirm the landing screen and a question both render correctly.
 
 ### Tests for User Story 1
 
-- [x] T043 [P] [US1] E2E test in `tests/e2e/arrival.spec.ts`: `/` renders `Happen to Have?`, `Answer one. Ask one.`, `Find me a question`, and the helper line verbatim from [contracts/copy.md](contracts/copy.md)
-- [x] T044 [P] [US1] E2E test in `tests/e2e/arrival.spec.ts`: the product name retains its question mark, including in `<title>`
+- [x] T043 [P] [US1] E2E test in `tests/e2e/copy.spec.ts`: `/` renders `Happen to Have?`, `Answer one. Ask one.`, `Find me a question`, and the helper line verbatim from [contracts/copy.md](contracts/copy.md)
+- [x] T044 [P] [US1] E2E test in `tests/e2e/copy.spec.ts`: the product name retains its question mark, including in `<title>`
 - [x] T045 [P] [US1] Integration test in `tests/integration/identity-on-interaction.test.ts`: loading `/` creates **no** participant row; interacting does
-- [x] T046 [P] [US1] E2E test in `tests/e2e/selection.spec.ts`: `/answer` renders one question with `I can answer this` and `Try another question`
-- [x] T047 [P] [US1] E2E test in `tests/e2e/no-microphone.spec.ts`: `navigator.mediaDevices.getUserMedia` is never invoked on any route (SC-005)
+- [x] T046 [P] [US1] E2E test in `tests/e2e/copy.spec.ts`: `/answer` renders one question with `I can answer this` and `Try another question`
+- [x] T047 [P] [US1] E2E test in `tests/e2e/a11y.spec.ts`: `navigator.mediaDevices.getUserMedia` is never invoked on any route (SC-005)
 
 ### Implementation for User Story 1
 
@@ -200,9 +200,9 @@ state renders rather than an error, a blank screen, or an ineligible question.
 
 ### Tests for User Story 4
 
-- [ ] T073 [P] [US4] Integration test in `tests/integration/empty-pool.test.ts`: zero eligible questions returns `{ question: null }`, not an error
-- [ ] T074 [P] [US4] E2E test in `tests/e2e/states.spec.ts`: the empty state renders its copy and no ineligible question is shown to fill the gap
-- [ ] T075 [P] [US4] E2E test in `tests/e2e/states.spec.ts`: an induced selection failure renders the failure state with a working retry
+- [x] T073 [P] [US4] Integration test in `tests/integration/empty-pool.test.ts`: zero eligible questions returns `{ question: null }`, not an error
+- [x] T074 [P] [US4] E2E test in `tests/e2e/states.spec.ts`: the empty state renders its copy and no ineligible question is shown to fill the gap
+- [x] T075 [P] [US4] E2E test in `tests/e2e/states.spec.ts`: an induced selection failure renders the failure state with a working retry
 
 ### Implementation for User Story 4
 
@@ -313,3 +313,13 @@ writing product code. The documented fallback is TypeScript 6.0.3, which also re
 - Commit after each task; never push without being asked
 - Stop and surface exact errors after three failed validation attempts
 - Verify each story's independent test criterion before starting the next phase
+
+---
+
+## Phase 8: Convergence
+
+- [ ] T091 Reach the 15-question floor in `seed/questions.json`; it currently holds six. Seeds MUST be human-authored per `TODO(SEED_CONTENT)` — do not generate substitutes or claim seed readiness has passed per FR-026, SC-008 (partial)
+- [x] T092 Add the fixed string `This is the only question waiting right now.` to `src/copy.ts` and render it in `src/ui/QuestionCard.tsx` when `queue.length === 1`, so the sole eligible question stays visible with an explanation instead of silently re-rendering per FR-024, US2/AC6 (missing)
+- [x] T093 Re-fetch `POST /api/questions/next` when the pointer wraps past the end in `src/ui/QuestionCard.tsx`, so each new pass starts from a refreshed, re-sorted eligible list; reconcile the "never re-request" bullet in `specs/001-participant-and-pool/contracts/routes.md` with the requirement per FR-025, US2/AC5, plan: tab-local traversal refreshes on wrap (partial)
+- [x] T094 Write `tests/integration/identity-on-interaction.test.ts` asserting that loading `/` creates no `participants` row and that `POST /api/questions/next` does per FR-001 (missing)
+- [x] T095 Extend `tests/e2e/skip.spec.ts` to traverse and wrap against one-question and two-question pools, not only the seeded pool per SC-003 (missing)
