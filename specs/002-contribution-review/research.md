@@ -2,7 +2,7 @@
 
 **Feature**: 002-contribution-review · **Date**: 2026-09-05
 
-Decisions are numbered `D1`–`D13` and referenced from [plan.md](plan.md) and
+Decisions are numbered `D1`–`D15` and referenced from [plan.md](plan.md) and
 [contracts/review.md](contracts/review.md). 001's research keeps its own `D` numbering; the two
 are not continuous.
 
@@ -34,9 +34,9 @@ memory, not transfer, and bounded by the 90-second deadline in FR-039.
   for one request by one process. It costs a bucket, IAM, upload and delete round-trips inside the
   latency budget, and a permanent orphan-cleanup obligation. Principle VI rejects capability held
   for a need that has not arrived.
-- *Gemini Files API* — upload once, reference from four calls. Saves resending ~1 MB three times
-  and adds a remote object with a lifetime this system does not control, which is the exact thing
-  FR-043 forbids. Reconsider only if the 60-second measurement in D13 shows inline resend
+- *Gemini Files API* — upload once, reference from both calls. Saves resending ~1 MB once, and
+  adds a remote object with a lifetime this system does not control, which is the exact thing
+  FR-043 forbids. Less attractive now that the fan-out is two calls rather than four. Reconsider only if the 60-second measurement in D15 shows inline resend
   dominating latency.
 
 **Consequence**: FR-046's lifecycle backstop has nothing to back up. Recorded as a deviation in
@@ -44,74 +44,101 @@ plan.md Complexity Tracking rather than silently skipped.
 
 ---
 
-## D2 — Four checks for an answer, three for a question
+## D2 — Two calls, split on the provider's fault line
 
-**Decision**: content processing on `gemini-3.8-flash`; crisis, illegal-or-dangerous, and
-relevance each on `gemini-3.5-flash-lite`. Relevance is answer-only.
+**Decision**: content processing on `gemini-3.8-flash`; one judgment call on
+`gemini-3.5-flash-lite` carrying crisis, illegal-or-dangerous, relevance (answers only), an
+audio-quality report, and the name of the failing signal. Two calls for an answer, two for a
+question.
 
-**Rationale**: settled by the spike. The provider returns no safety ratings on this path, so
-illegal-or-dangerous has no free signal to read and becomes a dedicated call (FR-008c). Questions
-take the illegal check too — without it they would have no illegal screening at all once the
-ratings premise collapsed.
+**Rationale**: measured, and it overturned the shape this plan started with.
 
-Tier split follows the job. Content processing transcribes, translates, redacts and preserves
-substance over a minute of audio; the other three return one boolean each, which is what
-Flash-Lite is for. The spike measured 2.4 s median for the Flash call against ~1.1 s for each
-Flash-Lite call, so the fan-out costs what the content call costs.
+A **single fully merged call** was tested first, since it sends the audio once and is the obvious
+cost win. It scored 14/16 and actually *fixed* two defects the four separate prompts had — it
+caught the understated-crisis case the separate crisis prompt missed, and showed no relevance
+bleed. Classification was not the problem.
+
+It failed on something else. The two recordings the provider blocks — `firearm-no-permit` and
+`drug-synthesis` — returned zero candidates, and merged that destroys **every** judgment, not
+just the transcript. Those recordings would render a processing failure inviting the participant
+to re-record, instead of `That response can't be shared here`.
+
+Under separate calls the same two recordings resolve correctly: content processing comes back
+empty, the illegal judgment returns a clean refusal, and fail-fast renders Withheld. So the split
+earns its keep — but only between **content processing and everything else**, because content
+processing is the call that reproduces the recording as text and therefore the one the filter
+trips.
+
+A **merged judgment call** was then tested on Flash-Lite: 15/16 on the judgments, **16/16 on
+naming the failing signal**, **zero blocks** including on those two recordings, 1148 ms median.
+
+| Shape | Cost @60s | Latency | Survives a content block |
+| - | - | - | - |
+| Four separate calls | $0.00424 | 2398 ms | yes |
+| One fully merged call | $0.00242 | 2646 ms | **no — loses every judgment** |
+| **Content + judgment** | **$0.00328** | **~2400 ms** | **yes** |
+
+Two calls costs 23% less than four with no latency change, because the fan-out is gated by
+content processing either way — the judgment call finishes in half its time.
+
+**What this replaces**: FR-008a previously required every check to take its own call, on the
+grounds that "a prompt judging one thing classifies more reliably than a prompt judging two."
+That was inherited from the handoff, never measured, and the measurement does not support it. The
+real reason to split is fault isolation, which is a different claim with different boundaries —
+it justifies exactly one split, not four calls.
 
 **Alternatives considered**:
 
-- *One call returning several verdicts* — forbidden by FR-008a and Principle III. A prompt judging
-  one thing classifies more reliably than a prompt judging two, and the spike's relevance bleed
-  (D5) is what that failure looks like even across separate calls.
-- *Escalating crisis to `gemini-3.8-flash`* — measured and rejected in D4.
+- *Four separate calls* — the shape this plan opened with. 23% more expensive for accuracy that
+  measured no better, and one of its four prompts had a crisis miss the merged version did not.
+- *One fully merged call* — cheapest and fastest to write, and it loses the verdict on precisely
+  the recordings where the verdict matters most.
+- *Merging content processing into the judgment call while keeping relevance separate* — splits
+  on a taxonomy rather than the fault line, and puts the transcript in the call that must survive
+  a block.
+
+**Cost**: this removed a NON-NEGOTIABLE prohibition from Principle III and took the constitution
+to 3.0.0. That is a real price, paid to replace an asserted rule with a measured one.
+
+**Not measured**: the audio-quality report returned `clear` on all 16 fixtures, because all 16
+are clear recordings. Its `silent` and `unintelligible` values are unexercised, and they are
+exactly the fallback FR-008h leans on. Two junk fixtures are required before that path is
+trusted — tracked in [quickstart.md](quickstart.md).
 
 ---
 
-## D3 — `BLOCK_NONE` on content only; defaults kept on the three checks
+## D3 — `BLOCK_NONE` on content processing; provider defaults on the judgment call
 
-**Decision**: content processing sets all four harm categories to `BLOCK_NONE`. Crisis,
-illegal-or-dangerous and relevance keep the provider's default thresholds. Any response with no
-candidate is a fault and retries under D6 — never a verdict.
+**Decision**: content processing sets all four harm categories to `BLOCK_NONE`. The judgment call
+passes no `safetySettings` and runs at the provider's defaults. Any response with no candidate is
+a fault and retries under D6 — never a verdict.
 
-**Rationale**: the two calls fail in opposite directions, so configuring them the same way is
-wrong whichever value you pick.
+**Rationale**: the two calls fail in opposite directions, which is the same reason D2 splits them.
 
-*Content processing* is the call that actually trips the filter, because its output reproduces
-the recording as text. The spike saw it return an empty candidate on two illegal fixtures **even
-at `BLOCK_NONE`**. A block here returns no reason and no ratings, and retry cannot recover it —
-so if the filter false-positives on a legitimate recording, that contribution is unpublishable
-forever. Never-block is the only setting that keeps a lawful recording reachable by this system's
-own judgment.
+*Content processing* reproduces the recording as text, so it is the call the filter trips. It
+returned an empty candidate on two fixtures **even at `BLOCK_NONE`**. A block returns no reason
+and no ratings and retry cannot recover it, so a false positive would make a lawful recording
+permanently unpublishable. Never-block is the only setting that keeps a lawful recording reachable
+by this system's own judgment.
 
-*The three boolean checks* emit one bit. On the same two fixtures where content processing came
-back empty, all three returned clean verdicts. A block there can only ever remove a permit, never
-grant one — publication requires unanimous permits (FR-019), so a blocked check cannot publish
-anything. That makes the provider's filter a free conservative backstop against **this system's
-own check false-negativing**, which is the failure that ends the product.
-
-Safety beats copy. The cost of keeping defaults on the checks is a degraded message — a blocked
-illegal check exhausts its retries and renders `We couldn't check your answer` instead of
-`That response can't be shared here`. Annoying, and strictly better than a false negative.
+*The judgment call* emits booleans and a short reason. Across 22 observations at both default
+thresholds and `BLOCK_NONE` — including on the two recordings that block content processing every
+time — **it has never once returned an empty candidate**. The threshold setting has no measured
+effect on it, so defaults are kept: costless, and conservative if the provider's behaviour ever
+changes, since a block there can only withhold a permit and never grant one.
 
 **Alternatives considered**:
 
-- *`BLOCK_NONE` everywhere* (this plan's first draft) — uniform and simple, and gives up the
-  backstop on the three calls where the backstop is nearly free. It was also unmeasured on those
-  calls, so simplicity was buying nothing that had been verified.
-- *Defaults everywhere* — costs the content call its transcript on recordings this system is
+- *`BLOCK_NONE` everywhere* — defensible and equally safe. Rejected only because it is a setting
+  with no measured effect on that call, and one config line fewer is one fewer thing to explain.
+- *Defaults everywhere* — costs content processing its transcript on recordings this system is
   required to judge, with no reason returned and no retry path.
 - *Treat an empty candidate as illegal* — attractive, and wrong. The same audio produced a
   candidate on one run and not on another.
 
-**Not measured**: default thresholds were tested on the content call only, where they passed 7 of
-8 must-not-publish recordings. That the three checks rarely trip the filter is inferred from their
-behaviour at `BLOCK_NONE` on the two fixtures where content processing blocked — one observation,
-not an experiment. Flagged because this feature already cost one constitution amendment for a
-claim read from documentation rather than called.
-
-**Consequence**: a blocked check burns up to 3 x 20 s of the 90 s deadline. This is why the
-fan-out must stay parallel — see D14.
+**Correction**: an earlier draft justified defaults on the judgment call as "a free backstop
+against our own false negative." That was wrong — the filter never fires there, so it backstops
+nothing. Defaults are kept because they are inert, not because they protect anything.
 
 ---
 
@@ -233,7 +260,7 @@ tab aborts the handler, which is precisely the signal FR-045 needs.
 **Alternatives considered**:
 
 - *Submit, return an id, poll* — requires exactly the durable processing state Principle V
-  inverted away from. Revisit only if the 60-second measurement in D13 pushes p90 past what a
+  inverted away from. Revisit only if the 60-second measurement in D15 pushes p90 past what a
   held connection should carry.
 - *Streaming progress* — the design gives Checking a single indeterminate state with no per-check
   progress, so there is nothing to stream.
@@ -312,26 +339,26 @@ per run and fails on someone else's rate limit stops being run.
 
 ---
 
-## D14 — The fan-out stays parallel, and D3 made that mandatory
+## D13 — The fan-out stays parallel, and D3 made that mandatory
 
 **Decision**: all applicable checks are dispatched simultaneously. No staging, no ordering.
 
-**Rationale**: the tempting alternative is to run the three cheap Flash-Lite checks first and only
-pay for the expensive Flash content call if they all permit, so rejections skip it. Three reasons
+**Rationale**: the tempting alternative is to run the cheap Flash-Lite judgment call first and
+only pay for the expensive Flash content call if it permits, so rejections skip it. Three reasons
 it loses:
 
 - It taxes the common path to optimise the rare one. Most contributions publish, so staging adds
   roughly a second to every successful submission to save money on the minority that do not.
 - Cost protection already belongs to the rate limiter (FR-048). Using check ordering as a second
   cost control duplicates it worse.
-- Fail-fast already recovers part of the saving: a refusal at ~1.1 s aborts content processing
-  mid-generation.
+- Fail-fast already recovers most of the saving: the judgment call returns at ~1.1 s, less than
+  half the content call's median, so a refusal aborts content processing mid-generation anyway.
+  Staging would buy the difference between an aborted call and no call at all.
 
-**D3 turned this from a preference into a requirement.** With default thresholds on the three
-checks, a blocked check faults and retries — up to 3 x 20 s for one check. Run sequentially or in
-stages, two such checks exceed the 90-second deadline (FR-039) and the whole submission renders as
-processing failure. Dispatched together, the worst case stays near 60 s inside a 90 s budget
-instead of stacking.
+**The deadline makes it a requirement, not a preference.** A call that faults retries up to
+3 x 20 s. With two calls dispatched together the worst case stays near 60 s inside the 90 s budget
+(FR-039); run in sequence, two exhausting calls exceed it and the whole submission renders as
+processing failure even though one of them may have returned a usable verdict.
 
 **Note on FR-008a**: its requirement is *isolation* — each check its own call, consuming no other
 check's output (FR-005) — and its stated rationale is classification reliability, not timing.
@@ -342,7 +369,65 @@ justify trading a second of latency for it.
 
 ---
 
-## D13 — What remains unmeasured
+## D14 — Runtime and failure constraints
+
+**Decision**: the constraints below bound this module at runtime. Each names what it does when
+the bound is hit, because a limit without a behaviour is a comment.
+
+### Memory
+
+Four checks each carry their own inline copy of the recording. Measured worst case is a 530 KB
+60-second AAC file, so one submission holds roughly **2.1 MB of audio across the fan-out**, plus
+base64 expansion of about a third on each copy — call it **3 MB per in-flight submission**.
+
+The 5 MB input bound in [contracts/review.md](contracts/review.md) puts the absolute worst case
+near 27 MB per submission. Cloud Run's smallest instance is 512 MB, so concurrency is what
+matters: **per-instance concurrency MUST be set such that `concurrency x 27 MB` stays inside the
+instance memory limit with headroom.** At the default 512 MB that is a concurrency well under 10.
+
+**Alternatives considered**: streaming the audio to each call rather than buffering. The SDK takes
+inline bytes, so this would mean the Files API — rejected in D1 for creating a remote object with
+a lifetime this system does not control.
+
+### Provider quota and rate limits
+
+A `429` from the provider is a **fault**, not a rejection, and retries under D6 like any other
+fault. It is distinct from this system's own rate limit (D7): one is the provider refusing us,
+the other is us refusing a participant. They MUST NOT share a code path or a message — telling a
+participant they have submitted too much when the provider is throttling us is a lie.
+
+The spike hit provider 429s repeatedly on the free tier, so this is a real path, not a
+hypothetical. Exhausting retries against a 429 produces processing failure, which is honest:
+something on our side did not finish.
+
+### Missing or invalid credentials
+
+`src/review/client.ts` throws on a missing `GEMINI_API_KEY` at first use, naming the variable —
+matching `src/db/client.ts`'s treatment of `DATABASE_URL`. It does **not** fall back, and it does
+**not** degrade to publishing unreviewed.
+
+An invalid key surfaces as a provider fault and exhausts into processing failure. That is the
+correct outcome: nothing publishes. Deployment catches this, not the review path.
+
+### Request timeout
+
+The 90-second submission deadline (FR-039) is meaningless if the platform kills the request
+first. **Cloud Run's configured request timeout for this service MUST exceed 90 seconds**, and
+that value MUST be asserted in `deploy.sh` rather than assumed from a platform default that can
+change.
+
+If the platform terminates the request, the participant sees a browser-level failure rather than
+the authored processing-failure page — a worse outcome than any this feature designs for.
+
+### Abandonment
+
+A disconnect fires `request.signal`, which aborts the fan-out and releases the audio (D6). Cloud
+Run does not guarantee the signal fires on every disconnect, which is exactly why the 90-second
+deadline exists as the backstop: worst case, the work stops on its own.
+
+---
+
+## D15 — What remains unmeasured
 
 Carried forward deliberately, not resolved by this document:
 

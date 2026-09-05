@@ -118,45 +118,101 @@ participant reads the wrong sentence.
 
 ## ⚠️ Not proven — required before launch
 
-Three measurements and one risk. None of them blocks writing the code; all of them block calling
-it done.
+Four gaps. Each now carries a **numeric threshold**, so "go measure it" has a pass and a fail
+rather than a judgment call at the end of a long weekend.
 
 ### 1. Latency at the 60-second ceiling
 
-The spike measured **2.4 s median, 3.6 s p90** — on **12–16 second** clips. A real submission
-carries roughly four times the audio through four parallel calls.
+Measured so far: **2.4 s median, 3.6 s p90** — on **12–16 second** clips. A real submission
+carries four times the audio.
 
-SC-001's budget is 15 s median. Current evidence supports comfort, not compliance.
+| Budget | Pass | Investigate | Fail |
+| - | - | - | - |
+| Median fan-out | ≤ 8 s | 8–15 s | > 15 s (breaks SC-001) |
+| p95 fan-out | ≤ 18 s | 18–30 s | > 30 s (breaks SC-001) |
 
-**Do**: record 60-second fixtures, run `--timing`, and if p95 approaches 30 s, revisit the
-blocking-request decision ([research D8](research.md)) before building the flows on it.
+**Fail action**: revisit the blocking-request decision ([research D8](research.md)) before 003
+builds a flow on it. Investigate action: keep the design, but the Checking state needs to survive
+a longer wait than the design assumes.
 
 ### 2. Cost per contribution (SC-012)
 
-Never measured. Four audio calls per answer, up to three invocations each under retry — the
-worst case is 12 calls carrying a minute of audio.
+A model now exists. The provider bills **32 tokens per second of audio**, so a 60-second answer is
+~1,920 audio tokens plus ~150 of system instruction, per call:
 
-**Do**: run `--cost` across the fixture set and record the figure. SC-012 requires it *before
-interface work depends on it*, which means before 003 ships.
+| Path | Calls | Input tokens | Cost |
+| - | - | - | - |
+| Answer or question, no retries | 2 | ~4,800 | ~$0.0033 |
+| Worst case (3 invocations on both calls) | 6 | ~14,400 | ~$0.0098 |
+
+| Budget | Pass | Fail |
+| - | - | - |
+| Median answer, measured | within 20% of ~$0.0033 | more than 2x the model |
+
+**Fail action**: the model is wrong and the retry policy or the fan-out width needs revisiting
+before 003 ships. Output tokens are not budgeted — the judgment call returns ~60 tokens and content
+processing returns at most 2,000 characters.
 
 ### 3. The crisis prompt is fitted to its own failing case
 
 The `<examples>` block in [contracts/review.md](contracts/review.md) contains the exact recording
-that defeated the previous wording. It now passes — but a prompt cannot be tested by an example
-it was given.
+that defeated the previous wording. A prompt cannot be tested by an example it was given.
 
-The three near-miss controls (grief, metaphor, burnout) staying clean **is** real signal. The
-understated-crisis catch is not.
+| Budget | Pass |
+| - | - |
+| Fresh understated-crisis recordings, none appearing in the prompt | **10 of 10 caught** |
+| Near-miss controls — grief, burnout, metaphor, frustration | **0 of 10 false positives** |
 
-**Do**: author fresh understated-crisis recordings that appear nowhere in the prompt, and require
-them to pass. This is the one item on this page where being wrong causes harm outside the
-software.
+Ten and ten because this is the one failure that causes harm outside the software, and a threshold
+below 100% on the catch side is a decision to ship a known miss.
 
-### 4. Rate limit values (FR-051)
+**Fail action**: do not ship the crisis path. Escalating the model tier is already known not to
+work ([research D4](research.md)), so a failure here means the wording needs another pass, not a
+bigger model.
 
-`HTH_RATE_LIMIT_MAX=20` per hour is a starting guess, not a measurement, and FR-051 explicitly
-forbids copying values from another product.
+### 4. The audio-quality fallback is unexercised
 
-**Do**: walk a complete answer-then-ask cycle at participant pace once 003 and 004 exist, and set
-the values from what that costs. Needs no code change — both are environment variables
+`audioQuality` returned `clear` on all 16 fixtures, because all 16 are clear recordings. Its
+`silent` and `unintelligible` values have never been produced — and they are exactly what
+FR-008h leans on to pick Withheld copy when content processing is lost to a provider block.
+
+| Budget | Pass |
+| - | - |
+| A silent recording | `audioQuality: 'silent'` |
+| An unintelligible recording (noise, mumbling, wrong-side-of-the-room) | `audioQuality: 'unintelligible'` |
+| The existing 16 clear fixtures | still `clear` — no false positives |
+
+**Fail action**: drop the fallback and render the general `That recording can't be shared here`
+variant for every content rejection. A fallback that misreports is worse than none.
+
+### 5. Rate limit values (FR-051)
+
+`HTH_RATE_LIMIT_MAX=20` per hour is a starting guess, and FR-051 forbids copying values from
+another product.
+
+| Budget | Pass |
+| - | - |
+| A complete answer-then-ask cycle at participant pace | never triggers the limit (SC-011) |
+| The same cycle repeated back to back without pause | triggers within 3 cycles |
+
+The second row matters as much as the first: a limit that never fires under abuse is not a limit.
+Both are environment variables, so tuning needs no code change
 ([data-model.md](data-model.md)).
+
+---
+
+## Settled by measurement — do not re-litigate
+
+Recorded here so nobody spends a morning re-deriving them.
+
+| Question | Answer | Evidence |
+| - | - | - |
+| Does the provider return safety ratings? | No, at any threshold | 16 fixtures, 3 configs |
+| Are the provider's default guardrails sufficient alone? | No — 7 of 8 must-not-publish recordings passed | 16 fixtures |
+| Do default thresholds block the three boolean checks? | No — 6 observations, no blocks, identical verdicts to `BLOCK_NONE` | isolated A/B |
+| Does Safari's `audio/mp4` work despite being undocumented? | Yes; `audio/m4a` also works for identical bytes | direct test |
+| Does a 60-second recording fit inline? | Yes — 250–530 KB against a 20 MB ceiling | measured |
+| Does raising the model tier fix the crisis miss? | No. The wording is the lever | tested on Flash |
+| Is one fully merged call viable? | No — it scores well but loses every judgment when the provider blocks | 16 fixtures |
+| Can one Flash-Lite call carry all three judgments? | Yes — 15/16 verdicts, 16/16 on naming the failing signal, zero blocks | 16 fixtures |
+| Do separate calls classify better than a merged one? | No. The claim was inherited and is not supported | 16 fixtures, both shapes |

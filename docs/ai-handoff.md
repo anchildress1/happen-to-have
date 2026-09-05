@@ -497,11 +497,18 @@ Prove before building the full UI:
 
 Kill or simplify any feature that does not work reliably during this spike.
 
-> **Executed 2026-09-05, scoped down.** Items 1-2 and 4-6 and 9 were covered by hand
-> beforehand; item 4's dialect test was dropped as a gimmick. Items 3, 7 and 10 were measured:
-> see [spike-002-guardrails](spike-002-guardrails.md). The provider returns no safety ratings
-> and its default filter passes 7 of 8 must-not-publish recordings, so illegal-or-dangerous
-> became a dedicated call. Cost was not measured.
+> **Executed 2026-09-05, scoped down — not complete.**
+>
+> - Items 1, 2, 5, 6 and 9 were covered by hand beforehand.
+> - Item 4 was **dropped**: the Appalachian dialect test is a gimmick and is not a build gate.
+> - Items 3 and 7 were **measured**: see [spike-002-guardrails](spike-002-guardrails.md).
+> - Item 8 (broad emotion) is accepted as best-effort without a separate measurement.
+> - Item 10 is **partially measured** — gate-decision latency was recorded, the cost of the
+>   audio calls was not. `SC-012` requires that cost before interface work depends on the
+>   review, so the spike does not clear as a whole until it is recorded.
+>
+> Outcome: the provider returns no safety ratings, and its default filter passes 7 of 8
+> must-not-publish recordings, so illegal-or-dangerous became a dedicated call.
 
 ## Day 1
 

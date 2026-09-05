@@ -50,9 +50,9 @@ Every check returns the same envelope, so the gate treats them uniformly (Princi
 
 | Field | Type | Notes |
 | - | - | - |
-| `check` | `'content' \| 'crisis' \| 'illegal' \| 'relevance'` | |
+| `call` | `'content' \| 'judgment'` | which of the two parallel calls produced it |
 | `outcome` | `'permit' \| 'refuse' \| 'fault'` | `refuse` is a validated `canPublish: false`; `fault` is a timeout, empty candidate, or parse failure |
-| `payload` | `ContentPayload \| null` | populated by the content check only |
+| `payload` | `ContentPayload \| JudgmentPayload \| null` | shaped by which call returned it |
 | `attempts` | `number` | 1–3 (FR-039) |
 
 **`fault` and `refuse` are different states and must not collapse.** A `fault` retries; a `refuse`
@@ -70,9 +70,42 @@ Produced only by the content-processing call.
 | `displayText` | `string` | translated, redacted, 1–2000 chars — matches the `questions.display_text` bound 001 set |
 | `sourceLanguage` | `string` | BCP-47-ish, as detected (FR-010) |
 | `emotion` | `string \| null` | broad direction, `null` when not reliably detectable (FR-017, edge case *No reliable emotion*) |
+| `contentReason` | `'silence' \| 'unintelligible' \| 'unpublishable' \| null` | why `canPublish` is false; `null` when it is true |
 
 `emotion` is nullable on purpose. The edge case requires recording *no* direction rather than a
 default, so an empty string would be wrong.
+
+`contentReason` exists because [contracts/copy.md](contracts/copy.md) requires **three distinct
+headings** for content rejections — silence, unintelligible, and everything else — and a single
+`reason: 'content'` cannot select among them. The content check is the only call that knows which
+applies, so it returns it. Without this field the three headings are unreachable and
+`WithheldPage` has nothing to branch on.
+
+### `JudgmentPayload`
+
+Produced by the judgment call. Three verdicts, plus the two fields that exist because a
+reconstruction is not the same as a statement.
+
+| Field | Type | Notes |
+| - | - | - |
+| `crisisCanPublish` | `boolean` | `false` means crisis detected (FR-008d); crisis publishes nowhere and appears in no other participant's view (FR-031) |
+| `illegalCanPublish` | `boolean` | `false` means unsafe or unlawful to publish (FR-008c) |
+| `relevanceCanPublish` | `boolean \| null` | `null` for a question; relevance does not apply (FR-003) |
+| `primaryReason` | `'none' \| 'crisis' \| 'illegal' \| 'relevance'` | the failing signal, named by the judge (FR-008e) |
+| `reasonDetail` | `string` | one clause, for operators only — **never rendered** |
+| `audioQuality` | `'clear' \| 'unintelligible' \| 'silent'` | selects content copy when the transcript is lost (FR-008h) |
+
+`primaryReason` exists because inferring the reason from which boolean flipped is a
+reconstruction of the judge's reasoning. Measured 16/16 correct across the fixture set, so the
+reconstruction is unnecessary.
+
+`reasonDetail` MUST NOT reach the interface. FR-027 fixes every participant-facing string, and
+model-generated text on the Withheld page would break both that and Principle VII. It exists for
+logs.
+
+`audioQuality` is the fallback for a lost transcript. Content processing is the call the provider
+blocks; when it does, this is the only remaining signal that can choose between *We couldn't hear
+anything* and *We couldn't make out the recording*. It never authorises publication.
 
 ### `ReviewOutcome`
 
@@ -84,7 +117,7 @@ nothing, because the request is gone.
 | Variant | Fields | Consumed by |
 | - | - | - |
 | `{ status: 'publish' }` | `displayText`, `sourceLanguage`, `emotion` | 003 publishes an answer, 004 a question |
-| `{ status: 'withheld' }` | `reason: 'crisis' \| 'illegal' \| 'relevance' \| 'content'` | renders `WithheldPage` |
+| `{ status: 'withheld' }` | `reason: 'crisis' \| 'illegal' \| 'relevance' \| 'content'`, plus `contentReason` when `reason` is `'content'` | renders `WithheldPage` |
 | `{ status: 'failed' }` | `cause: 'exhausted' \| 'deadline'` | renders `ProcessingFailed` |
 | `{ status: 'rate_limited' }` | `retryAt: Date` | renders `RateLimited`; FR-049 needs the time |
 

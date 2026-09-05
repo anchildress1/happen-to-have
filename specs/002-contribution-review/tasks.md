@@ -57,7 +57,7 @@ endpoints that call this module ([research D10](research.md)).
 
 ### Validation
 
-- [ ] T009 [P] Create `src/review/schemas.ts` with `contentResultSchema` (`canPublish`, `displayText` 1–2000, `sourceLanguage`, nullable `emotion`) and `booleanCheckSchema` (`canPublish`), per [data-model.md](data-model.md)
+- [ ] T009 [P] Create `src/review/schemas.ts` with `contentResultSchema` (`canPublish`, `displayText` 1–2000, `sourceLanguage`, nullable `emotion`, nullable `contentReason` enum) and `booleanCheckSchema` (`canPublish`), per [data-model.md](data-model.md)
 - [ ] T010 [P] Define the `CheckResult`, `ContentPayload`, `ActiveSubmission`, and `ReviewOutcome` types in `src/review/types.ts` as discriminated unions, so a caller cannot read `displayText` off a rejection
 - [ ] T011 [P] Unit-test `src/review/schemas.ts` in `tests/unit/review-schemas.test.ts`: valid payloads parse, `emotion: null` is accepted, over-length `displayText` and missing `canPublish` are rejected
 
@@ -93,20 +93,21 @@ endpoints that call this module ([research D10](research.md)).
 
 ### Tests for User Story 1
 
-- [ ] T023 [P] [US1] Integration-test the answer fan-out in `tests/integration/review-fanout.test.ts` with a faked client: exactly four calls, each receiving the original audio, none receiving another check's output (FR-004, FR-005)
-- [ ] T024 [P] [US1] Integration-test the question fan-out in `tests/integration/review-fanout.test.ts`: exactly three calls, relevance never invoked (FR-003)
+- [ ] T023 [P] [US1] Integration-test the answer fan-out in `tests/integration/review-fanout.test.ts` with a faked client: exactly two calls, each receiving the original audio, neither receiving the other's output (FR-004, FR-005)
+- [ ] T024 [P] [US1] Integration-test the question fan-out in `tests/integration/review-fanout.test.ts`: still exactly two calls, with `relevanceCanPublish` returned as null rather than a third call (FR-003)
 - [ ] T025 [P] [US1] Unit-test the gate in `tests/unit/review-gate.test.ts`: publishes only when every applicable check permits; a missing result is not a permit (FR-019)
 - [ ] T026 [P] [US1] Contract-test each prompt module in `tests/unit/review-prompts.test.ts`: every system instruction carries its `<never>` block, and content processing forbids adding advice or altering substance
 
 ### Implementation for User Story 1
 
 - [ ] T027 [P] [US1] Write `src/review/prompts/content.ts` with the system instruction and response schema from [contracts/review.md](contracts/review.md), on `gemini-3.8-flash`, `temperature: 0`, applying the `BLOCK_NONE` settings — this is the only call that overrides the provider's thresholds (FR-008b)
-- [ ] T028 [P] [US1] Write `src/review/prompts/crisis.ts` on `gemini-3.5-flash-lite`, carrying FR-008f's `<never>` block and all four examples ([research D4](research.md))
-- [ ] T029 [P] [US1] Write `src/review/prompts/illegal.ts` on `gemini-3.5-flash-lite`, carrying the compositional hunting/firearm example pair (FR-008c)
-- [ ] T030 [P] [US1] Write `src/review/prompts/relevance.ts` on `gemini-3.5-flash-lite`, carrying FR-008g's constraint that unlawful content is still relevant ([research D5](research.md))
+- [ ] T028 [P] [US1] Write `src/review/prompts/judgment.ts` on `gemini-3.5-flash-lite` with no `safetySettings`, carrying all three judgments plus `primaryReason` and `audioQuality`, verbatim from [contracts/review.md](contracts/review.md) — every `<never>` line is load-bearing and measured (FR-008a1, FR-008e, FR-008h)
+- [ ] T029 [P] [US1] Unit-test in `tests/unit/review-judgment.test.ts` that `primaryReason` is read from the response and never reconstructed from which boolean flipped (FR-008e)
+- [ ] T030 [P] [US1] Unit-test in `tests/unit/review-judgment.test.ts` that `reasonDetail` never reaches a rendered component — it is a log field, and FR-027 fixes every participant-facing string
 - [ ] T031 [US1] Create `src/review/gate.ts` implementing unanimity to publish and the crisis → illegal → relevance → content precedence for reason selection only (FR-022)
 - [ ] T032 [US1] Create `src/review/index.ts` exporting `reviewContribution()`, ordering rate limit → cheap audio validation → fan-out → aggregate → release, per [contracts/review.md](contracts/review.md)
-- [ ] T033 [US1] Reject empty, silent, or implausibly short audio in `src/review/index.ts` before any provider call, resolving `withheld/content` (FR-050)
+- [ ] T033 [US1] Enforce the audio input contract in `src/review/index.ts` before any provider call — mime allowlist, 1 KB floor, 5 MB ceiling — resolving `withheld/content` with `contentReason: 'silence'`, never throwing and never processing failure ([contracts/review.md](contracts/review.md), FR-050)
+- [ ] T033a [P] [US1] Unit-test the input contract in `tests/unit/review-audio-input.test.ts`: each allowed mime accepted, a disallowed one rejected, and both size bounds enforced without a provider call
 - [ ] T034 [US1] Throw on programmer error in `src/review/index.ts` — `kind: 'answer'` with a null `questionText` — while returning `failed` rather than throwing for any provider outcome
 - [ ] T035 [US1] Create `scripts/review-once.ts` running one fixture through the module and printing the outcome, satisfying US1's independent test
 - [ ] T036 [P] [US1] Create `scripts/review-fixtures.ts` running all 16 fixtures against the live provider with `--timing` and `--cost` flags, printing a verdict table against the adjudicated labels
@@ -132,7 +133,8 @@ endpoints that call this module ([research D10](research.md)).
 ### Implementation for User Story 2
 
 - [ ] T042 [US2] Create `src/ui/WithheldPage.tsx` taking `reason` and `kind`, rendering the withheld badge, heading, sub-line, primary and ghost from `src/copy.ts` (FR-024)
-- [ ] T043 [US2] Map the content check's signal to the three `content` sub-variants in `src/ui/WithheldPage.tsx`, falling back to the general recording line when indistinguishable ([contracts/copy.md](contracts/copy.md))
+- [ ] T043 [US2] Select among the three `content` headings in `src/ui/WithheldPage.tsx` from the outcome's `contentReason`, falling back to `unpublishable` when it is absent ([contracts/copy.md](contracts/copy.md))
+- [ ] T043a [P] [US2] Unit-test in `tests/unit/withheld-copy.test.ts` that each `contentReason` selects its required heading and a missing one falls back — without the field the three headings in copy.md are unreachable
 - [ ] T044 [US2] Wire contribution-specific actions in `src/ui/WithheldPage.tsx` so a withheld question always returns to a question recorder, never an answer one (US2 scenario 6c)
 - [ ] T045 [US2] Assert in `src/review/index.ts` that no withheld path writes a row, records a strike, or sets a cooldown (FR-028, FR-023)
 
@@ -221,7 +223,10 @@ endpoints that call this module ([research D10](research.md)).
 - [ ] T073 [P] E2E-test in `tests/e2e/rate-limited.spec.ts` that the heading names a time and the muted action goes to Yours
 - [ ] T074 Integration-test in `tests/integration/rate-limit.test.ts` that a rate-limited submission leaves nothing in flight and no contribution unresolvable (FR-052)
 - [ ] T075 [P] E2E-test in `tests/e2e/checking.spec.ts` that the Checking state announces via `aria-live`, per design.md's 002 test obligation
-- [ ] T076 [P] Add `HTH_GEMINI_API_KEY` binding to `deploy.sh` alongside the existing secrets, bound only when present
+- [ ] T076 [P] Verify `deploy.sh` already binds `GEMINI_API_KEY` from `${HTH_SECRET_PREFIX}_GEMINI_API_KEY` only when the secret exists (it does, at `deploy.sh:55`); this is a confirmation, not a change
+- [ ] T076a [P] Assert a request timeout greater than 90s for the Cloud Run service in `deploy.sh`; the FR-039 deadline is meaningless if the platform kills the request first ([research D14](research.md))
+- [ ] T076b [P] Bound per-instance concurrency in `deploy.sh` against instance memory — roughly 3 MB of audio is in flight per submission, 27 MB at the 5 MB input ceiling ([research D14](research.md))
+- [ ] T076c [P] Unit-test in `tests/unit/review-faults.test.ts` that a provider `429` is classified as a fault and never renders this system's own rate-limit copy — they are different refusals and must not share a message ([research D14](research.md))
 - [ ] T077 [P] Update `README.md`'s What's next list, checking off 002
 - [ ] T078 Run the `ai-checks` target in `Makefile` and fix every warning; warnings are hard errors under the constitution
 - [ ] T079 Run `pnpm exec tsx scripts/review-fixtures.ts` and require 16/16 against the adjudicated labels before this feature is called done
@@ -230,11 +235,13 @@ endpoints that call this module ([research D10](research.md)).
 
 These are the open items from [quickstart.md](quickstart.md). Each is a real gap, not a nicety.
 
-- [ ] T080 Add 60-second recordings to `tests/fixtures/audio/` and measure fan-out latency via `scripts/review-fixtures.ts --timing`; if p95 approaches 30s, revisit the blocking-request decision ([research D8](research.md)) before 003 builds on it
-- [ ] T081 Measure cost per contribution via `scripts/review-fixtures.ts --cost` and record the figure in `specs/002-contribution-review/quickstart.md`; SC-012 requires this before interface work depends on it
-- [ ] T082 Author fresh understated-crisis recordings appearing nowhere in `src/review/prompts/crisis.ts`, add them to the fixture set, and require them to pass — the prompt is currently fitted to its own failing case ([research D4](research.md))
+- [ ] T080 Add 60-second recordings to `tests/fixtures/audio/` and measure fan-out latency via `scripts/review-fixtures.ts --timing`. **Pass: median ≤8s and p95 ≤18s.** Above 15s median or 30s p95 breaks SC-001 and forces a revisit of [research D8](research.md) before 003 builds on it
+- [ ] T081 Measure cost per contribution via `scripts/review-fixtures.ts --cost` and record it in `specs/002-contribution-review/quickstart.md`. **Pass: a 60s answer lands within 20% of the ~8,300 input-token model** (32 tokens/second of audio x 4 calls). More than 2x means the model is wrong and the retry policy or fan-out width needs revisiting (SC-012)
+- [ ] T082 Author 10 fresh understated-crisis recordings and 10 near-miss controls appearing nowhere in `src/review/prompts/judgment.ts`, add them to `tests/fixtures/cases.ts`. **Pass: 10/10 caught, 0/10 false positives.** Anything less ships a known miss on the one failure that causes harm outside the software ([research D4](research.md))
 - [ ] T083 Add multilingual recordings to `tests/fixtures/audio/` with labels in `tests/fixtures/cases.ts`, and verify SC-007's ninety-percent readable-English threshold
 - [ ] T084 Add privacy and fidelity recordings to `tests/fixtures/audio/` with labels in `tests/fixtures/cases.ts`, and verify SC-005 and SC-006; **redaction is the only failure in this product that cannot be retried**
+- [ ] T085 Calibrate the rate limit against a complete answer-then-ask cycle once 003 and 004 exist, and record the chosen `HTH_RATE_LIMIT_MAX` and `HTH_RATE_LIMIT_WINDOW_SECONDS` in `.env.example`. **Pass: the cycle at participant pace never trips it (SC-011), and back-to-back cycles trip it within 3.** FR-051 forbids carrying the guessed value to launch
+- [ ] T086 Add one silent and two unintelligible recordings to `tests/fixtures/audio/` and verify the judgment call reports `audioQuality` correctly. **Pass: silent → `silent`, unintelligible → `unintelligible`, and the 16 clear fixtures still → `clear`.** Fail action: drop the FR-008h fallback and always render the general content variant — a fallback that misreports is worse than none
 
 ---
 
@@ -264,7 +271,7 @@ would mislead whoever picks this up:
 
 - T002–T005 in Setup
 - T008–T011 and T014–T022 in Foundational — three groups touching different files
-- **T027–T030**: all four prompts, four separate files, no shared state. The single biggest parallel win
+- **T027–T028**: the two prompt modules, separate files, no shared state
 - All test tasks within a phase, marked [P]
 - **US4 and US5 together** after US1, if two people are working
 
@@ -272,9 +279,7 @@ would mislead whoever picks this up:
 
 ```bash
 Task: "Write src/review/prompts/content.ts"
-Task: "Write src/review/prompts/crisis.ts"
-Task: "Write src/review/prompts/illegal.ts"
-Task: "Write src/review/prompts/relevance.ts"
+Task: "Write src/review/prompts/judgment.ts"
 ```
 
 ---

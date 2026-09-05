@@ -45,9 +45,28 @@ only the heading changes.
 The relevance and illegal strings are fixed verbatim by FR-025 and FR-026 and must not be
 reworded.
 
-**Three `content` variants, one `reason`.** [data-model.md](../data-model.md) carries a single
-`content` reason, so the sub-variant is chosen from the content check's own signal. When it
-cannot be distinguished, use the third row — it is true of all of them.
+**Three `content` variants, selected by `contentReason`.** The content check returns
+`'silence' | 'unintelligible' | 'unpublishable'` alongside its refusal
+([data-model.md](../data-model.md)); those map to the three rows in order. Only the content check
+can distinguish them, which is why the field exists rather than being inferred at render time.
+
+| `contentReason` | Heading |
+| - | - |
+| `silence` | `We couldn't hear anything. Try recording again.` |
+| `unintelligible` | `We couldn't make out the recording. Try recording again.` |
+| `unpublishable` | `That recording can't be shared here. Try recording again.` |
+
+A rejection that arrives without a `contentReason` — a schema-valid model response that omitted it
+— falls back to `unpublishable`, which is true of all three.
+
+**When content processing was lost to a provider block**, there is no `contentReason` at all. The
+judgment call's `audioQuality` selects instead (FR-008h): `silent` → the first row,
+`unintelligible` → the second, `clear` → the third. This changes the message only; a lost
+transcript never publishes.
+
+⚠️ That mapping is unexercised — every fixture is a clear recording, so `silent` and
+`unintelligible` have never been produced. Until they are, prefer the third row
+([quickstart.md](../quickstart.md)).
 
 FR-027 governs tone: short, non-argumentative, and never explaining, justifying, or debating the
 decision. None of these strings tells the participant what they did.

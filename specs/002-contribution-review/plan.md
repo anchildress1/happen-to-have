@@ -14,11 +14,11 @@ This feature has no route and no flow. It exposes `reviewContribution()` — aud
 — plus the four shared states (Checking, Withheld, processing failure, rate limited) that 003 and
 004 render. It ends at the decision. Granting an ask is 003; consuming one is 004.
 
-The technical approach: four parallel `@google/genai` calls on the original audio, each judging
-one thing, each validated with Zod before use, aggregated by a gate that publishes only on
-unanimous permission and resolves to Withheld the instant any check definitively refuses. The
-audio never leaves the request — no bucket, no object key, no address to leak
-([research D1](research.md)).
+The technical approach: **two parallel** `@google/genai` calls on the original audio — content
+processing, and one judgment call carrying crisis, illegal-or-dangerous and relevance — each
+validated with Zod before use, aggregated by a gate that publishes only on unanimous permission
+and resolves to Withheld the instant either refuses. The audio never leaves the request — no
+bucket, no object key, no address to leak ([research D1](research.md)).
 
 **The spike rewrote this plan before it was written.** The provider returns no safety ratings at
 any threshold, and at its default guardrails it passed 7 of 8 recordings that must never publish
@@ -26,17 +26,21 @@ any threshold, and at its default guardrails it passed 7 of 8 recordings that mu
 free rating, and the provider's own filter is barred from counting as a check at all. Evidence:
 [spike-002-guardrails](../../docs/spike-002-guardrails.md).
 
-Safety thresholds are **not uniform across the four calls**, and that is deliberate. Content
-processing overrides them to never block, because its output reproduces the recording and a block
-there strands a lawful contribution with no reason and no retry path. The three boolean checks
-keep the provider's defaults, because a block can only ever withhold a permit — never grant one —
-which makes the provider's filter a free backstop against this system's own check being wrong.
-Reasoning in [research D3](research.md).
+**The shape is split on the provider's fault line, not on a taxonomy of checks.** Content
+processing reproduces the recording as text and is the call the provider's filter trips — measured
+returning an empty candidate on two fixtures even at `BLOCK_NONE`. The judgment call emits
+booleans and has never been observed blocking. Merged into one call, a single block destroys every
+verdict and an unlawful recording renders as a processing failure; split this way, the judgment
+survives and the participant gets the right answer. Full measurement in
+[research D2](research.md).
+
+That measurement removed a NON-NEGOTIABLE prohibition from Principle III and took the constitution
+to **3.0.0**. The rule it replaced — every check its own call — was inherited and never tested.
 
 Two decisions deserve early scrutiny. Rate limiting writes the only row this feature persists,
 which sits against Principle V ([research D7](research.md), justified in Complexity Tracking).
-And the split above rests partly on inference rather than measurement — the three checks were
-never exercised at default thresholds, and that limit is recorded rather than smoothed over.
+And the judgment call's `audioQuality` fallback is unexercised on its `silent` and
+`unintelligible` values, because every fixture is a clear recording.
 
 ## Technical Context
 
@@ -49,12 +53,14 @@ only — an API key in a browser bundle is a leaked key.
 
 **Models** (pinned per job, verified 2026-09-05 and exercised by the spike):
 
-| Job | Model | Tier |
-| - | - | - |
-| Content processing | `gemini-3.8-flash` | GA |
-| Crisis | `gemini-3.5-flash-lite` | GA |
-| Illegal or dangerous | `gemini-3.5-flash-lite` | GA |
-| Relevance (answers only) | `gemini-3.5-flash-lite` | GA |
+| Call | Model | Safety | Returns |
+| - | - | - | - |
+| Content processing | `gemini-3.8-flash` | `BLOCK_NONE` | text, language, emotion, publishable, contentReason |
+| Judgment | `gemini-3.5-flash-lite` | provider defaults | crisis, illegal, relevance, primaryReason, audioQuality |
+
+Measured 2026-09-05: content ~2.4 s median, judgment ~1.15 s median. Two calls cost ~23% less than
+four at the 60-second ceiling with no latency change, since the fan-out is gated by content
+processing either way ([research D2](research.md)).
 
 **Storage**: no new storage for audio ([research D1](research.md)). One new Postgres table for
 rate-limit counters ([research D7](research.md)). Neon, schema owned by committed migrations.
@@ -68,9 +74,9 @@ runs the committed audio fixtures against the live provider.
 **Project Type**: web application, single Next.js project. 002 adds a library module and shared
 components; it adds no route.
 
-**Performance Goals**: SC-001 — decision within 15 s median, 30 s p95. The spike measured 2.4 s
-median and 3.6 s p90 on 12–16 second clips, which is headroom, not proof at 60 s
-([research D13](research.md)).
+**Performance Goals**: SC-001 — decision within 15 s median, 30 s p95. Measured 2.4 s median and
+3.6 s p90 on 12–16 second clips, which is headroom, not proof at 60 s
+([research D15](research.md)).
 
 **Constraints**: at most 3 invocations per check, 20 s timeout each, waits of 1 s then 2 s,
 90 s total from server receipt (FR-039). Original audio exists only inside the active request.
@@ -78,19 +84,31 @@ No unpublished contribution row, attempt history, or retry state is persisted (F
 fixed by [contracts/copy.md](contracts/copy.md); layout by
 [001's design.md](../001-participant-and-pool/contracts/design.md).
 
+**Audio input** (measured 2026-09-05, full contract in [contracts/review.md](contracts/review.md)):
+accepts `audio/mp4`, `audio/webm`, `audio/m4a`, `audio/aac`, `audio/ogg`, `audio/wav` — Safari
+records MP4/AAC and Chrome records WebM/Opus, and `audio/mp4` was verified as accepted despite
+being absent from the provider's published list. Rejects below 1 KB or above 5 MB; a 60-second
+recording measures 250–530 KB against a 20 MB inline ceiling.
+
+**Runtime** ([research D14](research.md)): ~3 MB of audio in flight per submission across the
+four copies, so Cloud Run per-instance concurrency must be bounded against instance memory. The
+service's request timeout must exceed the 90 s deadline and is asserted in `deploy.sh`, not
+assumed. A provider `429` is a fault that retries — never this system's own rate limit, and never
+that message.
+
 **Scale/Scope**: weekend challenge scale. One module, four screens, one table, four provider
 calls per answer and three per question.
 
 ## Constitution Check
 
-Checked against constitution **v2.1.0** — the amendment this feature's spike caused. Re-checked
+Checked against constitution **v3.0.0** — all three amendments this feature's measurements caused. Re-checked
 after Phase 1 design; result unchanged.
 
 | Principle | Applies here? | Status | Evidence |
 | - | - | - | - |
 | I. Human Contribution Is The Product | Yes | **PASS** | FR-014/FR-015 forbid the review adding advice or altering substance; content processing transcribes and redacts only. No generated advice anywhere (spec Out of Scope). |
 | II. Server-Authoritative Reciprocity | Partially | **PASS** | 002 returns a decision and never grants or consumes an ask. FR-042 keeps a failed question's ask unspent. Granting is 003, consumption is 004. |
-| III. Aggregate Guardrail Gate | Yes | **PASS** | Four parallel calls per answer, three per question ([research D2](research.md)). Uniform `canPublish`; any definitive false resolves Withheld and aborts the rest ([research D6](research.md)). Provider's own filter explicitly not counted as a check — the clause added in v2.1.0. |
+| III. Aggregate Guardrail Gate | Yes | **PASS** | Two parallel calls, split on the provider's fault line ([research D2](research.md)). Uniform `canPublish`; either refusing resolves Withheld and aborts the other ([research D6](research.md)). Provider's own filter explicitly not counted as a signal. |
 | IV. Original Audio Is Transient | Yes | **PASS** | Audio never reaches storage ([research D1](research.md)), bounded by the 90 s deadline, released on abort. FR-047 keeps playback of an original off every surface. |
 | V. Structured Output Or Failure | Yes | **PASS with one tension** | Every result Zod-parsed before use ([research D9](research.md)); invalid output retries and never renders. Check results and retry counts live only in the request. **The rate-limit counter is the exception** — see Complexity Tracking. |
 | VI. Scope Discipline | Yes | **PASS** | No object storage, no job queue, no polling infrastructure, no cache service, no human moderation or appeals. Each rejection recorded in research alternatives. |
@@ -100,14 +118,15 @@ after Phase 1 design; result unchanged.
 
 | Gate | Status | Note |
 | - | - | - |
-| Every check its own parallel call, never merged | **PASS** | FR-008a, [research D2](research.md). |
-| Illegal-or-dangerous is a dedicated call | **PASS** | FR-008c as amended; the free-ratings premise was falsified. |
+| Content processing never merged into the judgment call | **PASS** | FR-008a — it is the call the provider blocks ([research D2](research.md)). |
+| The judgment call names the failing signal | **PASS** | FR-008e — measured 16/16, not reconstructed from booleans. |
+| Illegal-or-dangerous is judged, never read from provider metadata | **PASS** | FR-008c as amended; the free-ratings premise was falsified. |
 | Crisis check exists regardless of moderation | **PASS** | FR-008d, and the spike showed defaults passing every crisis case. |
 | Crisis catches understated phrasing | **PASS** | FR-008f carried into the system instruction ([research D4](research.md)). ⚠️ prompt is fitted to its own failing case — see Complexity Tracking. |
 | Relevance does not judge safety | **PASS** | FR-008g, [research D5](research.md). |
 | Empty candidate treated as fault, not verdict | **PASS** | FR-008b1, [research D3](research.md). |
 | Provider filter left on where it can only be conservative | **PASS** | FR-008b — `BLOCK_NONE` on content processing only; the three boolean checks keep default thresholds, where a block can withhold a permit but never grant one ([research D3](research.md)). |
-| Fan-out dispatched in parallel | **PASS** | [research D14](research.md) — sequential or staged, two blocked checks would exceed the 90 s deadline. |
+| Fan-out dispatched in parallel | **PASS** | [research D13](research.md) — sequential, two exhausting calls would exceed the 90 s deadline. |
 | Gemini via official SDK, server-side only | **PASS** | `server-only` import, matching `src/db/client.ts`. |
 | No Live API model | **PASS** | All four pinned models are `generateContent`-callable and GA. |
 | Secrets from Secret Manager / gitignored `.env` | **PASS** | `HTH_GEMINI_API_KEY`; `GEMINI_API_KEY` already in `.env.example`. |
@@ -148,10 +167,8 @@ Only what 002 adds. Everything else is 001's and unchanged.
 │   │   ├── retry.ts              # per-check bounded retry, timeouts, deadline
 │   │   ├── schemas.ts            # Zod parser per check result
 │   │   ├── prompts/
-│   │   │   ├── content.ts        # transcribe, translate, redact, emotion
-│   │   │   ├── crisis.ts         # FR-008f wording
-│   │   │   ├── illegal.ts        # dedicated call — the spike's finding
-│   │   │   └── relevance.ts      # FR-008g wording
+│   │   │   ├── content.ts        # transcribe, translate, redact, emotion — BLOCK_NONE
+│   │   │   └── judgment.ts       # crisis + illegal + relevance + reason + audio quality
 │   │   └── rateLimit.ts          # window check, env-configured values
 │   ├── db/queries/
 │   │   └── rateLimits.ts         # the one table 002 writes
@@ -183,7 +200,7 @@ to test it rather than a special affordance.
 | Artifact | Contents |
 | - | - |
 | [data-model.md](data-model.md) | The in-request shapes that are deliberately not tables, the one table that is, and every FR that forbids a column |
-| [contracts/review.md](contracts/review.md) | `reviewContribution()` signature, the four checks with their system instructions and response schemas, the gate's precedence and abort rules |
+| [contracts/review.md](contracts/review.md) | `reviewContribution()` signature, the audio input contract, both calls with their system instructions and response schemas, the gate's precedence and abort rules |
 | [contracts/copy.md](contracts/copy.md) | Every fixed string for Checking, Withheld's five variants, crisis, failure and rate limit |
 | [quickstart.md](quickstart.md) | How to run the review, the fixture suite, the live-provider script, and the three measurements still outstanding |
 

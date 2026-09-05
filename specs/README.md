@@ -95,7 +95,8 @@ The handoff's validation cases map to the specs below; this is planned coverage,
 The kill spike ran on 2026-09-05, scoped down to the guardrail checks
 ([results](../docs/spike-002-guardrails.md)). It found the provider returns no safety ratings
 and its default filter passes 7 of 8 must-not-publish recordings, so 002 gained a dedicated
-illegal-or-dangerous call and the constitution was amended to 2.1.0. Cost and 60-second latency
-remain unmeasured.
+illegal-or-dangerous call and the constitution was amended to 2.1.0. Fan-out latency measured
+2.4s median and 3.6s p90 on 12–16 second clips; cost and latency at the 60-second ceiling remain
+unmeasured.
 
 Day 1 → 001, 002, 003. Day 2 → 004, 005, deploy, demo.

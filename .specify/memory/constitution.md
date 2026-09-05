@@ -1,6 +1,59 @@
 <!--
 SYNC IMPACT REPORT
 ==================
+Version change: 2.2.0 → 3.0.0
+
+AMENDMENT 3.0.0 (2026-09-05) — the fan-out splits on the fault line, not the taxonomy.
+
+Bump rationale: MAJOR. A prohibition is REMOVED — "calls MUST NOT be merged into one that
+returns several verdicts" no longer holds for the three judgments. Removing a principle is MAJOR
+under this document's own policy regardless of the evidence behind it.
+
+  III. Aggregate Guardrail Gate
+    - Fan-out is now TWO parallel calls, for answers and questions alike: content processing,
+      and one judgment call carrying crisis, illegal-or-dangerous, and (answers only) relevance.
+    - The merge prohibition is removed for the judgments and RETAINED for content processing.
+      The line is the provider's fault behaviour, not a category scheme.
+    - NEW: the judgment call MUST name the failing signal rather than leaving it inferred.
+    - NEW: a lost transcript may borrow the judgment call's audio-quality report to select
+      Withheld copy, but can never publish.
+
+Evidence (docs/spike-002-guardrails.md, 002 fixture set, 2026-09-05):
+  - A single fully merged call scored 14/16 but lost ALL judgments on the two recordings the
+    provider blocks — turning a correct withheld/illegal into a processing failure.
+  - A merged JUDGMENT call on Flash-Lite scored 15/16, named the failing signal 16/16, blocked
+    on nothing including those two recordings, and ran at 1148 ms median.
+  - Two calls cost ~23% less than four at the 60-second ceiling with no latency change, because
+    the fan-out is gated by content processing either way.
+
+The replaced rationale — "a prompt judging one thing classifies more reliably than a prompt
+judging two" — was inherited, never tested, and is not supported by this measurement.
+
+--- 2.2.0 (2026-09-05), retained below ---
+
+Version change: 2.1.0 → 2.2.0
+
+AMENDMENT 2.2.0 (2026-09-05) — the block that BLOCK_NONE does not prevent.
+
+Bump rationale: MINOR. A rule is ADDED to Principle III; nothing is removed, narrowed, or
+inverted. Raised from PATCH deliberately: the new clause carries a MUST, and a new obligation is
+not a wording fix under this document's own policy.
+
+  III. Aggregate Guardrail Gate
+    - NEW: a response carrying no candidate MUST be treated as a fault that retries, never as a
+      rejection and never resolved from another check's verdict.
+
+  Technology And Infrastructure Constraints → Application Stack
+    - BLOCK_NONE's guarantee is narrowed to what was measured: it reduces how often the provider
+      swallows a recording. It does not eliminate blocking. An empty candidate was observed at
+      BLOCK_NONE on two fixtures.
+
+Raised in review of PR #12 by an automated reviewer, which correctly observed that 2.1.0 claimed
+BLOCK_NONE stops the provider swallowing recordings while the cited spike document reported the
+opposite on the same page. The guarantee was wrong, not merely imprecise.
+
+--- 2.1.0 (2026-09-05), retained below ---
+
 Version change: 2.0.0 → 2.1.0
 
 AMENDMENT 2.1.0 (2026-09-05) — guardrail fan-out corrected by measurement.
@@ -10,13 +63,14 @@ removed, narrowed, or inverted. The gate's meaning — the conjunction of indepe
 is unchanged. What changed is a factual claim about the provider that turned out to be wrong.
 
   III. Aggregate Guardrail Gate
-    - Answer fan-out 3 -> 4 calls; question fan-out 2 -> 3. Illegal-or-dangerous is now a
+    - Answer fan-out 3 → 4 calls; question fan-out 2 → 3. Illegal-or-dangerous is now a
       dedicated call for both, because the rating it was to be read from does not exist.
     - NEW: the provider's own safety signal MUST NOT be counted as one of the gate's checks.
 
-  Technology And Infrastructure Constraints -> Application Stack
-    - BLOCK_NONE retained, but its stated purpose is corrected: it prevents the provider
-      silently swallowing a recording. It does not produce ratings.
+  Technology And Infrastructure Constraints → Application Stack
+    - BLOCK_NONE retained, but its stated purpose is corrected: it reduces how often the
+      provider silently swallows a recording. It does not produce ratings, and it does not
+      eliminate blocking — an empty candidate was still observed at BLOCK_NONE.
 
   Verified block
     - The 2026-09-04 "returns ratings automatically" line is corrected. It was taken from
@@ -90,9 +144,12 @@ Modified sections:
     - Model ids pinned per job: gemini-3.8-flash for content processing, gemini-3.5-flash-lite
       for the three boolean guardrails, gemini-3.1-flash-tts-preview for playback.
     - NEW: the content-processing call sets every safety category to BLOCK_NONE. Illegal-or-
-      dangerous, crisis, and relevance are each a dedicated Flash-Lite call; BLOCK_NONE exists
-      to stop the provider swallowing a recording, not to obtain ratings. Checks stay separate
-      parallel threads. (Amended 2.1.0 — the free-ratings premise was falsified by the spike.)
+      dangerous, crisis, and relevance are each a dedicated Flash-Lite call. BLOCK_NONE exists
+      to reduce how often the provider swallows a recording, not to obtain ratings, and it does
+      NOT eliminate blocking: a response carrying no candidate was observed at BLOCK_NONE and
+      MUST be treated as a provider fault that retries independently — never as a verdict, and
+      never resolved from another check's result. Checks stay separate parallel threads.
+      (Amended 2.1.0 — the free-ratings premise was falsified by the spike.)
     - Live API models forbidden outright, with the Principle I and IV conflicts named.
     - Runtime narrowed from "Node.js 22+" to "Node.js 24 LTS" (Krypton).
 
@@ -168,22 +225,42 @@ wrong about crisis too, so that result MUST NOT remove the participant's ability
 
 - An answer qualifies only when its verified duration is at most 60 seconds and every applicable
   check has completed with validated `canPublish == true`.
-- The gate is the conjunction of independent signals, each derived from the original audio.
-  For an answer: content processing, relevance, crisis, and illegal-or-dangerous as four
-  parallel calls. For a question: content processing, crisis, and illegal-or-dangerous, three
-  calls; relevance does not apply.
+- The gate is the conjunction of independent signals, each derived from the original audio,
+  produced by **two parallel calls**:
+  - **Content processing** — transcription, translation, redaction, emotion, and whether the
+    recording is publishable at all.
+  - **Judgment** — crisis, illegal-or-dangerous, and, for an answer only, relevance. It also
+    reports audio quality and names the failing signal.
+  A question runs the same two calls; relevance is null rather than a third call.
 - The provider's own safety signal MUST NOT be treated as one of these checks. It returns no
   ratings to read, and at its default thresholds it passed 7 of 8 must-not-publish recordings
   in the 002 spike. It is not a guardrail this product may rely on.
-- No call may consume another call's transcript, and calls MUST NOT be merged into one that
-  returns several verdicts.
+- A provider response carrying no candidate MUST be treated as a fault that retries under the
+  rule above, never as a rejection and never resolved from another check's verdict. Reading a
+  decision out of an absent response manufactures a verdict from silence, and the same audio
+  was observed both blocking and returning normally.
+- No call may consume another call's transcript. Every signal MUST be derived from the original
+  audio.
+- Content processing MUST remain its own call and MUST NOT be merged into the judgment call.
+  The split follows the provider's fault line, not a taxonomy: content processing reproduces the
+  recording as text and was measured returning an empty candidate on recordings the judgment call
+  handled cleanly. Separating them keeps a usable verdict when the transcript is lost — merged,
+  one block destroys every judgment and an unlawful recording renders as a processing failure.
+- The three judgments MAY share one call. Measured across the 002 fixture set, the merged
+  judgment call matched the separate calls on accuracy, blocked on nothing, and named the failing
+  signal correctly every time. The prohibition this replaces was asserted, never measured.
+- The judgment call MUST return which signal failed. A reason inferred from which boolean
+  flipped is a reconstruction; a reason the judge states is the judge's own.
 - Relevance MUST NOT substitute for the content, crisis, or illegal-content decisions.
 - Every review check MUST return `canPublish`: true means YES and false means NO, including
   crisis and illegal checks. False means rejection, never absence of a detected hazard.
 - Any definitive NO MUST immediately resolve to Withheld, cancel remaining work where possible,
   and suppress further retries and late results. Publication waits for every applicable YES.
-- A YES is kept for the active submission. Only a timed-out, failed, or schema-invalid check
-  retries independently, and only while no check has rejected the submission.
+- A YES is kept for the active submission. Only a timed-out, failed, or schema-invalid call
+  retries independently, and only while no signal has rejected the submission.
+- Where content processing is lost to a provider block but the judgment call returned, the
+  judgment call's audio-quality report MAY select the Withheld copy. Publication still requires
+  content processing to have succeeded — a lost transcript can never publish.
 - Withheld is one outcome with a reason: crisis, illegal/dangerous, relevance, or content.
   If multiple rejections are already known at resolution, use that precedence for presentation;
   do not delay Withheld to wait for unfinished checks.
@@ -444,4 +521,4 @@ a performance or a marketing hook is the one failure that cannot be patched late
 - `AGENTS.md` and `CLAUDE.md` carry runtime development guidance and MUST NOT restate or
   contradict the principles above.
 
-**Version**: 2.1.0 | **Ratified**: 2026-09-04 | **Last Amended**: 2026-09-05
+**Version**: 3.0.0 | **Ratified**: 2026-09-04 | **Last Amended**: 2026-09-05

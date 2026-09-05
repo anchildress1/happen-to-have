@@ -102,7 +102,7 @@ triggers the provider's own inconsistent blocking. This is now FR-008g.
 
 ## Finding 4 — latency has headroom, but is not proven at full length
 
-| | median | p90 |
+| Call | median | p90 |
 |---|---|---|
 | content processing (Flash) | 2398 ms | 3607 ms |
 | crisis (Flash-Lite) | 1163 ms | 1266 ms |
