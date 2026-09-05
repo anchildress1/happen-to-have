@@ -29,7 +29,14 @@
 
   .content {
     gap: 22px;
-    max-width: 560px;
+    /*
+     * Screens with a bespoke desktop grid raise this by setting --content-max;
+     * they must not re-declare max-width. Two CSS modules setting the same
+     * property at the same specificity are resolved by stylesheet order, which
+     * no bundler guarantees — dev and production disagreed, and back-navigation
+     * silently collapsed this screen to the 560px default.
+     */
+    max-width: var(--content-max, 560px);
     margin: 0 auto;
   }
 }

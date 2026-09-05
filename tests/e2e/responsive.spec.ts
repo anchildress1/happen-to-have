@@ -114,3 +114,41 @@ test.describe('screens without a bespoke desktop grid centre at 560px (T085c)', 
     expect(Math.abs(leftMargin - rightMargin)).toBeLessThanOrEqual(4);
   });
 });
+
+test.describe('a bespoke desktop grid survives back-navigation (T085d)', () => {
+  // biome-ignore lint/correctness/noEmptyPattern: Playwright requires this literal shape to recognize a fixtures parameter.
+  test.beforeEach(({}, testInfo) => {
+    testInfo.skip(testInfo.project.name !== 'desktop-1440');
+  });
+
+  /**
+   * Regression guard. `/answer` raises Screen's width cap for its bespoke grid. That
+   * override used to re-declare `max-width` on `.content` — the same property, at the same
+   * specificity, as Screen's own rule — so which one won came down to the order the
+   * bundler happened to emit two CSS modules in. Nothing guarantees that order: dev
+   * injected an extra stylesheet on back-navigation, the cascade flipped, and the screen
+   * silently collapsed to the 560px default while every class name still looked right.
+   *
+   * The fix makes the two rules set different properties (Screen reads `--content-max`),
+   * so order cannot decide it. This asserts the user-visible half of that: the grid is the
+   * same width whether you arrive directly or come back to it.
+   */
+  test('/answer keeps its 1100px column when reached via browser Back', async ({ page }) => {
+    const columnWidth = () =>
+      page
+        .locator('[class*="Screen-module"][class*="content"]')
+        .evaluate((el) => Math.round(el.getBoundingClientRect().width));
+
+    await page.goto('/answer');
+    await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+    const direct = await columnWidth();
+    expect(direct).toBeGreaterThan(561);
+
+    await page.getByRole('link', { name: 'I can answer this' }).click();
+    await expect(page).toHaveURL(/\/answer\/record/);
+
+    await page.goBack();
+    await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+    expect(await columnWidth()).toBe(direct);
+  });
+});

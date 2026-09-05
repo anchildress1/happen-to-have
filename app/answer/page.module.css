@@ -4,10 +4,13 @@
  * `minmax(0,1.4fr) minmax(0,1fr)` split itself lives on QuestionCard; this
  * only lifts Screen's width cap so that grid has room to work. 1100px
  * matches the source design's declared desktop-preview default viewport.
+ *
+ * Raise the cap by setting Screen's variable, never by re-declaring max-width:
+ * both rules are `.content` at equal specificity, so a duplicate declaration is
+ * settled by stylesheet order rather than by intent.
  */
 @media (min-width: 768px) {
   .content {
-    max-width: 1100px;
-    margin: 0 auto;
+    --content-max: 1100px;
   }
 }
