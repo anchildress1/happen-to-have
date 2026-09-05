@@ -333,28 +333,51 @@ are required (FR-029, FR-030, FR-031). Copy for them is authored in
 
 ---
 
-## D13: Fonts — Bricolage Grotesque only, self-hosted
+## D13: Fonts — Paprika for display, a sister face for everything else
 
-**Decision**: Load **Bricolage Grotesque** alone, through `next/font/google`, with
-`system-ui, sans-serif` as the fallback stack. **Figtree and Space Grotesk are out** —
-confirmed by the user, and an E2E test asserts no request is ever made for either.
+**Decision**: **Paprika** sets the product name and display chrome. A second face —
+TODO(SISTER_FONT), still being chosen — sets participant content, body, UI, and meta. Both load
+through `next/font/google`. Nothing else loads.
 
-**Rationale**: The design's `<head>` requests three families — Bricolage Grotesque, Figtree, and
-Space Grotesk — but every screen's markup sets exactly one:
-`font-family:'Bricolage Grotesque',system-ui,sans-serif`. The other two are leftovers from
-exploration. Loading three variable families to use one is roughly two unnecessary font payloads
-on a mobile-first app whose landing screen is the first impression.
+**Rationale**: Paprika carries the product's voice at large sizes. It is a Google **Display**
+family, built for headlines rather than paragraphs, so pairing it is not a preference — it is
+how the face is meant to be used.
 
-`next/font/google` self-hosts at build time, which removes the render-blocking round trip to
-`fonts.googleapis.com` and the `fonts.gstatic.com` connection, and eliminates layout shift via an
-automatic size-adjusted fallback.
+**Verified against the Google Fonts metadata API on 2026-09-04**:
+
+| | Paprika | Bricolage Grotesque (replaced) |
+| - | - | - |
+| Weights | **400 only** | 200–800 |
+| Category | Display | Sans Serif |
+| Subsets | latin, latin-ext | latin, latin-ext, vietnamese |
+
+**Two consequences worth stating plainly, because neither is reversible by tuning:**
+
+**Weight 300 is gone.** The imported design set every display element at 300, and that thinness
+was the identity. Paprika ships one weight. Display type will read heavier and denser than the
+mockups. Faking 300 with a lighter colour or a synthetic stroke looks worse than the honest
+weight, so the design changes rather than the rendering.
+
+**Paprika cannot carry participant content.** Question and answer text renders at display sizes,
+but it is participant writing, and 002 translates contributions into the display language.
+Paprika has no Cyrillic, no Vietnamese, no CJK. A translated contribution set in it would fall
+back mid-sentence or render as tofu. The sister face takes every string a participant wrote,
+regardless of size — the split is by *origin*, not by type scale.
+
+`next/font/google` self-hosts at build time, removing the render-blocking round trip to
+`fonts.googleapis.com` and eliminating layout shift through a size-adjusted fallback.
 
 **Alternatives considered**:
 
-- **Keep the three-family `<link>` verbatim**: faithful to the file, wrong for the product. Two
-  of the three are provably unused.
-- **`system-ui` only**: free and fast, but the 300-weight display treatment at 58–84px is the
-  design's whole identity. System fonts do not carry it.
+- **Bricolage Grotesque** — the imported design's face, replaced by direction. It had the 300
+  weight and a wider subset range; the tradeoff is accepted deliberately.
+- **Paprika for everything** — a Display face at 16px body is a legibility problem, and the
+  subset gap becomes a correctness problem the moment a non-English contribution publishes.
+- **A system-font stack** — free and fast, but the product name at 58–84px is the whole first
+  impression, and system faces do not carry it.
+
+**Open**: TODO(SISTER_FONT). It needs 400 and 500, `tabular-nums` for the recorder timer, and
+subset coverage at least as wide as the languages 002 translates into.
 
 ---
 
@@ -401,7 +424,7 @@ token existed only for this label and is removed with it.
 | Full route map | from the design's URL props (D12) |
 | Breakpoint | 768px, from the design's own preview range (D12) |
 | Selection route path | `/answer`, from the design's URL bar (D12) |
-| Font loading | Bricolage Grotesque only, self-hosted (D13) |
+| Font loading | Paprika for display + a sister face, self-hosted (D13) |
 | Question exclusion after a withheld attempt | no stored row; stays eligible; fresh recording offered including crisis (D14) |
 | Eyebrow labels | removed product-wide (D15) |
 

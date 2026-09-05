@@ -207,10 +207,11 @@ for the weekend build, documented in the README, and not a bug to file.
 pnpm playwright test tests/e2e/design.spec.ts
 ```
 
-Asserts: no device or browser frame anywhere; only Bricolage Grotesque is requested (no Figtree,
-no Space Grotesk); primary buttons ≥56px, ghost ≥52px, header ≥44px; every interactive element
-shows a visible `:focus-visible` ring; watermark and status dot are `aria-hidden`; no uppercase
-eyebrow label renders anywhere.
+Asserts: no device or browser frame anywhere; only Paprika and the sister face are requested,
+with zero requests for any other family; no participant content is set in Paprika; primary
+buttons ≥56px, ghost ≥52px, header ≥44px; every interactive element shows a visible
+`:focus-visible` ring; watermark and status dot are `aria-hidden`; no uppercase eyebrow label
+renders anywhere.
 
 The focus ring is the one to watch — the design uses `all: unset` on real `<button>` elements,
 which strips the default outline. Copied literally, that is an accessibility regression.

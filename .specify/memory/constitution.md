@@ -83,6 +83,10 @@ Verified 2026-09-04:
   Node 24 (Krypton) Active LTS through 2026-10-20, maintenance to 2028-04-30.
 
 Deferred TODOs:
+  TODO(SISTER_FONT): Paprika is set for display; the body face it pairs with is unchosen.
+    It needs weights 400 and 500, tabular-nums for the recorder timer, and subset coverage at
+    least as wide as the languages 002 translates into. Until it lands, body falls back to
+    system-ui so nothing renders in the wrong family by accident.
   TODO(TTS_VOICE_ID): exact Gemini TTS voice unresolved. The model is pinned; the voice is not.
   TODO(DISPLAY_LANGUAGE_POLICY): MVP display/translation language unresolved; English is
     the working assumption.

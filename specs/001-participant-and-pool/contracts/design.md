@@ -80,24 +80,40 @@ Define once as CSS custom properties on `:root`. Values verbatim from the design
 
 ### Type
 
-**One family: Bricolage Grotesque**, fallback `system-ui, sans-serif`.
+**Two families, split by job.**
 
-The source `<head>` also requests **Figtree** and **Space Grotesk**. Neither appears in any
-screen's markup, and both are explicitly out. Load Bricolage Grotesque alone via
-`next/font/google` — see [research.md](../research.md) D13. An E2E test asserts no request is ever
-made for the other two.
+| Role | Family | Weight |
+| - | - | - |
+| Product name, headings, display chrome | **Paprika** | 400 — the only weight it ships |
+| Participant content, body, UI, buttons, meta | *sister face* — TODO(SISTER_FONT) | 400 / 500 |
 
-Display weight is **300** throughout. Nothing in this product is bold.
+Paprika is a Google **Display** face: built for headlines, not for paragraphs or interface
+text. It carries the product's voice at large sizes and nothing else.
+
+**Weight 300 is gone.** The imported design set every display element at weight 300, which was
+the source of its thin, airy feel. Paprika has one weight. Display type will read heavier and
+denser than the mockups — that is inherent to the choice, not a defect to tune around. Do not
+attempt to fake 300 with a lighter colour or a synthetic stroke; both look worse than the
+honest weight.
+
+**Participant content does not use Paprika, even at display sizes.** Question text renders at
+34px mobile / 44px desktop, which is display-sized, but it is *participant writing* and 002
+translates contributions into the display language. Paprika ships latin and latin-ext only —
+no Cyrillic, no Vietnamese, no CJK. Setting translated content in it would break for languages
+the product explicitly supports. The sister face carries every string a participant wrote.
+
+Load both through `next/font/google`. Nothing else. An E2E test asserts no request for any
+third family.
 
 | Role | Mobile | Desktop |
 | - | - | - |
-| Display XL (product name, unlock) | `50–58px / .98–1`, w300, `-.025em` | `80–84px / .95–.96`, w300, `-.03em` |
-| Display L (question, result heading) | `34px / 1.1–1.15`, w300–400, `-.02em` | `44px / 1.12`, `-.025em` |
-| Display M (crisis heading, section) | `30px / 1.14`, w300, `-.02em` | `30px`, w300, `-.02em` |
+| Display XL (product name, unlock) — **Paprika** | `50–58px / .98–1`, w400, `-.025em` | `80–84px / .95–.96`, w400, `-.03em` |
+| Display L (question, result heading) — **sister** | `34px / 1.1–1.15`, w400, `-.02em` | `44px / 1.12`, `-.025em` |
+| Display M (crisis heading, section) — **sister** | `30px / 1.14`, w400, `-.02em` | `30px`, w400, `-.02em` |
 | Heading S (question in recorder) | `20px / 1.3`, `-.01em` | `34px / 1.18`, `-.02em` |
 | Question in history | `24px / 1.2`, `-.015em` | `34px / 1.15`, `-.02em` |
 | Tagline | `22px / 1.3`, w400 | `28px / 1.3` |
-| Timer | `56px`, w300, `-.03em`, `tabular-nums` | `64px` |
+| Timer — **sister** | `56px`, w400, `-.03em`, `tabular-nums` | `64px` |
 | Body | `16px / 1.45` | `16–17px / 1.45` |
 | Helper | `15px / 1.5` or `13px / 1.5` | `15–18px / 1.5` |
 | Header / nav | `15px`, w500 | same |
@@ -521,7 +537,8 @@ Withheld reasons appear only on the active flow's shared Withheld page, never in
 | - | - | - |
 | No device or browser frame renders anywhere | E2E | 001 |
 | Tokens resolve; no hard-coded hex outside the token block | Unit — scan compiled CSS | 001 |
-| Only Bricolage Grotesque is requested; zero requests for Figtree or Space Grotesk | E2E — assert network | 001 |
+| Only Paprika and the sister face are requested; zero requests for any other family | E2E — assert network | 001 |
+| Paprika renders the product name and display chrome only; no participant content is set in it | E2E | 001 |
 | Primary ≥56px, ghost ≥52px, header ≥44px, play ≥32px | E2E | 001 |
 | Every interactive element has a visible `:focus-visible` ring | E2E | 001 |
 | Watermark, waveform, dots are `aria-hidden` | E2E | 001 |
