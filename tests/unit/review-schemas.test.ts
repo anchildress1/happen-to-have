@@ -67,6 +67,15 @@ describe('contentResultSchema', () => {
     expect(contentResultSchema.safeParse(tooLong).success).toBe(false);
   });
 
+  it('rejects a whitespace-only sourceLanguage on a publishable result', () => {
+    // Untested until review: removing the trim/min left every test green, and an empty
+    // language then survives review and dies against questionRowSchema in 003 — after the
+    // ask has been granted.
+    const blank = { ...VALID_CONTENT, sourceLanguage: '   ' };
+
+    expect(contentResultSchema.safeParse(blank).success).toBe(false);
+  });
+
   it('rejects an empty displayText only when the result claims to be publishable', () => {
     const publishableButEmpty = { ...VALID_CONTENT, displayText: '' };
 
@@ -182,6 +191,42 @@ describe('judgmentResultSchema', () => {
 
   it('rejects a reason that names a signal which did not refuse', () => {
     const mismatched = { ...VALID_JUDGMENT, illegalCanPublish: false, primaryReason: 'crisis' };
+
+    expect(answerSchema.safeParse(mismatched).success).toBe(false);
+  });
+
+  it('rejects an illegal refusal whose reason names crisis instead', () => {
+    // The coherence refine has four clauses and only the crisis one was exercised. Deleting
+    // the illegal or relevance clause left all 26 tests green — and a genuine unlawful
+    // contribution would then fail the parse, burn three retries, and reach the participant
+    // as "we couldn't check your answer" instead of FR-026's text.
+    const mismatched = {
+      ...VALID_JUDGMENT,
+      illegalCanPublish: false,
+      primaryReason: 'relevance',
+    };
+
+    expect(answerSchema.safeParse(mismatched).success).toBe(false);
+  });
+
+  it('accepts a coherent illegal refusal', () => {
+    const refusal = { ...VALID_JUDGMENT, illegalCanPublish: false, primaryReason: 'illegal' };
+
+    expect(answerSchema.safeParse(refusal).success).toBe(true);
+  });
+
+  it('accepts a coherent relevance refusal', () => {
+    const refusal = {
+      ...VALID_JUDGMENT,
+      relevanceCanPublish: false,
+      primaryReason: 'relevance',
+    };
+
+    expect(answerSchema.safeParse(refusal).success).toBe(true);
+  });
+
+  it('rejects a relevance reason when relevance actually permitted', () => {
+    const mismatched = { ...VALID_JUDGMENT, crisisCanPublish: false, primaryReason: 'relevance' };
 
     expect(answerSchema.safeParse(mismatched).success).toBe(false);
   });
