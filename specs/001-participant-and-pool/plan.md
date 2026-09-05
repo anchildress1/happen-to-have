@@ -31,7 +31,9 @@ it. Lint and format move to Biome. Full reasoning in [research.md](research.md) 
 
 ## Technical Context
 
-**Language/Version**: TypeScript 7.0.2 on Node.js 24 LTS, ESM only
+**Language/Version**: TypeScript 7.0.2 on Node.js 24 LTS, ESM only. Imports in `src/` and `app/`
+carry **no file extension** — Turbopack cannot resolve `.js` to `.ts` and offers no setting that
+would (research D16). `seed/` is exempt; it runs under plain Node.
 
 **Primary Dependencies**: Next.js 16.3.4 (App Router), React 19.2.8,
 `@neondatabase/serverless` 1.1.0, `node-pg-migrate` 9.0.0, `iron-session` 9.0.1, Zod 4.5.4,

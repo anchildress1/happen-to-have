@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { db } from '../client.js';
+import { db } from '../client';
 
 /**
  * The only shape `getOrCreateParticipant` (src/session/session.ts) needs from either

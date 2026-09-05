@@ -1,6 +1,6 @@
 import { getIronSession, type SessionOptions, webCookies } from 'iron-session';
 import { z } from 'zod';
-import { type ParticipantsClient, participantsClient } from '../db/queries/participants.js';
+import { type ParticipantsClient, participantsClient } from '../db/queries/participants';
 
 const SESSION_SECRET = process.env.SESSION_SECRET;
 

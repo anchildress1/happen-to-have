@@ -453,3 +453,40 @@ token existed only for this label and is removed with it.
 - **`all: unset` on buttons** removes the default focus outline. Copied literally from the design
   it is an accessibility regression. Mitigation: an explicit `:focus-visible` ring is a stated
   requirement in [contracts/design.md](contracts/design.md) with an E2E test behind it.
+
+---
+
+## D16: Import specifiers carry no extension in `src/` and `app/`
+
+**Decision**: Relative and aliased imports inside `src/` and `app/` are **extensionless**.
+`seed/seed.ts` is the one exception and imports `../src/db/client.ts` with its real extension.
+
+**Rationale**: Turbopack does not substitute `.js` for `.ts` during resolution, and Next.js 16
+exposes no configuration that would make it. `turbopack.resolveExtensions` controls which
+extensions are *appended* to an extensionless specifier; it cannot rewrite one that is already
+present. There is no `extensionAlias` equivalent.
+
+So `import { db } from '../client.js'` fails to build the moment anything under `app/` pulls that
+module into the bundler graph — which is exactly what happened when the first route handler
+landed. The failure is invisible until then: `tsc` and Vitest both resolve `.js` to `.ts`
+happily, so a file can typecheck and unit-test clean for days and break the build the first time
+a page imports it.
+
+Aliased specifiers fail harder still. `paths` maps `@/copy.js` to `./src/copy.js` before any
+extension logic runs, producing a literal path that does not exist.
+
+`moduleResolution: "bundler"` — already set in `tsconfig.json` — makes extensionless imports
+correct TypeScript. The `.js`-suffix convention belongs to `node16`/`nodenext`, which this
+project does not use for bundled code.
+
+**Why `seed/` is exempt**: it runs under plain `node`, whose ESM resolver requires a real
+extension. It imports `src/db/client.ts` directly, and that module imports only bare package
+specifiers, so Node never traverses a rewritten path.
+
+**Alternatives considered**:
+
+- **Configure Turbopack** — no such option exists. Verified against the Next.js 16.3.4
+  `turbopack` config reference.
+- **`.js` everywhere, bundle the seed script** — adds a build step to a script whose whole appeal
+  is that Node 24 runs the TypeScript directly.
+- **Drop the `@/*` alias** — would fix the aliased case and leave the relative case broken.
