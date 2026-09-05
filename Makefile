@@ -5,6 +5,12 @@
 
 .DEFAULT_GOAL := help
 
+# Targets that talk to the database load .env first. `neon checkout` writes DATABASE_URL
+# there, and nothing else exports it — without this, `make migrate` and `make seed` fail
+# with "DATABASE_URL is not set" even though the value is sitting in the file.
+# Missing .env is not an error: production injects the variables directly.
+LOAD_ENV := set -a; [ -f .env ] && . ./.env; set +a;
+
 .PHONY: help install dev format format-check format-files lint typecheck test build e2e perf \
 	secret-scan clean db-up migrate seed db-shell ai-checks
 
@@ -14,7 +20,7 @@ install: ## Install dependencies with a frozen lockfile
 	pnpm install --frozen-lockfile
 
 dev: ## Run the Next.js dev server
-	pnpm run dev
+	$(LOAD_ENV) pnpm run dev
 
 format: ## Format the repository in place
 	pnpm run format
@@ -42,7 +48,7 @@ build: ## Production Next.js build
 	pnpm run build
 
 e2e: ## Run the Playwright end-to-end suite
-	pnpm run e2e
+	$(LOAD_ENV) pnpm run e2e
 
 perf: ## Report production bundle sizes (First Load JS per route)
 	pnpm build
@@ -62,16 +68,20 @@ clean: ## Remove build artifacts and local caches
 ## ---- Project targets (Firebase SQL Connect / Data Connect) ----
 
 db-up: ## Point at this git branch's Neon database (creates it if missing)
-	@neon branches create --name dev-$$(git branch --show-current) --parent main 2>/dev/null || true
-	@neon checkout dev-$$(git branch --show-current)
+	@# --no-secrets matters: without it the CLI prints a live connection URI, password
+	@# and all, straight to stdout — into terminal scrollback, CI logs, and anywhere
+	@# else this output is captured. The credential lands in .env via `neon checkout`.
+	@neon branches create --name dev-$$(git branch --show-current) --parent main --no-secrets >/dev/null 2>&1 || true
+	@neon checkout dev-$$(git branch --show-current) >/dev/null
+	@echo "Neon branch: dev-$$(git branch --show-current) (DATABASE_URL written to .env)"
 
 
 migrate: ## Apply pending migrations to the checked-out Neon branch
-	pnpm run migrate
+	$(LOAD_ENV) pnpm run migrate
 
 
 seed: ## Upsert seed/questions.json into the database (idempotent)
-	node --conditions=react-server seed/seed.ts
+	$(LOAD_ENV) node --conditions=react-server seed/seed.ts
 
 db-shell: ## psql against the checked-out Neon branch
 	neon connect

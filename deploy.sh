@@ -15,6 +15,7 @@ IMAGE_TAG="${IMAGE_TAG:-$(git rev-parse --short HEAD 2>/dev/null || date +%s)}"
 # Secret Manager secret ID, not a value — SESSION_SECRET itself never appears here
 # or in any log line this script produces.
 SESSION_SECRET_NAME="${SESSION_SECRET_NAME:-session-secret}"
+DATABASE_URL_SECRET_NAME="${DATABASE_URL_SECRET_NAME:-database-url}"
 
 if ! command -v gcloud >/dev/null 2>&1; then
   echo "error: gcloud CLI is required." >&2
@@ -61,8 +62,10 @@ gcloud builds submit . \
   --project "${PROJECT_ID}"
 
 echo "Deploying ${SERVICE_NAME} to Cloud Run in ${REGION}..."
-# FIREBASE_PROJECT_ID is not sensitive; SESSION_SECRET is bound straight from
-# Secret Manager and is never passed as a literal env var.
+# Both secrets bind straight from Secret Manager and are never passed as literal env
+# vars — a --set-env-vars value is visible in the service description and in deploy logs.
+# DATABASE_URL is a Neon connection string carrying a password, so it belongs here and
+# nowhere else.
 gcloud run deploy "${SERVICE_NAME}" \
   --image "${IMAGE_URI}" \
   --project "${PROJECT_ID}" \
@@ -70,8 +73,7 @@ gcloud run deploy "${SERVICE_NAME}" \
   --platform managed \
   --port 8080 \
   --allow-unauthenticated \
-  --set-env-vars "FIREBASE_PROJECT_ID=${PROJECT_ID}" \
-  --set-secrets "SESSION_SECRET=${SESSION_SECRET_NAME}:latest"
+  --set-secrets "SESSION_SECRET=${SESSION_SECRET_NAME}:latest,DATABASE_URL=${DATABASE_URL_SECRET_NAME}:latest"
 
 SERVICE_URL=$(gcloud run services describe "${SERVICE_NAME}" \
   --project "${PROJECT_ID}" \
