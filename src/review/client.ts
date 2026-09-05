@@ -16,8 +16,11 @@ import {
 } from '@google/genai';
 
 /**
- * Model ids pinned per job (constitution, Application Stack). Both are GA and both are
- * callable through `generateContent`; Live API models are forbidden outright because they
+ * Model ids pinned per job. The constitution's Application Stack section is authoritative for
+ * their status and verification date; this file does not restate it, because a model's tier is
+ * exactly the kind of fact that drifts and a second uncited copy is the one nobody updates.
+ *
+ * Both are callable through `generateContent`; Live API models are forbidden outright because they
  * are speech-to-speech, cannot return structured text, and would derive playback from the
  * original recording rather than from processed text.
  *
@@ -31,7 +34,9 @@ export const REVIEW_MODELS = {
 } as const;
 
 /**
- * Applied to both calls, explicitly (FR-008b).
+ * Intended for both calls, explicitly (FR-008b). Nothing consumes it yet — the gate that
+ * issues the calls is not built — so this is the shape the wiring must use, not a description
+ * of wiring that exists.
  *
  * The provider ships these four adjustable filters **off by default** for the models above,
  * so this changes nothing today. It is written rather than inherited because a documented
@@ -41,8 +46,10 @@ export const REVIEW_MODELS = {
  * stay active at every setting a caller can send, and empty candidates were observed at this
  * threshold on two fixtures. Those are faults, handled in `retry.ts` (FR-008b1).
  *
- * No code may read `candidate.safetyRatings`. The field exists in the SDK's types and is
- * never populated on this path — measured across every configuration (research D3).
+ * No code may read `candidate.safetyRatings`. The field exists in the SDK's types and was not
+ * populated in any configuration the 002 spike measured (research D3). Absence of evidence over
+ * 16 fixtures is not a guarantee about every future response — the rule holds because a rating
+ * this system did not compute is not a verdict it may act on, which is true regardless.
  */
 export const NEVER_BLOCK: SafetySetting[] = [
   HarmCategory.HARM_CATEGORY_HARASSMENT,
