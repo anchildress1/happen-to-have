@@ -164,6 +164,12 @@ export function parseResult<T>(schema: z.ZodType<T>, raw: string | undefined): T
  */
 type Exact<A, B> = [A] extends [B] ? ([B] extends [A] ? true : never) : never;
 
-export const _contentPayloadMatchesSchema: Exact<ContentPayload, ContentResult> = true;
-export const _crisisPayloadMatchesSchema: Exact<CrisisPayload, CrisisResult> = true;
-export const _verdictPayloadMatchesSchema: Exact<VerdictPayload, VerdictResult> = true;
+// File-local, and referenced with `void` so `noUnusedLocals` stays satisfied. Exporting them
+// would make three compile-time assertions part of this module's runtime surface, which is an
+// invitation to import a `true` that means nothing at runtime.
+const _contentPayloadMatchesSchema: Exact<ContentPayload, ContentResult> = true;
+const _crisisPayloadMatchesSchema: Exact<CrisisPayload, CrisisResult> = true;
+const _verdictPayloadMatchesSchema: Exact<VerdictPayload, VerdictResult> = true;
+void _contentPayloadMatchesSchema;
+void _crisisPayloadMatchesSchema;
+void _verdictPayloadMatchesSchema;

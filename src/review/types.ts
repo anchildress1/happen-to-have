@@ -96,15 +96,22 @@ export interface VerdictPayload {
  * retries; a `refuse` ends the submission. Conflating them turns a provider outage into a
  * participant rejection, which FR-038 forbids in those words.
  */
-type Settled<C extends ReviewCall, P> =
-  | {
-      call: C;
-      /** A validated result. `refuse` keeps its payload for the log line it carries. */
-      outcome: 'permit' | 'refuse';
-      payload: P;
-      attempts: number;
-    }
+type Settled<C extends ReviewCall, Permit, Refuse> =
+  | { call: C; outcome: 'permit'; payload: Permit; attempts: number }
+  // `refuse` keeps its payload for the log line it carries.
+  | { call: C; outcome: 'refuse'; payload: Refuse; attempts: number }
   | { call: C; outcome: 'fault'; payload: null; attempts: number };
+
+/**
+ * Narrows a payload to the boolean literal that produced the outcome, so the verdict and the
+ * outcome cannot disagree.
+ *
+ * Without this the union admitted `{ outcome: 'permit', payload: { canPublish: false } }`. The
+ * gate reads `outcome` uniformly, so that construction silently reverses a validated refusal
+ * with no type error anywhere — and crisis, whose polarity is inverted, is where a reader is
+ * least likely to catch it by eye.
+ */
+type WithVerdict<P, K extends keyof P, V extends P[K]> = P & Record<K, V>;
 
 /**
  * A call's result, in the one envelope the gate treats uniformly (Principle III).
@@ -118,10 +125,27 @@ type Settled<C extends ReviewCall, P> =
  * invocation returns zero (FR-039).
  */
 export type CheckResult =
-  | Settled<'content', ContentPayload>
-  | Settled<'crisis', CrisisPayload>
-  | Settled<'illegal', VerdictPayload>
-  | Settled<'relevance', VerdictPayload>;
+  | Settled<
+      'content',
+      WithVerdict<ContentPayload, 'canPublish', true>,
+      WithVerdict<ContentPayload, 'canPublish', false>
+    >
+  // Inverted, and the only call that is: a permit is `inTrouble: false`.
+  | Settled<
+      'crisis',
+      WithVerdict<CrisisPayload, 'inTrouble', false>,
+      WithVerdict<CrisisPayload, 'inTrouble', true>
+    >
+  | Settled<
+      'illegal',
+      WithVerdict<VerdictPayload, 'canPublish', true>,
+      WithVerdict<VerdictPayload, 'canPublish', false>
+    >
+  | Settled<
+      'relevance',
+      WithVerdict<VerdictPayload, 'canPublish', true>,
+      WithVerdict<VerdictPayload, 'canPublish', false>
+    >;
 
 /** What `reviewContribution` was asked to judge. */
 export interface ReviewInput {
