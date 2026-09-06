@@ -318,6 +318,27 @@ describe('the ceiling is enforced where it cannot be skipped (FR-013)', () => {
     ).rejects.toThrow();
   });
 
+  it('accepts exactly sixty seconds — the boundary the product is built around', async () => {
+    // T022 claimed "both boundaries" and only ever proved rejections: 0, 61, 90. A CHECK of
+    // BETWEEN 1 AND 59 would have passed the whole suite while silently refusing every
+    // full-length answer — the exact recording US2 exists for.
+    const asker = await participant();
+    const q = await question(await participant());
+
+    await expect(
+      publishAnswer({ ...answer(), durationSeconds: 60, questionId: q, participantId: asker }, db),
+    ).resolves.toMatchObject({ published: true });
+  });
+
+  it('accepts a one-second answer — the other boundary', async () => {
+    const asker = await participant();
+    const q = await question(await participant());
+
+    await expect(
+      publishAnswer({ ...answer(), durationSeconds: 1, questionId: q, participantId: asker }, db),
+    ).resolves.toMatchObject({ published: true });
+  });
+
   it('accepts a five-second answer — there is no minimum (SC-008)', async () => {
     const asker = await participant();
     const q = await question(await participant());
