@@ -15,8 +15,9 @@ export const PUBLISH_ANSWER_SQL = `
     SELECT q.id
       FROM questions q
      WHERE q.id = $1
-       -- FR-016: never your own question. NULL participant_id is a seeded question, which
-       -- IS NOT DISTINCT FROM handles correctly where <> would drop the row.
+       -- FR-016: never your own question. A seeded question has a NULL participant_id, and
+       -- an inequality test against NULL yields NULL rather than true, dropping the row and
+       -- refusing an answer to every seeded question in the pool. IS DISTINCT FROM keeps it.
        AND (q.participant_id IS DISTINCT FROM $2)
        -- FR-017: one PUBLISHED answer per participant per question. Withheld and failed
        -- attempts left no row, so FR-017a's retry is allowed by the same predicate.
