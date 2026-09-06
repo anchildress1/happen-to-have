@@ -14,8 +14,21 @@
 -- never saw. Unique across the table, not per participant: it identifies one recording
 -- attempt, and reusing another's id would be claiming their submission.
 
+-- duration_seconds is NULLABLE, and that is the honest shape rather than a convenience.
+-- Rows published before 003 have no recorded duration, and there is no value to backfill them
+-- with that is not a fabrication: 1 and 60 are both claims about how long somebody spoke.
+-- display_text could take a marker string that says what happened; a smallint cannot.
+--
+-- New answers always supply it — the route rejects a missing or out-of-range duration before
+-- review, and publishAnswer's typed input requires it — so the CHECK is the backstop for
+-- FR-013 and NULL means "predates the column", not "unmeasured going forward".
+--
+-- submission_id takes a default only so it can be added NOT NULL to an existing table; the
+-- default is dropped immediately afterwards, because a generated id would make the retry
+-- lookup match nothing, which is the whole point of the column.
 ALTER TABLE answers
-  ADD COLUMN duration_seconds smallint NOT NULL CHECK (duration_seconds BETWEEN 1 AND 60),
+  ADD COLUMN duration_seconds smallint
+    CHECK (duration_seconds IS NULL OR duration_seconds BETWEEN 1 AND 60),
   ADD COLUMN submission_id    uuid     NOT NULL DEFAULT gen_random_uuid();
 
 ALTER TABLE answers ADD CONSTRAINT answers_submission_id_key UNIQUE (submission_id);

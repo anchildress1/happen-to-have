@@ -111,21 +111,33 @@ export function useRecorder(): Recorder {
     }
 
     stream.current = media;
-    const mimeType = pickMimeType();
-    const instance = new MediaRecorder(media, mimeType ? { mimeType } : undefined);
-    recorder.current = instance;
 
-    instance.ondataavailable = (event) => {
-      if (event.data.size > 0) chunks.current.push(event.data);
-    };
-    instance.onstop = () => {
-      setBlob(new Blob(chunks.current, { type: instance.mimeType }));
-      setState('stopped');
+    // Guarded, because everything from here can throw for reasons `canRecord()` cannot see:
+    // a MediaRecorder that exists but rejects every mime type, a track the OS revoked between
+    // the permission grant and this line. Unguarded, the exception escaped after the stream
+    // was assigned — leaving the page stuck in `requesting` with its control disabled and the
+    // microphone still live, which is the browser's recording indicator on for a page that
+    // has given up.
+    try {
+      const mimeType = pickMimeType();
+      const instance = new MediaRecorder(media, mimeType ? { mimeType } : undefined);
+      recorder.current = instance;
+
+      instance.ondataavailable = (event) => {
+        if (event.data.size > 0) chunks.current.push(event.data);
+      };
+      instance.onstop = () => {
+        setBlob(new Blob(chunks.current, { type: instance.mimeType }));
+        setState('stopped');
+        release();
+      };
+
+      instance.start();
+      setState('recording');
+    } catch {
       release();
-    };
-
-    instance.start();
-    setState('recording');
+      setState('unsupported');
+    }
   }, [release]);
 
   // One interval, owned by the recording state rather than by start(), so a stop from any
