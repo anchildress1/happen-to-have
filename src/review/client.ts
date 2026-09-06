@@ -27,14 +27,25 @@ import {
  * Content processing stays on Flash and MUST NOT be downgraded to Flash-Lite without
  * evidence: it transcribes, translates and redacts, and **redaction is the only failure in
  * this product that cannot be retried** — a missed name is published.
+ *
+ * Crisis is on Flash for a measured reason, not by analogy. The same prompt on the same audio
+ * caught 8 of 10 unseen understated-crisis recordings on Flash-Lite and 10 of 10 on Flash
+ * (FR-008a1). It is the only signal where the tier was measured to matter, and the only one
+ * whose failure causes harm outside the software.
+ *
+ * Illegal and relevance stay on Flash-Lite: narrow judgments, measured 6/6 and unaffected by
+ * tier. They are separate keys rather than one shared `judgment` because they are separate
+ * calls — merging signals cost 7 of 10 crisis detections (FR-008a).
  */
 export const REVIEW_MODELS = {
   content: 'gemini-3.8-flash',
-  judgment: 'gemini-3.5-flash-lite',
+  crisis: 'gemini-3.8-flash',
+  illegal: 'gemini-3.5-flash-lite',
+  relevance: 'gemini-3.5-flash-lite',
 } as const;
 
 /**
- * Intended for both calls, explicitly (FR-008b). Nothing consumes it yet — the gate that
+ * Intended for every call, explicitly (FR-008b). Nothing consumes it yet — the gate that
  * issues the calls is not built — so this is the shape the wiring must use, not a description
  * of wiring that exists.
  *

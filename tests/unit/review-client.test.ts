@@ -82,14 +82,35 @@ describe('review client — safety settings (FR-008b)', () => {
 });
 
 describe('review client — pinned models (constitution, Application Stack)', () => {
-  it('pins content processing to Flash and the judgment call to Flash-Lite', async () => {
+  it('pins content and crisis to Flash, illegal and relevance to Flash-Lite', async () => {
     const { REVIEW_MODELS } = await import('../../src/review/client.js');
 
     // Content processing MUST NOT be downgraded to Flash-Lite without evidence: it performs
     // the redaction pass, and a missed name is the one failure in this product that cannot
     // be retried once published.
     expect(REVIEW_MODELS.content).toBe('gemini-3.8-flash');
-    expect(REVIEW_MODELS.judgment).toBe('gemini-3.5-flash-lite');
+
+    // Crisis is pinned by measurement, not by analogy with content: the same prompt on the
+    // same audio caught 8/10 on Flash-Lite and 10/10 on Flash (FR-008a1). A downgrade here
+    // ships a known 20% miss on the one failure that causes harm outside the software.
+    expect(REVIEW_MODELS.crisis).toBe('gemini-3.8-flash');
+
+    expect(REVIEW_MODELS.illegal).toBe('gemini-3.5-flash-lite');
+    expect(REVIEW_MODELS.relevance).toBe('gemini-3.5-flash-lite');
+  });
+
+  it('pins one model per signal rather than a shared judgment entry', async () => {
+    const { REVIEW_MODELS } = await import('../../src/review/client.js');
+
+    // Signals sharing a call is what cost 7 of 10 crisis detections (FR-008a). A single
+    // `judgment` key is how that shape comes back, so its absence is asserted rather than
+    // left to review.
+    expect(Object.keys(REVIEW_MODELS).sort()).toEqual([
+      'content',
+      'crisis',
+      'illegal',
+      'relevance',
+    ]);
   });
 
   it('pins no review model whose id marks it preview or Live', async () => {
