@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import { useSearchParams } from 'next/navigation';
 import { copy } from '@/copy';
 import { AppHeader } from '@/ui/AppHeader';
 import { type AnswerOutcome, AnswerOutcomeView } from '@/ui/AnswerOutcome';
@@ -16,11 +15,14 @@ import { Watermark } from '@/ui/Watermark';
  * and nothing to undo, so offering an action would only invite abandoning a submission that
  * has already been paid for.
  */
-export function RecordAnswer() {
-  const params = useSearchParams();
-  const questionId = params.get('questionId') ?? '';
-  const questionText = params.get('text') ?? '';
-
+export function RecordAnswer({
+  questionId,
+  questionText,
+}: {
+  questionId: string;
+  /** Read server-side from the id (FR-002). Null only when the question does not exist. */
+  questionText: string | null;
+}) {
   const recorder = useRecorder();
   const [checking, setChecking] = useState(false);
   const [submissionId] = useState(() => crypto.randomUUID());
@@ -85,7 +87,9 @@ export function RecordAnswer() {
     <Screen header={<AppHeader />}>
       <Watermark />
       {/* FR-002: the question stays visible for the whole recording. */}
-      <h1>{questionText || copy.recordPlaceholder.heading}</h1>
+      {/* FR-002: the question stays visible for the whole recording. No fallback heading —
+          a question that does not exist is a dead end, not a recording screen. */}
+      <h1>{questionText}</h1>
 
       {/* Three states, three next actions (FR-028, FR-029). Sharing one message here told
           someone our processing failed when their browser had refused the microphone. */}
