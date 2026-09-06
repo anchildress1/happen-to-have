@@ -320,3 +320,36 @@ describe('the ceiling is enforced where it cannot be skipped (FR-013)', () => {
     ).resolves.toMatchObject({ published: true });
   });
 });
+
+describe('the migration survives a table that already has rows', () => {
+  it('keeps a legacy answer and marks what is unknown about it', async () => {
+    // Copilot flagged the display_text migration for adding NOT NULL with no default; probing
+    // it found the duration migration had the same defect, unflagged. Both are two-step now.
+    //
+    // The asymmetry is deliberate. display_text takes a marker that says what happened;
+    // duration_seconds takes NULL, because 1 and 60 are both claims about how long somebody
+    // spoke and there is no honest smallint for "we never measured it".
+    const asker = await participant();
+    const q = await question(await participant());
+    await db.query(
+      `INSERT INTO answers (question_id, participant_id, display_text, submission_id)
+       VALUES ($1, $2, '(recorded before answer text was stored)', gen_random_uuid())`,
+      [q, asker],
+    );
+
+    const { rows } = await db.query<{ duration_seconds: number | null }>(
+      'SELECT duration_seconds FROM answers',
+    );
+    expect(rows[0].duration_seconds).toBeNull();
+  });
+
+  it('still refuses an out-of-range duration when one is supplied', async () => {
+    // Nullable must not become a hole: NULL means "predates the column", not "unbounded".
+    const asker = await participant();
+    const q = await question(await participant());
+
+    await expect(
+      publishAnswer({ ...answer(), durationSeconds: 90, questionId: q, participantId: asker }, db),
+    ).rejects.toThrow();
+  });
+});
