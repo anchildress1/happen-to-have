@@ -23,7 +23,17 @@ export type AnswerOutcome =
  * reaches this file. The crisis page is the one that must not be softened: FR-034 forbids
  * generated counseling or any claim that someone has been alerted.
  */
-export function AnswerOutcomeView({ outcome }: { outcome: AnswerOutcome }) {
+export function AnswerOutcomeView({
+  outcome,
+  questionId,
+}: {
+  outcome: AnswerOutcome;
+  questionId: string;
+}) {
+  // FR-027a: every Withheld, crisis included, offers a fresh recording FOR THE SAME QUESTION.
+  // Without the parameter the retry lands on an empty recorder, which is not the retry the
+  // requirement guarantees.
+  const retry = `/answer/record?questionId=${encodeURIComponent(questionId)}`;
   if (outcome.status === 'withheld' && outcome.reason === 'crisis') {
     return (
       <section>
@@ -40,7 +50,7 @@ export function AnswerOutcomeView({ outcome }: { outcome: AnswerOutcome }) {
         </ul>
         {/* Alongside the resources, never behind them: the classification can be wrong
             (FR-027c), and the participant must not dismiss one to reach the other. */}
-        <Link href="/answer/record">{copy.review.withheld.actionAnswer}</Link>
+        <Link href={retry}>{copy.review.withheld.actionAnswer}</Link>
         <Link href="/answer">{copy.review.crisis.ghostAnswer}</Link>
       </section>
     );
@@ -56,7 +66,7 @@ export function AnswerOutcomeView({ outcome }: { outcome: AnswerOutcome }) {
       <section>
         <h1>{heading}</h1>
         <p>{copy.review.withheld.sub}</p>
-        <Link href="/answer/record">{copy.review.withheld.actionAnswer}</Link>
+        <Link href={retry}>{copy.review.withheld.actionAnswer}</Link>
         <Link href="/answer">{copy.review.withheld.ghostAnswer}</Link>
       </section>
     );
@@ -83,7 +93,8 @@ export function AnswerOutcomeView({ outcome }: { outcome: AnswerOutcome }) {
         <p>
           {outcome.askGranted ? copy.review.published.granted : copy.review.published.alreadyHeld}
         </p>
-        <Link href="/answer">{copy.review.published.action}</Link>
+        <Link href="/ask">{copy.review.published.action}</Link>
+        <Link href="/answer">{copy.review.published.ghost}</Link>
       </section>
     );
   }
@@ -94,7 +105,7 @@ export function AnswerOutcomeView({ outcome }: { outcome: AnswerOutcome }) {
     <section>
       <h1>{copy.review.failed.headingAnswer}</h1>
       <p>{copy.review.failed.helper}</p>
-      <Link href="/answer/record">{copy.review.withheld.actionAnswer}</Link>
+      <Link href={retry}>{copy.review.withheld.actionAnswer}</Link>
     </section>
   );
 }

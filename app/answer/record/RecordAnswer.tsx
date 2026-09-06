@@ -6,7 +6,7 @@ import { copy } from '@/copy';
 import { AppHeader } from '@/ui/AppHeader';
 import { type AnswerOutcome, AnswerOutcomeView } from '@/ui/AnswerOutcome';
 import { Screen } from '@/ui/Screen';
-import { MAX_SECONDS, useRecorder } from '@/ui/useRecorder';
+import { canRecord, MAX_SECONDS, useRecorder } from '@/ui/useRecorder';
 import { Watermark } from '@/ui/Watermark';
 
 /**
@@ -18,11 +18,12 @@ import { Watermark } from '@/ui/Watermark';
  */
 export function RecordAnswer() {
   const params = useSearchParams();
-  const questionId = params.get('q') ?? '';
+  const questionId = params.get('questionId') ?? '';
   const questionText = params.get('text') ?? '';
 
   const recorder = useRecorder();
   const [checking, setChecking] = useState(false);
+  const [submissionId] = useState(() => crypto.randomUUID());
   const [outcome, setOutcome] = useState<AnswerOutcome | null>(null);
 
   async function submit(blob: Blob) {
@@ -30,6 +31,10 @@ export function RecordAnswer() {
     const body = new FormData();
     body.set('audio', blob);
     body.set('questionId', questionId);
+    // One id per recording, minted when the recording ends rather than per request, so a
+    // retried upload carries the same one and the server recognises it (FR-015, SC-007).
+    body.set('submissionId', submissionId);
+    body.set('durationSeconds', String(Math.max(1, recorder.seconds)));
 
     try {
       const response = await fetch('/api/answer', { method: 'POST', body });
@@ -47,7 +52,7 @@ export function RecordAnswer() {
     return (
       <Screen header={<AppHeader />}>
         <Watermark />
-        <AnswerOutcomeView outcome={outcome} />
+        <AnswerOutcomeView outcome={outcome} questionId={questionId} />
       </Screen>
     );
   }
@@ -64,36 +69,63 @@ export function RecordAnswer() {
     );
   }
 
+  if (!canRecord()) {
+    // FR-029: rendered instead of the control, never after pressing it. A button that cannot
+    // work is exactly what that requirement forbids.
+    return (
+      <Screen header={<AppHeader />}>
+        <Watermark />
+        <h1>{copy.review.recording.unsupported.heading}</h1>
+        <p>{copy.review.recording.unsupported.helper}</p>
+      </Screen>
+    );
+  }
+
   return (
     <Screen header={<AppHeader />}>
       <Watermark />
       {/* FR-002: the question stays visible for the whole recording. */}
       <h1>{questionText || copy.recordPlaceholder.heading}</h1>
 
-      {recorder.state === 'denied' && <p>{copy.review.failed.helper}</p>}
+      {/* Three states, three next actions (FR-028, FR-029). Sharing one message here told
+          someone our processing failed when their browser had refused the microphone. */}
+      {recorder.state === 'denied' && (
+        <>
+          <h2>{copy.review.recording.denied.heading}</h2>
+          <p>{copy.review.recording.denied.helper}</p>
+        </>
+      )}
+      {recorder.state === 'noDevice' && (
+        <>
+          <h2>{copy.review.recording.noDevice.heading}</h2>
+          <p>{copy.review.recording.noDevice.helper}</p>
+        </>
+      )}
 
       {recorder.state === 'recording' && (
         <p aria-live="polite">
-          {recorder.seconds}s / {MAX_SECONDS}s
+          {recorder.seconds}s of {MAX_SECONDS}s
         </p>
       )}
 
       {/* FR-007: the limit stopping a recording is not a failure, and must not read as one. */}
-      {recorder.reachedLimit && recorder.state === 'stopped' && <p>That&apos;s the minute.</p>}
+      {recorder.reachedLimit && recorder.state === 'stopped' && (
+        <p>{copy.review.recording.reachedLimit}</p>
+      )}
 
       {recorder.state === 'recording' ? (
         <button type="button" onClick={recorder.stop}>
-          Stop
+          {copy.review.recording.stop}
         </button>
       ) : (
         <button type="button" onClick={recorder.start} disabled={recorder.state === 'requesting'}>
-          {recorder.blob ? 'Record again' : 'Start recording'}
+          {recorder.blob ? copy.review.recording.again : copy.review.recording.start}
         </button>
       )}
 
       {recorder.blob && recorder.state === 'stopped' && (
         <button type="button" onClick={() => recorder.blob && submit(recorder.blob)}>
-          Share this answer
+          {copy.review.recording.submit}
         </button>
       )}
     </Screen>

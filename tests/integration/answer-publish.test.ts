@@ -1,5 +1,9 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
-import { PUBLISH_ANSWER_SQL, publishAnswer } from '../../src/db/queries/answers.js';
+import {
+  findBySubmission,
+  PUBLISH_ANSWER_SQL,
+  publishAnswer,
+} from '../../src/db/queries/answers.js';
 import { getQuestionText } from '../../src/db/queries/questions.js';
 import { createTestDb, type TestDb } from '../helpers/pglite.js';
 
@@ -43,7 +47,15 @@ async function question(owner: string | null): Promise<string> {
   return rows[0].id;
 }
 
-const answer = { displayText: 'One thing at a time.', sourceLanguage: 'en', emotion: null };
+// A fresh submission id per call: sharing one would silently turn every test in this file
+// into an idempotency test, which is the opposite of what most of them assert.
+const answer = () => ({
+  displayText: 'One thing at a time.',
+  sourceLanguage: 'en',
+  emotion: null,
+  durationSeconds: 9,
+  submissionId: crypto.randomUUID(),
+});
 
 const canAsk = async (id: string) => {
   const { rows } = await db.query<{ can_ask: boolean }>(
@@ -58,7 +70,7 @@ describe('publishing an answer grants an ask, atomically (FR-019)', () => {
     const asker = await participant();
     const q = await question(await participant());
 
-    const result = await publishAnswer({ ...answer, questionId: q, participantId: asker }, db);
+    const result = await publishAnswer({ ...answer(), questionId: q, participantId: asker }, db);
 
     expect(result).toMatchObject({ published: true, askGranted: true });
     expect(await canAsk(asker)).toBe(true);
@@ -69,7 +81,7 @@ describe('publishing an answer grants an ask, atomically (FR-019)', () => {
     const asker = await participant(true);
     const q = await question(await participant());
 
-    const result = await publishAnswer({ ...answer, questionId: q, participantId: asker }, db);
+    const result = await publishAnswer({ ...answer(), questionId: q, participantId: asker }, db);
 
     expect(result).toMatchObject({ published: true, askGranted: false });
     expect(await canAsk(asker)).toBe(true);
@@ -86,6 +98,8 @@ describe('publishing an answer grants an ask, atomically (FR-019)', () => {
         displayText: 'Feed it daily.',
         sourceLanguage: 'es',
         emotion: 'warm',
+        durationSeconds: 42,
+        submissionId: crypto.randomUUID(),
       },
       db,
     );
@@ -108,7 +122,7 @@ describe('eligibility is enforced in SQL, not by the interface (FR-016 – FR-01
     const author = await participant();
     const q = await question(author);
 
-    const result = await publishAnswer({ ...answer, questionId: q, participantId: author }, db);
+    const result = await publishAnswer({ ...answer(), questionId: q, participantId: author }, db);
 
     expect(result).toEqual({ published: false, reason: 'ineligible' });
     expect(await canAsk(author)).toBe(false);
@@ -121,16 +135,16 @@ describe('eligibility is enforced in SQL, not by the interface (FR-016 – FR-01
     const q = await question(null);
 
     await expect(
-      publishAnswer({ ...answer, questionId: q, participantId: asker }, db),
+      publishAnswer({ ...answer(), questionId: q, participantId: asker }, db),
     ).resolves.toMatchObject({ published: true });
   });
 
   it('refuses a second published answer to the same question', async () => {
     const asker = await participant();
     const q = await question(await participant());
-    await publishAnswer({ ...answer, questionId: q, participantId: asker }, db);
+    await publishAnswer({ ...answer(), questionId: q, participantId: asker }, db);
 
-    const second = await publishAnswer({ ...answer, questionId: q, participantId: asker }, db);
+    const second = await publishAnswer({ ...answer(), questionId: q, participantId: asker }, db);
 
     expect(second).toEqual({ published: false, reason: 'ineligible' });
   });
@@ -160,8 +174,8 @@ describe('eligibility is enforced in SQL, not by the interface (FR-016 – FR-01
     const q = await question(await participant());
 
     const results = await Promise.all([
-      publishAnswer({ ...answer, questionId: q, participantId: asker }, db),
-      publishAnswer({ ...answer, questionId: q, participantId: asker }, db),
+      publishAnswer({ ...answer(), questionId: q, participantId: asker }, db),
+      publishAnswer({ ...answer(), questionId: q, participantId: asker }, db),
     ]);
 
     expect(results.filter((r) => r.published)).toHaveLength(1);
@@ -176,7 +190,7 @@ describe('eligibility is enforced in SQL, not by the interface (FR-016 – FR-01
     const q = await question(await participant());
 
     await expect(
-      publishAnswer({ ...answer, questionId: q, participantId: asker }, db),
+      publishAnswer({ ...answer(), questionId: q, participantId: asker }, db),
     ).resolves.toMatchObject({ published: true });
   });
 
@@ -184,7 +198,7 @@ describe('eligibility is enforced in SQL, not by the interface (FR-016 – FR-01
     const asker = await participant();
 
     const result = await publishAnswer(
-      { ...answer, questionId: '11111111-1111-4111-8111-111111111111', participantId: asker },
+      { ...answer(), questionId: '11111111-1111-4111-8111-111111111111', participantId: asker },
       db,
     );
 
@@ -194,7 +208,7 @@ describe('eligibility is enforced in SQL, not by the interface (FR-016 – FR-01
   it('rejects a malformed id rather than letting Postgres do it', async () => {
     await expect(
       publishAnswer(
-        { ...answer, questionId: 'not-a-uuid', participantId: await participant() },
+        { ...answer(), questionId: 'not-a-uuid', participantId: await participant() },
         db,
       ),
     ).rejects.toThrow();
@@ -216,5 +230,93 @@ describe('the server reads the question itself (FR-018)', () => {
     // The route turns null into a failure page. Letting a malformed id through would surface
     // as a driver error, which is a 500 rather than something a participant can act on.
     await expect(getQuestionText('../../etc/passwd', db)).resolves.toBeNull();
+  });
+});
+
+describe('a retried upload is idempotent, not merely non-corrupting (FR-015, SC-007)', () => {
+  it('finds the answer a submission id already produced', async () => {
+    // The case the unique constraint misses entirely: the insert landed, the response was
+    // lost, the client sent the same recording again. Without this the retry is refused as
+    // "already answered" and the participant is told they answered a question whose outcome
+    // they never saw.
+    const asker = await participant();
+    const q = await question(await participant());
+    const submissionId = crypto.randomUUID();
+
+    const first = await publishAnswer(
+      { ...answer(), submissionId, questionId: q, participantId: asker },
+      db,
+    );
+
+    const found = await findBySubmission(submissionId, asker, db);
+    expect(found).toEqual({ answerId: first.published ? first.answerId : '' });
+  });
+
+  it("does not hand one participant another participant's submission", async () => {
+    // The id is unique across the table, so a client reusing someone else\'s would be
+    // claiming their submission. Scoped by participant so it cannot.
+    const asker = await participant();
+    const stranger = await participant();
+    const q = await question(await participant());
+    const submissionId = crypto.randomUUID();
+    await publishAnswer({ ...answer(), submissionId, questionId: q, participantId: asker }, db);
+
+    await expect(findBySubmission(submissionId, stranger, db)).resolves.toBeNull();
+  });
+
+  it('returns null for an unseen submission id', async () => {
+    await expect(
+      findBySubmission(crypto.randomUUID(), await participant(), db),
+    ).resolves.toBeNull();
+  });
+
+  it('returns null for a malformed submission id rather than reaching Postgres', async () => {
+    await expect(findBySubmission('not-a-uuid', await participant(), db)).resolves.toBeNull();
+  });
+
+  it('refuses a second row reusing a submission id', async () => {
+    // The unique constraint is what makes the lookup above trustworthy: without it two rows
+    // could share an id and the retry would resolve to whichever came back first.
+    const asker = await participant();
+    const other = await participant();
+    const q1 = await question(await participant());
+    const q2 = await question(await participant());
+    const submissionId = crypto.randomUUID();
+    await publishAnswer({ ...answer(), submissionId, questionId: q1, participantId: asker }, db);
+
+    await expect(
+      publishAnswer({ ...answer(), submissionId, questionId: q2, participantId: other }, db),
+    ).rejects.toThrow();
+  });
+});
+
+describe('the ceiling is enforced where it cannot be skipped (FR-013)', () => {
+  it('refuses a duration over sixty seconds at the database', async () => {
+    // The recorder stops at 60s, but that is a product behaviour and a crafted request never
+    // runs it. The CHECK is the bound that holds regardless.
+    const asker = await participant();
+    const q = await question(await participant());
+
+    await expect(
+      publishAnswer({ ...answer(), durationSeconds: 61, questionId: q, participantId: asker }, db),
+    ).rejects.toThrow();
+  });
+
+  it('refuses a zero-second duration', async () => {
+    const asker = await participant();
+    const q = await question(await participant());
+
+    await expect(
+      publishAnswer({ ...answer(), durationSeconds: 0, questionId: q, participantId: asker }, db),
+    ).rejects.toThrow();
+  });
+
+  it('accepts a five-second answer — there is no minimum (SC-008)', async () => {
+    const asker = await participant();
+    const q = await question(await participant());
+
+    await expect(
+      publishAnswer({ ...answer(), durationSeconds: 5, questionId: q, participantId: asker }, db),
+    ).resolves.toMatchObject({ published: true });
   });
 });

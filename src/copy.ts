@@ -165,10 +165,48 @@ export const copy = {
      * whole reciprocity claim untrustworthy.
      */
     published: {
-      heading: 'Shared. Thank you.',
-      granted: 'You can ask a question now.',
+      /**
+       * Fixed verbatim by 003 FR-020. Not to be reworded.
+       *
+       * This is the one screen that states the product's rule back to the participant, and
+       * the sentence the whole feature exists to earn. An earlier revision of this block
+       * invented "Shared. Thank you." — which is friendlier, says nothing about the rule,
+       * and is exactly the substitution FR-027 exists to prevent.
+       */
+      heading: 'Your answer counts. Ask one.',
+      /** Separate helpers because the outcomes are separate: FR-021 grants nothing to
+       * someone already holding an ask, and the granted line would claim otherwise. */
+      granted: "That's one question you can ask, whenever you're ready.",
       alreadyHeld: 'Your question is still waiting for you.',
-      action: 'Answer another',
+      action: 'Ask your question',
+      ghost: 'Answer another',
+    },
+
+    /**
+     * 003 FR-028, FR-029. Three states, not one: they have three causes and three different
+     * next actions. Reusing the processing-failure helper here told someone that something
+     * on our side didn't finish when their browser had refused the microphone — wrong fault,
+     * and an instruction they cannot act on.
+     */
+    recording: {
+      start: 'Start recording',
+      stop: 'Stop',
+      again: 'Record again',
+      submit: 'Share this answer',
+      /** FR-007: reaching the ceiling is not a failure, and must not read as one. */
+      reachedLimit: "That's the minute. Share it, or record again.",
+      denied: {
+        heading: 'We need your microphone to hear you.',
+        helper: 'Allow microphone access for this site in your browser settings, then try again.',
+      },
+      noDevice: {
+        heading: "We can't find a microphone.",
+        helper: 'Connect one, or try a different device.',
+      },
+      unsupported: {
+        heading: "This browser can't record audio.",
+        helper: 'Try Safari on iPhone, or Chrome on Android or desktop.',
+      },
     },
 
     /** FR-049. The heading names a time, which is why the outcome carries `retryAt`. */
