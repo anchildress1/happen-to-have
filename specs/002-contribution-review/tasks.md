@@ -63,10 +63,10 @@ endpoints that call this module ([research D10](research.md)).
 
 ### Bounded retry and deadline
 
-- [ ] T012 Create `src/review/retry.ts` exposing a `runCheck` wrapper: at most 3 invocations, 20-second per-invocation timeout, waits of 1s then 2s, honouring an `AbortSignal` (FR-039)
-- [ ] T013 Classify faults in `src/review/retry.ts` — network error, timeout, **no candidate**, undefined `response.text`, JSON parse failure, Zod failure — and return `outcome: 'fault'` for each, never `'refuse'` ([contracts/review.md](contracts/review.md))
-- [ ] T014 [P] Unit-test bounded retry in `tests/unit/review-retry.test.ts`: exactly 3 invocations before exhaustion, 1s/2s backoff, timeout at 20s, abort mid-flight stops further attempts
-- [ ] T015 [P] Unit-test in `tests/unit/review-retry.test.ts` that an empty-candidate response retries as a fault and never resolves to a rejection, on every call, not only content processing — the non-adjustable protections apply to all of them (FR-008b1)
+- [x] T012 Create `src/review/retry.ts` exposing a `runCheck` wrapper: at most 3 invocations, 20-second per-invocation timeout, waits of 1s then 2s, honouring an `AbortSignal` (FR-039)
+- [x] T013 Classify faults in `src/review/retry.ts` — network error, timeout, **no candidate**, undefined `response.text`, JSON parse failure, Zod failure — and return `outcome: 'fault'` for each, never `'refuse'` ([contracts/review.md](contracts/review.md))
+- [x] T014 [P] Unit-test bounded retry in `tests/unit/review-retry.test.ts`: exactly 3 invocations before exhaustion, 1s/2s backoff, timeout at 20s, abort mid-flight stops further attempts
+- [x] T015 [P] Unit-test in `tests/unit/review-retry.test.ts` that an empty-candidate response retries as a fault and never resolves to a rejection, on every call, not only content processing — the non-adjustable protections apply to all of them (FR-008b1)
 
 ### Rate limiting
 
