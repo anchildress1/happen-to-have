@@ -240,3 +240,90 @@ test.describe('User Story 4 — when recording will not work', () => {
     await expect(page.getByText(copy.review.rateLimited.helper)).toBeVisible();
   });
 });
+
+/**
+ * The four states T035–T037 claimed and never covered, plus the ceiling T023 claimed.
+ *
+ * These need a browser that refuses, so each overrides the fake-device options this file sets
+ * globally. `test.use` inside a describe applies to that block only.
+ */
+test.describe('User Story 4 — recording refused by the browser', () => {
+  test('says so plainly when the browser cannot record, instead of a dead control (FR-029)', async ({
+    page,
+  }) => {
+    // MediaRecorder removed before any page script runs — the genuine unsupported-browser
+    // shape, which canRecord() checks before rendering the control.
+    await page.addInitScript(() => {
+      Object.defineProperty(window, 'MediaRecorder', { value: undefined, configurable: true });
+    });
+
+    await reachRecorder(page);
+
+    await expect(
+      page.getByRole('heading', { name: copy.review.recording.unsupported.heading }),
+    ).toBeVisible();
+    await expect(page.getByText(copy.review.recording.unsupported.helper)).toBeVisible();
+    // FR-029 forbids presenting a control that cannot work — not merely erroring after it is
+    // pressed. Its absence is the requirement.
+    await expect(page.getByRole('button', { name: copy.review.recording.start })).toHaveCount(0);
+  });
+
+  test('submits nothing and publishes nothing when the participant leaves (FR-030)', async ({
+    page,
+  }) => {
+    let submissions = 0;
+    await page.route(ANSWER_URL, (route: Route) => {
+      submissions += 1;
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ status: 'published', askGranted: true }),
+      });
+    });
+
+    await reachRecorder(page);
+    await page.getByRole('button', { name: copy.review.recording.start }).click();
+    await expect(page.getByRole('button', { name: copy.review.recording.stop })).toBeVisible();
+
+    // Away mid-recording, exactly as someone closing the tab or hitting back would.
+    await page.goto('/answer');
+
+    expect(submissions).toBe(0);
+  });
+});
+
+test.describe('User Story 2 — the ceiling actually stops it', () => {
+  test('stops itself at sixty seconds with the audio intact (SC-002, FR-007)', async ({ page }) => {
+    test.setTimeout(120_000);
+
+    await reachRecorder(page);
+    await page.getByRole('button', { name: copy.review.recording.start }).click();
+    await expect(page.getByRole('button', { name: copy.review.recording.stop })).toBeVisible();
+
+    // Waits out the real minute rather than stubbing the clock. The ceiling runs on an
+    // interval owned by the recording state, and a faked timer would prove the interval, not
+    // the behaviour SC-002 states.
+    await expect(page.getByRole('button', { name: copy.review.recording.submit })).toBeVisible({
+      timeout: 90_000,
+    });
+
+    // FR-007: reaching the limit is not a failure and must not read as one.
+    await expect(page.getByText(copy.review.recording.reachedLimit)).toBeVisible();
+    await expect(page.getByText(copy.review.failed.helper)).toHaveCount(0);
+    // Nothing lost at the boundary — the captured audio is still submittable.
+    await expect(page.getByRole('button', { name: copy.review.recording.submit })).toBeEnabled();
+  });
+
+  test('the elapsed readout advances while recording (FR-005)', async ({ page }) => {
+    await reachRecorder(page);
+    await page.getByRole('button', { name: copy.review.recording.start }).click();
+
+    const readout = page.getByText(/\d+s of 60s/);
+    await expect(readout).toBeVisible();
+    const first = await readout.innerText();
+
+    // Asserts it MOVES. The previous version matched the pattern once, which a frozen "0s of
+    // 60s" satisfies just as well as a working timer.
+    await expect.poll(async () => readout.innerText(), { timeout: 15_000 }).not.toBe(first);
+  });
+});
