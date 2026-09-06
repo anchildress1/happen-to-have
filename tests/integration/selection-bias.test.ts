@@ -61,9 +61,9 @@ async function createQuestionAt(id: string, createdAt: string): Promise<string> 
 
 async function publishAnswers(questionId: string, forParticipantIds: string[]): Promise<void> {
   await db.query(
-    `INSERT INTO answers (question_id, participant_id)
-     SELECT $1, unnest($2::uuid[])`,
-    [questionId, forParticipantIds],
+    `INSERT INTO answers (question_id, participant_id, display_text)
+     SELECT $1, unnest($2::uuid[]), $3`,
+    [questionId, forParticipantIds, 'One thing at a time.'],
   );
 }
 
