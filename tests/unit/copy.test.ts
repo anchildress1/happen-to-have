@@ -126,33 +126,60 @@ describe('review copy — processing failure (FR-040)', () => {
 });
 
 describe('review copy — rate limit (FR-049)', () => {
-  it('interpolates the time into the heading rather than stating a bare refusal', () => {
-    const heading = copy.review.rateLimited.heading('4:30 PM');
-
-    expect(heading).toContain('4:30 PM');
+  it('renders the heading verbatim with the time interpolated', () => {
+    // Pinned whole, like every other string in this file. `toContain('4:30 PM')` stayed green
+    // while the surrounding sentence drifted or grew, which is the failure this suite exists
+    // to catch — FR-049 fixes the wording and leaves only <time> free.
+    expect(copy.review.rateLimited.heading('4:30 PM')).toBe(
+      "You've sent a lot today. You can record again at 4:30 PM.",
+    );
   });
 
-  it('says listening stays open, so the limit reads as covering submission only', () => {
-    expect(copy.review.rateLimited.helper).toContain('Listening is always open');
+  it('renders the helper verbatim, so nothing can be appended to it', () => {
+    // `toContain('Listening is always open')` would pass with policy-violating text bolted on
+    // either side of it.
+    expect(copy.review.rateLimited.helper).toBe(
+      "Everything you've already sent is still being checked or is published. Listening is always open.",
+    );
   });
 });
 
 describe('copy — Principle VII forbidden vocabulary', () => {
+  // Matched on word boundaries rather than as substrings, so a term can be listed without
+  // regard to what it sits inside: bare `bot` would otherwise fire on "both", and `safe` on
+  // "safely". A substring list quietly forces every entry to be long enough to be unique,
+  // which is how `assistant` and `therapy` were left out of the previous version.
   const FORBIDDEN = [
-    // Marketplace and expert-network framing.
+    // Marketplace and expert-network framing (constitution VII).
     'who answers',
     'ask someone else',
     'expert',
+    'experts',
     'marketplace',
-    // Safety as positioning rather than expected infrastructure.
+    // Positioning the product as something it is not (constitution VII names all four).
+    'therapy',
+    'therapist',
+    'counseling',
+    'counselling',
+    'feed',
+    // Safety as positioning rather than expected infrastructure. Bare `safe` is listed
+    // because the constitution forbids it in routine participant-facing copy, not only in
+    // the two phrasings that happened to be thought of first.
+    'safe',
     'safe space',
     'we keep you safe',
     // Origin-story context that is never product vocabulary.
     'appalachian',
     'busy bees',
-    // The product is not an agent, a bot, or an assistant.
-    'our ai',
+    // The product is not an agent, a bot, or an assistant. Every one of these is a word the
+    // previous list gestured at in a comment and then failed to check for.
+    'ai',
+    'agent',
+    'assistant',
+    'bot',
     'chatbot',
+    'our ai',
+    'ai-powered',
   ];
 
   it('reaches the output of template functions, not only literal strings', () => {
@@ -168,9 +195,12 @@ describe('copy — Principle VII forbidden vocabulary', () => {
     // section nobody thought to re-check.
     const offenders = allStrings(copy)
       .flatMap(({ path, text }) =>
-        FORBIDDEN.filter((term) => text.toLowerCase().includes(term)).map(
-          (term) => `${path}: "${term}"`,
-        ),
+        FORBIDDEN.filter((term) =>
+          new RegExp(
+            `(?<![\\p{L}\\p{N}])${term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?![\\p{L}\\p{N}])`,
+            'iu',
+          ).test(text),
+        ).map((term) => `${path}: "${term}"`),
       )
       .sort();
 
