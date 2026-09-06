@@ -57,7 +57,7 @@ confirm it publishes and the participant is told an ask is available.
 - [x] T011 [P] [US1] Integration-test both duplicate guards on the statement itself; removing either alone leaves every behavioural test green (#25)
 - [x] T012 [P] [US1] Integration-test idempotency: `findBySubmission` resolves a retried upload, refuses another participant's id, and a reused id cannot insert twice — SC-007 (#25)
 - [ ] T013 [P] [US1] Integration-test SC-004: ask eligibility is false while a submission is in flight and no grant exists before the decision — FR-022
-- [ ] T014 [P] [US1] E2E in `tests/e2e/answer.spec.ts`: record → checking → published, asserting `Your answer counts. Ask one.` verbatim — FR-020
+- [x] T014 [P] [US1] E2E in `tests/e2e/answer.spec.ts`: record → checking → published, asserting `Your answer counts. Ask one.` verbatim — FR-020
 
 ### Implementation for User Story 1
 
@@ -81,8 +81,8 @@ the recording stops at the ceiling with the audio intact.
 
 - [x] T021 [P] [US2] Unit-test format selection in `tests/unit/recorder.test.ts`: WebM preferred, MP4 fallback, null when nothing is supported, and that the types stay codec-qualified (#25)
 - [x] T022 [P] [US2] Integration-test the duration CHECK at both boundaries and that five seconds publishes — FR-013, SC-008
-- [ ] T023 [P] [US2] E2E: record past sixty seconds and assert the recorder stopped itself, the blob is non-empty, and the ceiling line renders — SC-002, FR-007
-- [ ] T024 [P] [US2] E2E: the elapsed/remaining readout updates and is announced — FR-005
+- [x] T023 [P] [US2] E2E: record past sixty seconds and assert the recorder stopped itself, the blob is non-empty, and the ceiling line renders — SC-002, FR-007
+- [x] T024 [P] [US2] E2E: the elapsed/remaining readout updates and is announced — FR-005
 
 ### Implementation for User Story 2
 
@@ -104,7 +104,7 @@ flow directly. Confirm it is refused, then confirm it opens once review passes.
 
 - [ ] T029 [P] [US3] Integration-test that no ask is granted at any point before `status === 'publish'` — FR-022, SC-004
 - [ ] T030 [P] [US3] Integration-test concurrent unlock: two passing answers to different questions submitted together leave exactly one unspent ask — SC-005, spec assumption
-- [ ] T031 [P] [US3] E2E: the checking state blocks, offers no action, and is announced via `aria-live` — FR-012, 002 FR-029
+- [x] T031 [P] [US3] E2E: the checking state blocks, offers no action, and is announced via `aria-live` — FR-012, 002 FR-029
 
 ### Implementation for User Story 3
 
@@ -123,9 +123,9 @@ confirm each produces a clear state with a way forward.
 
 ### Tests for User Story 4
 
-- [ ] T035 [P] [US4] E2E: deny permission and assert the denial copy, not the processing-failure helper — FR-028, and the exact confusion plan divergence D-5 records
-- [ ] T036 [P] [US4] E2E: stub `MediaRecorder` away and assert the unsupported message renders **instead of** the control — FR-029
-- [ ] T037 [P] [US4] E2E: navigate away mid-recording and assert nothing was submitted and `can_ask` is unchanged — FR-030, SC-010
+- [x] T035 [P] [US4] E2E: deny permission and assert the denial copy, not the processing-failure helper — FR-028, and the exact confusion plan divergence D-5 records
+- [x] T036 [P] [US4] E2E: stub `MediaRecorder` away and assert the unsupported message renders **instead of** the control — FR-029
+- [x] T037 [P] [US4] E2E: navigate away mid-recording and assert nothing was submitted and `can_ask` is unchanged — FR-030, SC-010
 
 ### Implementation for User Story 4
 
@@ -182,10 +182,11 @@ rule and everything else either protects it or spends it.
 
 ### What is actually left
 
-Of 48 tasks, **27 are complete**. The remainder is three groups:
+Of 48 tasks, **34 are complete**. The remainder is three groups:
 
-1. **E2E coverage** (T014, T023, T024, T031, T035–T037) — the states are implemented and
-   unproven in a browser.
+1. ~~**E2E coverage**~~ — done. `tests/e2e/answer.spec.ts`, 11 tests across 5 viewports.
+   Chromium's fake device is scoped to that spec rather than added to the shared config, so no
+   other suite silently acquires a microphone.
 2. **Measurements** (T028, T046, T047) — the byte bound has no measured basis, no real
    microphone has been used, and the latency figure is inherited from short clips.
 3. **004-blocked** (T020, T034) — the ask flow does not exist yet.
