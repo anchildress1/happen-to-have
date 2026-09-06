@@ -1,20 +1,15 @@
-import Link from 'next/link';
-import { copy } from '@/copy';
-import { AppHeader } from '@/ui/AppHeader';
-import { Screen } from '@/ui/Screen';
-import { Watermark } from '@/ui/Watermark';
+import { Suspense } from 'react';
+import { RecordAnswer } from './RecordAnswer';
 
 /**
- * Placeholder; 003 replaces this route. Touches no recording API — SC-005 asserts zero
- * getUserMedia calls anywhere in this feature, and this route is inside it until then.
+ * `useSearchParams` suspends, so it needs a boundary above it and that boundary has to be a
+ * server component. The fallback is empty on purpose: the question text arrives with the
+ * params, and a placeholder heading would flash something the participant is not answering.
  */
-export default function RecordPlaceholder() {
+export default function RecordAnswerPage() {
   return (
-    <Screen header={<AppHeader />}>
-      <Watermark />
-      <h1>{copy.recordPlaceholder.heading}</h1>
-      <p>{copy.recordPlaceholder.body}</p>
-      <Link href="/answer">{copy.action.tryAnother}</Link>
-    </Screen>
+    <Suspense fallback={null}>
+      <RecordAnswer />
+    </Suspense>
   );
 }
