@@ -27,8 +27,39 @@ test.use({
 });
 
 const ANSWER_URL = '**/api/answer';
-const QUESTION = 'How do you get through a hard week?';
-const RECORD_URL = `/answer/record?questionId=11111111-1111-4111-8111-111111111111&text=${encodeURIComponent(QUESTION)}`;
+
+/**
+ * Reaches the recorder the way a participant does, on real data.
+ *
+ * Selection is NOT mocked. `make e2e` migrates and seeds a disposable Neon branch, so
+ * `/answer` serves a real question and the recorder's server-side lookup finds it by id.
+ * Returns the question's text so the caller can assert against what the app actually chose
+ * rather than against a value the test decided on.
+ *
+ * The previous version navigated straight to a hand-built
+ * `/answer/record?questionId=…&text=…`. Nothing in the app produces that URL — `QuestionCard`
+ * links with `questionId` alone — so the suite asserted against an input it invented, and it
+ * hid a live bug: every real participant saw "Recording isn't built yet" while eleven green
+ * tests claimed FR-002 held.
+ *
+ * A test that builds its own entry point, or mocks the resource under test, is not end to
+ * end. `/api/answer` is still stubbed because the review costs money and is 002's to prove;
+ * the path from selection to recorder is the thing this file exists to exercise, so it runs.
+ */
+async function reachRecorder(page: Page): Promise<{ question: string; questionId: string }> {
+  await page.goto('/answer');
+
+  const question = await page.getByRole('heading', { level: 1 }).innerText();
+  await page.getByRole('link', { name: copy.action.canAnswer }).click();
+  await page.waitForURL(/\/answer\/record\?questionId=/);
+
+  // Read back from the URL the app navigated to, never asserted against a literal. A test
+  // that knows the id in advance knows it because it invented it.
+  const questionId = new URL(page.url()).searchParams.get('questionId') ?? '';
+  expect(questionId).not.toBe('');
+
+  return { question, questionId };
+}
 
 async function stubOutcome(page: Page, body: unknown): Promise<void> {
   await page.route(ANSWER_URL, (route: Route) =>
@@ -47,19 +78,22 @@ async function recordFor(page: Page, ms: number): Promise<void> {
 
 test.describe('User Story 1 — record an answer and earn an ask', () => {
   test('the question stays visible while recording (FR-002)', async ({ page }) => {
-    await page.goto(RECORD_URL);
+    // Asserted against the question the app selected, not one the test chose. That is the
+    // difference that matters here: the old version supplied its own text through the URL,
+    // so it could not observe that the real link carries no text at all.
+    const { question } = await reachRecorder(page);
 
-    await expect(page.getByRole('heading', { name: QUESTION })).toBeVisible();
+    await expect(page.getByRole('heading', { name: question })).toBeVisible();
     await page.getByRole('button', { name: copy.review.recording.start }).click();
 
     // Still visible mid-recording, not just before it. Someone answering a question they can
     // no longer see is the failure FR-002 exists to prevent.
-    await expect(page.getByRole('heading', { name: QUESTION })).toBeVisible();
+    await expect(page.getByRole('heading', { name: question })).toBeVisible();
   });
 
   test('a passing answer renders FR-020 verbatim and offers the ask', async ({ page }) => {
     await stubOutcome(page, { status: 'published', askGranted: true });
-    await page.goto(RECORD_URL);
+    await reachRecorder(page);
     await recordFor(page, 400);
 
     await page.getByRole('button', { name: copy.review.recording.submit }).click();
@@ -74,7 +108,7 @@ test.describe('User Story 1 — record an answer and earn an ask', () => {
     page,
   }) => {
     await stubOutcome(page, { status: 'published', askGranted: false });
-    await page.goto(RECORD_URL);
+    await reachRecorder(page);
     await recordFor(page, 400);
 
     await page.getByRole('button', { name: copy.review.recording.submit }).click();
@@ -86,7 +120,7 @@ test.describe('User Story 1 — record an answer and earn an ask', () => {
 
 test.describe('User Story 2 — the minute', () => {
   test('shows elapsed and remaining while recording (FR-005)', async ({ page }) => {
-    await page.goto(RECORD_URL);
+    await reachRecorder(page);
     await page.getByRole('button', { name: copy.review.recording.start }).click();
 
     // "of 60s" rather than a bare number: FR-005 wants both halves, and a count with no
@@ -95,7 +129,7 @@ test.describe('User Story 2 — the minute', () => {
   });
 
   test('a short answer is submittable — there is no minimum (FR-008, SC-008)', async ({ page }) => {
-    await page.goto(RECORD_URL);
+    await reachRecorder(page);
     await recordFor(page, 300);
 
     await expect(page.getByRole('button', { name: copy.review.recording.submit })).toBeEnabled();
@@ -116,7 +150,7 @@ test.describe('User Story 3 — waiting for the verdict', () => {
       });
     });
 
-    await page.goto(RECORD_URL);
+    await reachRecorder(page);
     await recordFor(page, 300);
     await page.getByRole('button', { name: copy.review.recording.submit }).click();
 
@@ -137,24 +171,23 @@ test.describe('User Story 4 — when recording will not work', () => {
     page,
   }) => {
     await stubOutcome(page, { status: 'withheld', reason: 'relevance' });
-    await page.goto(RECORD_URL);
+    const { questionId } = await reachRecorder(page);
     await recordFor(page, 300);
     await page.getByRole('button', { name: copy.review.recording.submit }).click();
 
     // The parameter is the whole requirement. Without it the retry lands on an empty recorder,
     // which is not a retry — it is a dead end wearing a button.
+    // The same question the app selected, not one the test named. FR-027a's whole content is
+    // that the retry returns you to *this* question.
     const retry = page.getByRole('link', { name: copy.review.withheld.actionAnswer });
-    await expect(retry).toHaveAttribute(
-      'href',
-      /\/answer\/record\?questionId=11111111-1111-4111-8111-111111111111/,
-    );
+    await expect(retry).toHaveAttribute('href', `/answer/record?questionId=${questionId}`);
   });
 
   test('the crisis page offers the same retry alongside its resources, not behind them', async ({
     page,
   }) => {
     await stubOutcome(page, { status: 'withheld', reason: 'crisis' });
-    await page.goto(RECORD_URL);
+    await reachRecorder(page);
     await recordFor(page, 300);
     await page.getByRole('button', { name: copy.review.recording.submit }).click();
 
@@ -169,7 +202,7 @@ test.describe('User Story 4 — when recording will not work', () => {
 
   test('a processing failure never blames the participant (FR-040)', async ({ page }) => {
     await stubOutcome(page, { status: 'failed', cause: 'exhausted' });
-    await page.goto(RECORD_URL);
+    await reachRecorder(page);
     await recordFor(page, 300);
     await page.getByRole('button', { name: copy.review.recording.submit }).click();
 
@@ -184,7 +217,7 @@ test.describe('User Story 4 — when recording will not work', () => {
     // something the participant did to their recording. Borrowing the Withheld copy would tell
     // them their answer was rejected on its merits.
     await stubOutcome(page, { status: 'ineligible' });
-    await page.goto(RECORD_URL);
+    await reachRecorder(page);
     await recordFor(page, 300);
     await page.getByRole('button', { name: copy.review.recording.submit }).click();
 
@@ -199,7 +232,7 @@ test.describe('User Story 4 — when recording will not work', () => {
       status: 'rate_limited',
       retryAt: new Date('2026-09-06T16:30:00Z').toISOString(),
     });
-    await page.goto(RECORD_URL);
+    await reachRecorder(page);
     await recordFor(page, 300);
     await page.getByRole('button', { name: copy.review.recording.submit }).click();
 
