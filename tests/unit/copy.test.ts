@@ -12,10 +12,21 @@ import { copy } from '../../src/copy.js';
  * framing somewhere nobody thought to look.
  */
 
-/** Walks the nested copy object and yields every string it contains. */
+/**
+ * Walks the nested copy object and yields every string it produces — including the ones a
+ * template function returns.
+ *
+ * Function-valued entries used to fall through to `[]`, so `review.rateLimited.heading` was
+ * never inspected and a forbidden term inside it would have passed the sweep below. Any
+ * copy entry that takes arguments is invoked with a representative value: an uninspected
+ * string is exactly the gap this sweep exists to close.
+ */
 function allStrings(value: unknown, path = 'copy'): Array<{ path: string; text: string }> {
   if (typeof value === 'string') {
     return [{ path, text: value }];
+  }
+  if (typeof value === 'function') {
+    return allStrings((value as (arg: string) => unknown)('4:30 PM'), `${path}()`);
   }
   if (Array.isArray(value)) {
     return value.flatMap((item, index) => allStrings(item, `${path}[${index}]`));
@@ -143,6 +154,14 @@ describe('copy — Principle VII forbidden vocabulary', () => {
     'our ai',
     'chatbot',
   ];
+
+  it('reaches the output of template functions, not only literal strings', () => {
+    // Guards the sweep itself. If allStrings stops invoking functions, this goes red rather
+    // than the forbidden-term test quietly covering less than it claims.
+    const swept = allStrings(copy).map(({ path }) => path);
+
+    expect(swept).toContain('copy.review.rateLimited.heading()');
+  });
 
   it('contains no forbidden term anywhere in the file, not merely in 002 strings', () => {
     // Swept over everything so a later feature cannot reintroduce a banned framing in a
