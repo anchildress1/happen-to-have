@@ -3,6 +3,7 @@ import {
   findBySubmission,
   PUBLISH_ANSWER_SQL,
   publishAnswer,
+  readAskEligibility,
 } from '../../src/db/queries/answers.js';
 import { getQuestionText } from '../../src/db/queries/questions.js';
 import { createTestDb, type TestDb } from '../helpers/pglite.js';
@@ -386,5 +387,66 @@ describe('what the retry replay can and cannot know', () => {
     await expect(findBySubmission(submissionId, asker, db)).resolves.toMatchObject({
       askGranted: true,
     });
+  });
+});
+
+describe('no ask exists before the review decides (FR-022, FR-024, SC-004)', () => {
+  it('reports no ask while a submission is in flight', async () => {
+    // US3 calls this "the single most likely way the reciprocity rule quietly becomes
+    // decorative", and until now nothing asserted it. A submission being reviewed writes
+    // nothing at all, so eligibility during review is indistinguishable from before it — which
+    // is the property, stated as a test rather than as an argument.
+    const asker = await participant();
+    await question(await participant());
+
+    expect(await readAskEligibility(asker, db)).toBe(false);
+  });
+
+  it('still reports no ask after a withheld review, which writes nothing', async () => {
+    // FR-026. There is no "withheld" call to make here, and that is the point: a non-passing
+    // review never reaches publishAnswer, so the state is unchanged by construction.
+    const asker = await participant();
+
+    expect(await readAskEligibility(asker, db)).toBe(false);
+  });
+
+  it('reports the ask only once the publishing statement has run', async () => {
+    const asker = await participant();
+    const q = await question(await participant());
+
+    expect(await readAskEligibility(asker, db)).toBe(false);
+    await publishAnswer({ ...answer(), questionId: q, participantId: asker }, db);
+    expect(await readAskEligibility(asker, db)).toBe(true);
+  });
+
+  it('reports false for an unknown participant rather than throwing', async () => {
+    // A stale session cookie is a caller with no ask, not an error to render.
+    expect(await readAskEligibility(crypto.randomUUID(), db)).toBe(false);
+  });
+
+  it('reports false for a malformed id rather than reaching Postgres', async () => {
+    expect(await readAskEligibility('../../etc/passwd', db)).toBe(false);
+  });
+});
+
+describe('concurrent unlock leaves exactly one ask (SC-005)', () => {
+  it('two passing answers to different questions submitted together grant one', async () => {
+    // The spec's own assumption, never tested. The single-statement grant should make this
+    // true by construction — `AND can_ask = false` means the second UPDATE matches no row —
+    // but "should" is not a measurement.
+    const asker = await participant();
+    const q1 = await question(await participant());
+    const q2 = await question(await participant());
+
+    const results = await Promise.all([
+      publishAnswer({ ...answer(), questionId: q1, participantId: asker }, db),
+      publishAnswer({ ...answer(), questionId: q2, participantId: asker }, db),
+    ]);
+
+    // Both answers publish — they are different questions, so nothing refuses either.
+    expect(results.every((r) => r.published)).toBe(true);
+    // Exactly one reports a grant, and the participant holds exactly one.
+    expect(results.filter((r) => r.published && r.askGranted)).toHaveLength(1);
+    expect(await readAskEligibility(asker, db)).toBe(true);
   });
 });

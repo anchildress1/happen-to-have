@@ -336,3 +336,48 @@ test.describe('User Story 2 — the ceiling actually stops it', () => {
     await expect.poll(async () => readout.innerText(), { timeout: 15_000 }).not.toBe(first);
   });
 });
+
+test.describe('the recorder is usable at both widths (FR-031)', () => {
+  test('the record control is reachable, ringed on focus, and big enough to hit', async ({
+    page,
+  }) => {
+    await reachRecorder(page);
+
+    const start = page.getByRole('button', { name: copy.review.recording.start });
+
+    // 44px is the minimum touch target 001's suite holds every control to; the recording
+    // button is the one a participant hits first and, on a phone, one-handed.
+    const box = await start.boundingBox();
+    expect(box?.height ?? 0).toBeGreaterThanOrEqual(44);
+
+    // Walked with real Tab presses, not `.focus()` — `.focus()` proves the element accepts
+    // focus, the tab order proves a keyboard user can actually get there. Bounded so a
+    // control that is unreachable fails rather than loops.
+    let reached = false;
+    for (let i = 0; i < 12 && !reached; i++) {
+      await page.keyboard.press('Tab');
+      reached = await start.evaluate((el) => el === document.activeElement);
+    }
+    expect(reached, 'the record control is not reachable by keyboard').toBe(true);
+
+    const ring = await start.evaluate((el) => {
+      const style = getComputedStyle(el);
+      return {
+        outline: style.outlineStyle !== 'none' && style.outlineWidth !== '0px',
+        shadow: style.boxShadow !== 'none',
+      };
+    });
+    expect(ring.outline || ring.shadow).toBe(true);
+  });
+
+  test('the page never scrolls sideways at either width (FR-031)', async ({ page }) => {
+    await reachRecorder(page);
+
+    // A horizontal scrollbar on a recording screen means a control is off-screen on a phone,
+    // which is the failure this requirement is about rather than an aesthetic one.
+    const overflows = await page.evaluate(
+      () => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,
+    );
+    expect(overflows).toBe(false);
+  });
+});

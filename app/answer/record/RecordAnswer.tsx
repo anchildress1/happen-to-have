@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { copy } from '@/copy';
 import { AppHeader } from '@/ui/AppHeader';
+import { Button } from '@/ui/Button';
 import { type AnswerOutcome, AnswerOutcomeView } from '@/ui/AnswerOutcome';
 import { Screen } from '@/ui/Screen';
 import { canRecord, MAX_SECONDS, useRecorder } from '@/ui/useRecorder';
@@ -109,9 +110,7 @@ export function RecordAnswer({
       )}
 
       {recorder.state === 'recording' && (
-        <p aria-live="polite">
-          {recorder.seconds}s of {MAX_SECONDS}s
-        </p>
+        <p aria-live="polite">{copy.review.recording.timer(recorder.seconds, MAX_SECONDS)}</p>
       )}
 
       {/* FR-007: the limit stopping a recording is not a failure, and must not read as one. */}
@@ -119,20 +118,22 @@ export function RecordAnswer({
         <p>{copy.review.recording.reachedLimit}</p>
       )}
 
+      {/* The house Button, not a raw one. Hand-rolled <button> elements rendered at 21px —
+          half the 44px touch target 001 holds every control to, on the screen a participant
+          hits first and, on a phone, one-handed. `all: unset` in the reset is why: an
+          unstyled button here has no padding at all. */}
       {recorder.state === 'recording' ? (
-        <button type="button" onClick={recorder.stop}>
-          {copy.review.recording.stop}
-        </button>
+        <Button onClick={recorder.stop}>{copy.review.recording.stop}</Button>
       ) : (
-        <button type="button" onClick={recorder.start} disabled={recorder.state === 'requesting'}>
+        <Button onClick={recorder.start} disabled={recorder.state === 'requesting'}>
           {recorder.blob ? copy.review.recording.again : copy.review.recording.start}
-        </button>
+        </Button>
       )}
 
       {recorder.blob && recorder.state === 'stopped' && (
-        <button type="button" onClick={() => recorder.blob && submit(recorder.blob)}>
+        <Button variant="ghost" onClick={() => recorder.blob && submit(recorder.blob)}>
           {copy.review.recording.submit}
-        </button>
+        </Button>
       )}
     </Screen>
   );

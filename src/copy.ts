@@ -193,6 +193,10 @@ export const copy = {
       stop: 'Stop',
       again: 'Record again',
       submit: 'Share this answer',
+      /** A function so the vocabulary sweep reaches it — allStrings() invokes function-valued
+       *  entries. It lived inline in JSX before, which meant contracts/copy.md fixed a string
+       *  that no test had ever read. */
+      timer: (elapsed: number, limit: number) => `${elapsed}s of ${limit}s`,
       /** FR-007: reaching the ceiling is not a failure, and must not read as one. */
       reachedLimit: "That's the minute. Share it, or record again.",
       denied: {
