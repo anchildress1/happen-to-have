@@ -45,7 +45,7 @@ at 2.4 s median on short clips and **not yet re-measured at the 60-second ceilin
 **Constraints**: 60 s hard ceiling enforced client-side and re-checked server-side; exactly one
 unspent ask; no row for anything that did not publish.
 
-**Scale/Scope**: weekend challenge scale. One route, one endpoint, one statement, four states.
+**Scale/Scope**: weekend challenge scale. One route, one endpoint, one statement, six terminal states (published, withheld, crisis, rate limited, failed, lost).
 
 ## Constitution Check
 
@@ -67,21 +67,30 @@ Checked against constitution **v5.0.0**. Re-checked after Phase 1 design; result
 | - | - | - |
 | No ask granted before a decision exists | **PASS** | The grant is inside the same statement as the insert, which runs only on `status === 'publish'`. |
 | Eligibility enforced in SQL, not by a read-then-write | **PASS** | Every rule is a race; see [research D2](research.md). |
-| Duration re-checked server-side | **GAP** | Built code trusts the recorder. See Divergences. |
-| Retry targets the same question | **GAP** | Built code links to `/answer/record` with no question. See Divergences. |
+| Duration re-checked server-side | **PASS** | Route rejects a declared duration outside 1–60; `answers.duration_seconds` carries the CHECK (D-3). |
+| Retry targets the same question | **PASS** | Every Withheld, crisis included, links `?questionId=<same>`; asserted in e2e against the id the app navigated with (D-2). |
 
-## Divergences — the built code against this spec
+## Divergences — found by this plan, now closed
 
-Found by reading the spec after building. Each is a task, not a note.
+The plan was written after most of the feature was built, so its first job was an audit. All
+six are fixed; the table is kept because the *reasons* are the useful part, and because a
+resolved-defect list is how the next reader learns what this feature got wrong.
 
-| # | Spec | Built | Why it matters |
+| # | Spec | Was | Closed by |
 | - | - | - | - |
-| D-1 | FR-020 fixes `Your answer counts. Ask one.` | `Shared. Thank you.` + two ask lines | Invented copy on the one screen that states the product's rule. FR-027 fixes participant-facing strings; inventing one is the failure that principle exists to prevent. |
-| D-2 | FR-027a: retry at `/answer/record?questionId=<same>` | Links to `/answer/record` with no parameter | Every Withheld outcome currently drops the participant onto a recorder with no question. The retry the spec guarantees does not work. |
-| D-3 | Answer carries a **duration**; FR-013 re-checks it server-side | No column, no check | The 60 s ceiling is enforced only by the recorder. A crafted request bypasses it entirely, and FR-013 says the server must not trust the client. |
-| D-4 | Answer carries a **submission id for idempotency** | Relies on the unique constraint alone | Works for a double-tap on the same question; does not make a retried upload idempotent, which is what SC-007 actually asks for. |
-| D-5 | FR-028 explains how to grant permission; FR-029 says so plainly when recording is unsupported | Reuses the processing-failure helper for denial; no unsupported-browser branch | Tells someone their recording failed on our side when their browser refused the microphone. Wrong fault, wrong instruction. |
-| D-6 | Query param named `questionId` | Route reads `q` | Cosmetic alone, but it is what makes D-2 unfixable without touching both ends. |
+| D-1 | FR-020 fixes `Your answer counts. Ask one.` | Invented copy — `Shared. Thank you.` | T018, T019 |
+| D-2 | FR-027a: retry at `/answer/record?questionId=<same>` | Links carried no question, so every Withheld retry landed on an empty recorder | T042 |
+| D-3 | Answer carries a duration; FR-013 re-checks it server-side | Ceiling enforced only by the recorder, which a crafted request skips | T002, T027 |
+| D-4 | SC-007 wants idempotency across retries | Unique constraint alone — handled the double-tap, missed the retried upload | T002, T012 |
+| D-5 | FR-028/FR-029 want three failure states | Denial reused the processing-failure helper | T038, T039, T040 |
+| D-6 | Query param named `questionId` | Route read `q`; 001's `QuestionCard` had always sent `questionId` | T043 |
+
+**A seventh, found later by review rather than by this audit.** The recorder read the question
+text from a `text` query parameter that nothing in the app supplies, so it rendered
+`Recording isn't built yet` to every real participant while eleven e2e tests reported FR-002
+green — because those tests built the URL themselves. The page reads `getQuestionText` on the
+server now, and the suite navigates from `/answer` through the real link. Recorded here
+because it is the same class as D-1..D-6 and the audit missed it.
 
 ## Project Structure
 

@@ -43,8 +43,10 @@ export function RecordAnswer({
       setOutcome((await response.json()) as AnswerOutcome);
     } catch {
       // A dropped connection is not proof that publication failed (FR-014), so this must not
-      // say the recording was rejected — only that we could not confirm.
-      setOutcome({ status: 'failed' });
+      // say the recording was rejected — only that we could not confirm. `failed` renders
+      // "Your recording was discarded", which is exactly the claim the requirement forbids;
+      // the comment said so while the code did it anyway.
+      setOutcome({ status: 'lost' });
     } finally {
       setChecking(false);
     }

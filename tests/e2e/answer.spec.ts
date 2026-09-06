@@ -225,6 +225,15 @@ test.describe('User Story 4 — when recording will not work', () => {
       page.getByRole('heading', { name: copy.review.failed.headingAnswer }),
     ).toBeVisible();
     await expect(page.getByText(copy.review.withheld.sub)).toHaveCount(0);
+
+    // Back to selection, not to the question that was just refused. Offering a retry there is
+    // offering a loop: the same rule refuses it every time.
+    await expect(
+      page.getByRole('link', { name: copy.review.withheld.ghostAnswer }),
+    ).toHaveAttribute('href', '/answer');
+    await expect(page.getByRole('link', { name: copy.review.withheld.actionAnswer })).toHaveCount(
+      0,
+    );
   });
 
   test('a rate-limited submission names the time it can be retried (FR-049)', async ({ page }) => {

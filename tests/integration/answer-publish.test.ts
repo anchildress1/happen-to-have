@@ -249,7 +249,13 @@ describe('a retried upload is idempotent, not merely non-corrupting (FR-015, SC-
     );
 
     const found = await findBySubmission(submissionId, asker, db);
-    expect(found).toEqual({ answerId: first.published ? first.answerId : '' });
+    // Replays the ORIGINAL outcome, ask included. Returning askGranted:false here told someone
+    // who had just earned an ask that they had not — the retry is supposed to show them what
+    // they missed, not a different answer.
+    expect(found).toEqual({
+      answerId: first.published ? first.answerId : '',
+      askGranted: true,
+    });
   });
 
   it("does not hand one participant another participant's submission", async () => {
@@ -351,5 +357,34 @@ describe('the migration survives a table that already has rows', () => {
     await expect(
       publishAnswer({ ...answer(), durationSeconds: 90, questionId: q, participantId: asker }, db),
     ).rejects.toThrow();
+  });
+});
+
+describe('what the retry replay can and cannot know', () => {
+  it('reports whether an ask is HELD, which is not the same as granted by this submission', async () => {
+    // Worth stating plainly rather than hiding behind a passing assertion. The row records no
+    // "did this submission grant the ask" flag, so the replay reads `participants.can_ask` —
+    // whether one is held now.
+    //
+    // That fixes the lie in the direction that mattered: someone who just earned an ask was
+    // being told they already had one. It is still imprecise the other way — a participant who
+    // already held an ask sees the granted line on a retry rather than alreadyHeld. Both
+    // sentences are true of them, so nobody is misled; making it exact needs an
+    // `ask_granted boolean` on the answer row and is not worth a migration for a line of copy.
+    const asker = await participant(true);
+    const q = await question(await participant());
+    const submissionId = crypto.randomUUID();
+
+    // publishAnswer itself is exact — it reports no NEW grant.
+    const published = await publishAnswer(
+      { ...answer(), submissionId, questionId: q, participantId: asker },
+      db,
+    );
+    expect(published).toMatchObject({ published: true, askGranted: false });
+
+    // The replay reports the holding, not the grant.
+    await expect(findBySubmission(submissionId, asker, db)).resolves.toMatchObject({
+      askGranted: true,
+    });
   });
 });

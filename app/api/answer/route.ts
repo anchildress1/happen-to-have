@@ -1,5 +1,6 @@
 import { findBySubmission, publishAnswer } from '@/db/queries/answers';
 import { getQuestionText } from '@/db/queries/questions';
+import { MAX_BYTES } from '@/review/audio';
 import { reviewContribution } from '@/review';
 import { readParticipantId } from '@/session/session';
 
@@ -12,8 +13,9 @@ import { readParticipantId } from '@/session/session';
  */
 export const dynamic = 'force-dynamic';
 
-/** 5 MB matches the review's own ceiling. Rejected here too, so a flood costs no parsing. */
-const MAX_BYTES = 5 * 1024 * 1024;
+// Imported, not restated. It was declared here as a second independent literal with a comment
+// claiming it "matches the review's own ceiling" — a claim nothing enforced, so changing one
+// would have desynced them silently.
 
 function json(payload: unknown, status: number): Response {
   return new Response(JSON.stringify(payload), {
@@ -60,7 +62,7 @@ export async function POST(request: Request): Promise<Response> {
   // would be asked to judge the same audio a second time.
   const already = await findBySubmission(submissionId, participantId);
   if (already) {
-    return json({ status: 'published', askGranted: false }, 200);
+    return json({ status: 'published', askGranted: already.askGranted }, 200);
   }
   if (audio.size > MAX_BYTES) {
     return json({ status: 'withheld', reason: 'content', contentReason: 'unpublishable' }, 200);

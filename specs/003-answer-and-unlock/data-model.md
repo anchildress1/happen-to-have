@@ -22,7 +22,7 @@ reader needs and what the rules require.
 | `display_text` | `text NOT NULL` 1–2000 | 003 | the reviewed text, from 002's content call |
 | `source_language` | `text NOT NULL` default `'en'` | 003 | as detected (002 FR-010) |
 | `emotion` | `text NULL` | 003 | **nullable, never defaulted** |
-| `duration_seconds` | `smallint NOT NULL` 1–60 | 003 | FR-013 |
+| `duration_seconds` | `smallint NULL`, 1–60 when present | 003 | FR-013 |
 | `submission_id` | `uuid NOT NULL UNIQUE` | 003 | FR-015, SC-007 |
 
 **`emotion` is nullable and has no default.** 002's FR-017 requires recording that *no*
@@ -35,7 +35,15 @@ places on purpose: 002's content schema caps at 2000, so an over-long transcript
 validation as a retryable fault rather than reaching here and dying on a constraint *after* the
 ask has been granted.
 
-**`duration_seconds` is `smallint` with a CHECK, not an `interval`.** The product allows one to
+**`duration_seconds` is nullable, and that is the honest shape.** Rows published before 003
+have no recorded duration, and there is no value to backfill them with that is not a
+fabrication — 1 and 60 are both claims about how long somebody spoke. `display_text` can take a
+marker string saying what happened; a smallint cannot. NULL means *predates the column*, never
+*unmeasured going forward*: the route rejects a missing or out-of-range duration before review,
+and a supplied value is still bounded, which a test asserts so nullable cannot quietly become
+unbounded.
+
+**It is a `smallint` with a CHECK, not an `interval`.** The product allows one to
 sixty; a type that can hold three hours would need the same CHECK anyway and would invite
 storing something the product cannot render.
 
@@ -50,7 +58,7 @@ is the whole mechanism.
 | `UNIQUE (participant_id, question_id)` | 001 | One published answer per participant per question. The backstop for the race `NOT EXISTS` cannot close alone. |
 | `UNIQUE (submission_id)` | 003 | Makes a retried upload idempotent rather than merely non-corrupting ([research D4](research.md)). |
 | `CHECK (char_length(display_text) BETWEEN 1 AND 2000)` | 003 | |
-| `CHECK (duration_seconds BETWEEN 1 AND 60)` | 003 | FR-013, enforced where it cannot be skipped |
+| `CHECK (duration_seconds IS NULL OR … BETWEEN 1 AND 60)` | 003 | FR-013, enforced where it cannot be skipped |
 
 ### What is not here
 
