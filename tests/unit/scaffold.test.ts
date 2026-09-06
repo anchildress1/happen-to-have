@@ -2,16 +2,15 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
 /**
- * Guards the two scaffold decisions that are silently reversible and would
- * only surface much later: the runtime/type-definition major must match, and
- * next.config must not disable the tsc CLI checker under TypeScript 7.
+ * Guards the scaffold decisions that are silently reversible and would only surface much
+ * later — chiefly that next.config must not disable the tsc CLI checker under TypeScript 7.
+ *
+ * It does NOT police dependency versions. Which Node runs is decided by `engines`, `.nvmrc`
+ * and the CI `node-version`; an assertion on a version string in package.json decides
+ * nothing and only fires when someone changes the number.
  */
 describe('scaffold invariants', () => {
   const pkg = JSON.parse(readFileSync('package.json', 'utf8'));
-
-  it('pins @types/node to the Node 24 major, not npm latest', () => {
-    expect(pkg.devDependencies['@types/node']).toMatch(/^\^?24\./);
-  });
 
   it('declares ESM and the Node 24 engine floor', () => {
     expect(pkg.type).toBe('module');
