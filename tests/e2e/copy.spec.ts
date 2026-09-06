@@ -126,11 +126,14 @@ test.describe('handoff-fixed strings render verbatim (T086b)', () => {
     await expect(page.getByRole('button', { name: copy.action.tryAnother })).toBeVisible();
   });
 
-  test('Recording placeholder (/answer/record) offers Try another question verbatim', async ({
+  test('/answer/record offers a recording control, not the retired placeholder', async ({
     page,
   }) => {
+    // 003 replaced the placeholder. The route now records, so the assertion that pinned
+    // "Try another question" was pinning a page that no longer exists — it went red the
+    // moment the real one landed, which is the correct behaviour for a placeholder test.
     await page.goto('/answer/record');
 
-    await expect(page.getByRole('link', { name: copy.action.tryAnother })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Start recording' })).toBeVisible();
   });
 });
