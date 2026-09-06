@@ -156,6 +156,21 @@ export const copy = {
       lostResponse: "We couldn't confirm what happened. Check Yours before recording again.",
     },
 
+    /**
+     * 003. The only outcome that is good news, and the one place the ask is named.
+     *
+     * `granted` and `alreadyHeld` are separate because answering while already holding an ask
+     * does not bank a second one — the ask is a permission, not a currency — and telling
+     * someone they earned one when nothing changed is the kind of small lie that makes the
+     * whole reciprocity claim untrustworthy.
+     */
+    published: {
+      heading: 'Shared. Thank you.',
+      granted: 'You can ask a question now.',
+      alreadyHeld: 'Your question is still waiting for you.',
+      action: 'Answer another',
+    },
+
     /** FR-049. The heading names a time, which is why the outcome carries `retryAt`. */
     rateLimited: {
       heading: (time: string) => `You've sent a lot today. You can record again at ${time}.`,
