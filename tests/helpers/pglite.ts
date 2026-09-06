@@ -48,7 +48,7 @@ export async function createTestDb(): Promise<TestDb> {
       return { rows: result.rows };
     },
     async truncate() {
-      await pg.exec('TRUNCATE answers, questions, participants CASCADE;');
+      await pg.exec('TRUNCATE answers, questions, submission_rate_limits, participants CASCADE;');
     },
     async close() {
       await pg.close();

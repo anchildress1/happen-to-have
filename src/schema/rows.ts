@@ -38,3 +38,19 @@ export const answerRowSchema = z.object({
 });
 
 export type AnswerRow = z.infer<typeof answerRowSchema>;
+
+/**
+ * The one row 002 writes (data-model.md). Parsed at the boundary like every other, so a
+ * driver returning an unexpected shape fails loudly instead of silently disabling the limit.
+ *
+ * There is deliberately no contribution, outcome or audio column: the row records THAT
+ * something was submitted, never WHAT. Adding one would make it attempt history, which
+ * FR-023 forbids.
+ */
+export const rateLimitRowSchema = z.object({
+  participant_id: z.uuid(),
+  window_started_at: z.coerce.date(),
+  submission_count: z.number().int().nonnegative(),
+});
+
+export type RateLimitRow = z.infer<typeof rateLimitRowSchema>;
