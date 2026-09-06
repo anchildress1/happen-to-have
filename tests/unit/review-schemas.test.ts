@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
   contentResultSchema,
-  judgmentResultSchemaFor,
+  crisisResultSchema,
   parseResult,
+  verdictResultSchema,
 } from '../../src/review/schemas.js';
 
 /**
@@ -22,17 +23,9 @@ const VALID_CONTENT = {
   contentReason: null,
 };
 
-const answerSchema = judgmentResultSchemaFor('answer');
-const questionSchema = judgmentResultSchemaFor('question');
+const VALID_CRISIS = { inTrouble: false, signal: 'none' };
 
-const VALID_JUDGMENT = {
-  crisisCanPublish: true,
-  illegalCanPublish: true,
-  relevanceCanPublish: true,
-  audioQuality: 'clear',
-  primaryReason: 'none',
-  reasonDetail: '',
-};
+const VALID_VERDICT = { canPublish: true, detail: '' };
 
 describe('contentResultSchema', () => {
   it('accepts a well-formed result with no emotion detected', () => {
@@ -104,13 +97,14 @@ describe('contentResultSchema', () => {
     expect(contentResultSchema.safeParse(silent).success).toBe(true);
   });
 
-  it('accepts a refusal with no stated reason — the gate falls back to audioQuality', () => {
-    // contracts/review.md rule 2c exists precisely for this shape. Rejecting it here would
-    // make that rule unreachable and turn a silent recording into three faults and a
-    // processing failure, which is the outcome FR-021 wants withheld.
+  it('rejects a refusal with no stated reason — there is nothing left to fall back to', () => {
+    // This used to parse, on the strength of a cross-call audioQuality fallback that no
+    // longer exists: no other call listens to the audio now. Accepting it would leave the
+    // gate picking a heading at random, and telling someone their recording was unshareable
+    // when it was merely silent is worse than retrying (FR-008h).
     const noReason = { ...VALID_CONTENT, canPublish: false, contentReason: null };
 
-    expect(contentResultSchema.safeParse(noReason).success).toBe(true);
+    expect(contentResultSchema.safeParse(noReason).success).toBe(false);
   });
 
   it('accepts a refusal with no source language, which silence has none of', () => {
@@ -138,186 +132,105 @@ describe('contentResultSchema', () => {
   });
 });
 
-describe('judgmentResultSchema', () => {
-  it('accepts three verdicts plus the named reason and audio quality', () => {
-    expect(answerSchema.safeParse(VALID_JUDGMENT).success).toBe(true);
+describe('crisisResultSchema', () => {
+  it('accepts a clean verdict', () => {
+    expect(crisisResultSchema.safeParse(VALID_CRISIS).success).toBe(true);
   });
 
-  it('accepts a null relevance verdict for a question, where it does not apply', () => {
-    const question = { ...VALID_JUDGMENT, relevanceCanPublish: null };
+  it('accepts a detection naming the category that fired', () => {
+    const detected = { inTrouble: true, signal: 'BURDEN' };
 
-    expect(questionSchema.safeParse(question).success).toBe(true);
+    expect(crisisResultSchema.safeParse(detected).success).toBe(true);
   });
 
-  it('rejects a null relevance verdict on an ANSWER — absence is not permission', () => {
-    // Null is correct for a question and ABSENT for an answer. One schema accepting both
-    // would let a dropped relevance verdict publish an off-topic answer, at the only layer
-    // positioned to catch it (FR-019).
-    const answer = { ...VALID_JUDGMENT, relevanceCanPublish: null };
+  it('rejects a missing inTrouble — absence is not permission', () => {
+    const { inTrouble: _dropped, ...withoutVerdict } = VALID_CRISIS;
 
-    expect(answerSchema.safeParse(answer).success).toBe(false);
+    expect(crisisResultSchema.safeParse(withoutVerdict).success).toBe(false);
   });
 
-  it('ignores a stray relevance verdict on a QUESTION rather than discarding the result', () => {
-    // The field is unused for questions, so refusing an over-eager judge that scored it
-    // anyway would throw away a crisis verdict to protect nothing.
-    const parsed = questionSchema.safeParse({ ...VALID_JUDGMENT, relevanceCanPublish: false });
+  it('rejects a non-boolean inTrouble rather than coercing it', () => {
+    // "maybe" is truthy. Coercing it would publish a hedge as a detection, or worse, read a
+    // hedged refusal as a permit.
+    expect(crisisResultSchema.safeParse({ ...VALID_CRISIS, inTrouble: 'maybe' }).success).toBe(
+      false,
+    );
+  });
+
+  it('keeps a detection whose signal is missing entirely', () => {
+    // `signal` is a log line. Discarding the one verdict that must never be missed because
+    // the model omitted an operator note would be a fault manufactured out of nothing.
+    const parsed = crisisResultSchema.safeParse({ inTrouble: true });
 
     expect(parsed.success).toBe(true);
-    expect(parsed.success && parsed.data.relevanceCanPublish).toBeNull();
+    expect(parsed.success && parsed.data.inTrouble).toBe(true);
+    expect(parsed.success && parsed.data.signal).toBe('');
   });
 
-  it('rejects a missing crisis verdict — absence is not permission', () => {
-    // A dropped field must not read as a pass. Publication requires every applicable signal
-    // to explicitly permit (FR-019), so an absent verdict has to fail the parse and retry.
-    const { crisisCanPublish: _crisis, ...withoutCrisis } = VALID_JUDGMENT;
-
-    expect(answerSchema.safeParse(withoutCrisis).success).toBe(false);
-  });
-
-  it('rejects a primaryReason the gate has no copy for', () => {
-    const unknownReason = { ...VALID_JUDGMENT, primaryReason: 'vibes' };
-
-    expect(answerSchema.safeParse(unknownReason).success).toBe(false);
-  });
-
-  it('rejects content as a primaryReason — this call never judges content', () => {
-    // Accepting it would hand the gate `reason: 'content'` with no contentReason, and
-    // WithheldPage branches on that field to pick among three headings.
-    const contentReason = { ...VALID_JUDGMENT, primaryReason: 'content' };
-
-    expect(answerSchema.safeParse(contentReason).success).toBe(false);
-  });
-
-  it('rejects a refusal that claims no reason', () => {
-    // Parses cleanly without the coherence check, and the gate takes withheld.reason
-    // straight from primaryReason — leaving it nowhere to go.
-    const incoherent = { ...VALID_JUDGMENT, crisisCanPublish: false, primaryReason: 'none' };
-
-    expect(answerSchema.safeParse(incoherent).success).toBe(false);
-  });
-
-  it('rejects a reason that names a signal which did not refuse', () => {
-    const mismatched = { ...VALID_JUDGMENT, illegalCanPublish: false, primaryReason: 'crisis' };
-
-    expect(answerSchema.safeParse(mismatched).success).toBe(false);
-  });
-
-  it('rejects an illegal refusal whose reason names crisis instead', () => {
-    // The coherence refine has four clauses and only the crisis one was exercised. Deleting
-    // the illegal or relevance clause left all 26 tests green — and a genuine unlawful
-    // contribution would then fail the parse, burn three retries, and reach the participant
-    // as "we couldn't check your answer" instead of FR-026's text.
-    const mismatched = {
-      ...VALID_JUDGMENT,
-      illegalCanPublish: false,
-      primaryReason: 'relevance',
-    };
-
-    expect(answerSchema.safeParse(mismatched).success).toBe(false);
-  });
-
-  it('accepts a coherent illegal refusal', () => {
-    const refusal = { ...VALID_JUDGMENT, illegalCanPublish: false, primaryReason: 'illegal' };
-
-    expect(answerSchema.safeParse(refusal).success).toBe(true);
-  });
-
-  it('accepts a coherent relevance refusal', () => {
-    const refusal = {
-      ...VALID_JUDGMENT,
-      relevanceCanPublish: false,
-      primaryReason: 'relevance',
-    };
-
-    expect(answerSchema.safeParse(refusal).success).toBe(true);
-  });
-
-  it('rejects a relevance reason when relevance actually permitted', () => {
-    const mismatched = { ...VALID_JUDGMENT, crisisCanPublish: false, primaryReason: 'relevance' };
-
-    expect(answerSchema.safeParse(mismatched).success).toBe(false);
-  });
-
-  it('requires the HIGHEST-precedence refusing signal when two refuse', () => {
-    // A recording that is both a crisis and unlawful is not hypothetical. The gate takes
-    // withheld.reason straight from this field, so accepting 'illegal' here would render the
-    // illegal variant and omit the crisis resources — on the one page where that matters
-    // most. FR-022 fixes the order as crisis, illegal, relevance.
-    const both = {
-      ...VALID_JUDGMENT,
-      crisisCanPublish: false,
-      illegalCanPublish: false,
-      primaryReason: 'illegal',
-    };
-
-    expect(answerSchema.safeParse(both).success).toBe(false);
-    expect(answerSchema.safeParse({ ...both, primaryReason: 'crisis' }).success).toBe(true);
-  });
-
-  it('prefers illegal over relevance when both refuse', () => {
-    const both = {
-      ...VALID_JUDGMENT,
-      illegalCanPublish: false,
-      relevanceCanPublish: false,
-      primaryReason: 'relevance',
-    };
-
-    expect(answerSchema.safeParse(both).success).toBe(false);
-    expect(answerSchema.safeParse({ ...both, primaryReason: 'illegal' }).success).toBe(true);
-  });
-
-  it('accepts a coherent refusal', () => {
-    const refusal = {
-      ...VALID_JUDGMENT,
-      crisisCanPublish: false,
-      primaryReason: 'crisis',
-      reasonDetail: 'speaker expresses suicidal ideation',
-    };
-
-    expect(answerSchema.safeParse(refusal).success).toBe(true);
-  });
-
-  it('falls back rather than discarding a verdict over an unrecognised audioQuality', () => {
-    // audioQuality selects a heading and gates nothing. Its two non-clear values have never
-    // been observed, so an unexpected one is the likely case — and rejecting it would throw
-    // away the crisis verdict travelling beside it.
-    const refusal = {
-      ...VALID_JUDGMENT,
-      crisisCanPublish: false,
-      primaryReason: 'crisis',
-      audioQuality: 'muffled',
-    };
-
-    const parsed = answerSchema.safeParse(refusal);
+  it('truncates an over-long signal instead of discarding the detection', () => {
+    const parsed = crisisResultSchema.safeParse({ inTrouble: true, signal: 'x'.repeat(5000) });
 
     expect(parsed.success).toBe(true);
-    expect(parsed.success && parsed.data.audioQuality).toBe('clear');
+    expect(parsed.success && parsed.data.signal.length).toBe(200);
+    expect(parsed.success && parsed.data.inTrouble).toBe(true);
   });
 
-  it('keeps a crisis verdict when reasonDetail is missing entirely', () => {
-    const { reasonDetail: _detail, ...withoutDetail } = VALID_JUDGMENT;
-    const refusal = { ...withoutDetail, crisisCanPublish: false, primaryReason: 'crisis' };
+  it('has no canPublish field — the polarity inverts in the gate, not the schema', () => {
+    // The prompt that scores 10/10 asks whether the person is in trouble. Renaming the field
+    // to canPublish here would silently invert every verdict unless the prompt were rewritten
+    // too, and rewriting the measured prompt is the thing this shape exists to prevent.
+    const parsed = crisisResultSchema.safeParse({ canPublish: true, signal: 'none' });
 
-    expect(answerSchema.safeParse(refusal).success).toBe(true);
+    expect(parsed.success).toBe(false);
+  });
+});
+
+describe('verdictResultSchema — illegal and relevance', () => {
+  it('accepts a permit', () => {
+    expect(verdictResultSchema.safeParse(VALID_VERDICT).success).toBe(true);
   });
 
-  it('truncates an over-long reasonDetail instead of discarding the verdict', () => {
-    // Rejecting here would throw away a real refusal over a field that renders nowhere and
-    // decides nothing: a crisis verdict with a chatty detail would arrive at the participant
-    // as a processing failure. Clipping still denies a model somewhere to hide the
-    // transcript it was told not to repeat.
-    const essay = {
-      ...VALID_JUDGMENT,
-      crisisCanPublish: false,
-      primaryReason: 'crisis',
-      reasonDetail: 'x'.repeat(900),
-    };
+  it('accepts a refusal carrying its operator clause', () => {
+    const refusal = { canPublish: false, detail: 'instructs evading a background check' };
 
-    const parsed = answerSchema.safeParse(essay);
+    expect(verdictResultSchema.safeParse(refusal).success).toBe(true);
+  });
+
+  it('rejects a missing canPublish — absence is not permission', () => {
+    expect(verdictResultSchema.safeParse({ detail: '' }).success).toBe(false);
+  });
+
+  it('rejects a non-boolean canPublish rather than coercing it', () => {
+    expect(verdictResultSchema.safeParse({ canPublish: 'yes', detail: '' }).success).toBe(false);
+  });
+
+  it('keeps a refusal whose detail is missing entirely', () => {
+    const parsed = verdictResultSchema.safeParse({ canPublish: false });
 
     expect(parsed.success).toBe(true);
-    expect(parsed.success && parsed.data.reasonDetail.length).toBe(500);
+    expect(parsed.success && parsed.data.canPublish).toBe(false);
+    expect(parsed.success && parsed.data.detail).toBe('');
+  });
+
+  it('truncates an over-long detail instead of discarding the refusal', () => {
+    const parsed = verdictResultSchema.safeParse({ canPublish: false, detail: 'x'.repeat(5000) });
+
+    expect(parsed.success).toBe(true);
+    expect(parsed.success && parsed.data.detail.length).toBe(500);
+    expect(parsed.success && parsed.data.canPublish).toBe(false);
+  });
+
+  it('carries no field naming the failing signal — the call that refused is the reason', () => {
+    // A merged judge needed primaryReason because three verdicts shared one response. With
+    // one signal per call there is nothing to name, and a schema that still accepted the
+    // field would let the merged shape back in unnoticed (FR-008a, FR-008e).
+    const parsed = verdictResultSchema.parse({
+      canPublish: false,
+      detail: '',
+      primaryReason: 'crisis',
+    });
+
+    expect(parsed).not.toHaveProperty('primaryReason');
   });
 });
 
@@ -338,14 +251,17 @@ describe('parseResult — malformed output is a fault, not a verdict', () => {
   it('returns null for JSON that parses but fails the schema', () => {
     // Schema-valid generation and semantically valid output are different things. This is
     // the case `responseSchema` alone would let through.
-    expect(parseResult(answerSchema, '{"crisisCanPublish":"maybe"}')).toBeNull();
+    expect(parseResult(crisisResultSchema, '{"inTrouble":"maybe"}')).toBeNull();
   });
 
   it('returns the parsed value for a well-formed body', () => {
-    const parsed = parseResult(answerSchema, JSON.stringify(VALID_JUDGMENT));
+    const parsed = parseResult(
+      crisisResultSchema,
+      JSON.stringify({ inTrouble: true, signal: 'BURDEN' }),
+    );
 
-    expect(parsed?.primaryReason).toBe('none');
-    expect(parsed?.audioQuality).toBe('clear');
+    expect(parsed?.inTrouble).toBe(true);
+    expect(parsed?.signal).toBe('BURDEN');
   });
 
   it('does not distinguish bad JSON from bad schema — both are the same fault', () => {

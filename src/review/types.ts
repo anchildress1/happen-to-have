@@ -11,11 +11,15 @@
  */
 
 /**
- * The fan-out is split here and nowhere else: content processing reproduces the recording as
- * text and is the call the provider's core-harm protections trip, while the judgment call
- * emits booleans and has not been observed blocking (FR-008a).
+ * One call per signal (FR-008a). Not a taxonomy — a measurement: the same crisis prompt on
+ * the same audio caught 3 of 10 unseen recordings sharing a call with two other judgments
+ * and 10 of 10 alone. A call holding several jobs stops doing the subtle one.
+ *
+ * `relevance` is dispatched for answers only. For a question it is absent from the fan-out
+ * entirely rather than present with a null verdict (FR-003), so there is no absent-versus-
+ * inapplicable ambiguity for the gate to resolve.
  */
-export type ReviewCall = 'content' | 'judgment';
+export type ReviewCall = 'content' | 'crisis' | 'illegal' | 'relevance';
 
 /**
  * Why a contribution was withheld. Exists only to select copy: the transcript of a withheld
@@ -27,14 +31,12 @@ export type WithheldReason = 'crisis' | 'illegal' | 'relevance' | 'content';
 /**
  * Which of the three content headings to render (contracts/copy.md).
  *
- * Returned by the content call when it refuses. When it refuses WITHOUT one — or never
- * returns at all — the gate falls back to the judgment call's `audioQuality`, which is what
- * FR-008h exists for.
+ * Returned by the content call whenever it refuses, and only it can supply one. A refusal
+ * arriving without it is a validation fault that retries (FR-008h) — no other call reports on
+ * the audio, and guessing the heading tells a participant the wrong thing about their own
+ * recording.
  */
 export type ContentReason = 'silence' | 'unintelligible' | 'unpublishable';
-
-/** The judgment call's read on the recording itself, not on what was said. */
-export type AudioQuality = 'clear' | 'unintelligible' | 'silent';
 
 /** Produced by content processing (FR-009 – FR-013, FR-017). */
 export interface ContentPayload {
@@ -52,26 +54,32 @@ export interface ContentPayload {
 }
 
 /**
- * Produced by the judgment call (FR-008a1). Three verdicts plus the two fields that exist
- * because a reconstruction is not the same as a statement.
+ * Produced by the crisis call (FR-008d), which does nothing else.
+ *
+ * Positive polarity, and only here. Every other call answers *may this be published*; this
+ * one answers *is this person in trouble*, because that is the wording that was measured at
+ * 10/10 — flipping it inside the prompt scored worse. The gate consumes
+ * `crisisCanPublish = !inTrouble`, so the inversion is one line of code rather than an edit
+ * to a prompt whose exact wording is the load-bearing part.
  */
-export interface JudgmentPayload {
-  /** `false` means crisis detected (FR-008d). */
-  crisisCanPublish: boolean;
-  /** `false` means unsafe or unlawful to publish (FR-008c). */
-  illegalCanPublish: boolean;
-  /** `null` for a question — relevance does not apply (FR-003). */
-  relevanceCanPublish: boolean | null;
-  audioQuality: AudioQuality;
-  /**
-   * The failing signal, named by the judge rather than inferred from a boolean (FR-008e).
-   *
-   * `content` is excluded: this call never judges content, and a withheld reason of
-   * `content` without a `contentReason` gives WithheldPage nothing to render.
-   */
-  primaryReason: 'none' | Exclude<WithheldReason, 'content'>;
+export interface CrisisPayload {
+  /** `true` means crisis detected. */
+  inTrouble: boolean;
+  /** Which named signal category fired, or `"none"`. For operators — MUST NOT be rendered. */
+  signal: string;
+}
+
+/**
+ * Produced by the illegal-or-dangerous call (FR-008c) and the relevance call (FR-008g).
+ *
+ * One shape, two calls, different questions. For illegal, `false` means unsafe or unlawful to
+ * publish; for relevance, `false` means the answer is about something else. There is no field
+ * naming the failing signal: the call that refused is the reason (FR-008e).
+ */
+export interface VerdictPayload {
+  canPublish: boolean;
   /** One clause, for operators. MUST NOT be rendered — FR-027 fixes every visible string. */
-  reasonDetail: string;
+  detail: string;
 }
 
 /**
@@ -82,7 +90,7 @@ export interface JudgmentPayload {
 type Settled<C extends ReviewCall, P> =
   | {
       call: C;
-      /** A validated result. `refuse` keeps its payload: rule 2a reads the reason off it. */
+      /** A validated result. `refuse` keeps its payload for the log line it carries. */
       outcome: 'permit' | 'refuse';
       payload: P;
       attempts: number;
@@ -100,7 +108,11 @@ type Settled<C extends ReviewCall, P> =
  * `attempts` is 0–3, not 1–3: a call aborted or past the deadline before its first
  * invocation returns zero (FR-039).
  */
-export type CheckResult = Settled<'content', ContentPayload> | Settled<'judgment', JudgmentPayload>;
+export type CheckResult =
+  | Settled<'content', ContentPayload>
+  | Settled<'crisis', CrisisPayload>
+  | Settled<'illegal', VerdictPayload>
+  | Settled<'relevance', VerdictPayload>;
 
 /** What `reviewContribution` was asked to judge. */
 export interface ReviewInput {
@@ -136,9 +148,10 @@ export type ReviewOutcome =
       emotion: string | null;
     }
   // Split rather than one variant with a nullable field. `copy.review.withheld.content` is
-  // keyed by exactly the three ContentReason values, so a null there indexes nothing — and
-  // the gate's rule 2c already resolves it from audioQuality BEFORE returning. By the time a
-  // ReviewOutcome exists the null is always illegal, so the type says so.
+  // keyed by exactly the three ContentReason values, so a null there indexes nothing — and a
+  // content refusal that carried no reason never became an outcome at all, because validation
+  // rejected it as a fault first. By the time a ReviewOutcome exists the null is
+  // unrepresentable, so the type says so.
   | { status: 'withheld'; reason: Exclude<WithheldReason, 'content'> }
   | { status: 'withheld'; reason: 'content'; contentReason: ContentReason }
   | {
