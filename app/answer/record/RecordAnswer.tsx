@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { copy } from '@/copy';
 import { AppHeader } from '@/ui/AppHeader';
 import { Button } from '@/ui/Button';
@@ -26,16 +27,40 @@ export function RecordAnswer({
 }) {
   const recorder = useRecorder();
   const [checking, setChecking] = useState(false);
-  const [submissionId] = useState(() => crypto.randomUUID());
   const [outcome, setOutcome] = useState<AnswerOutcome | null>(null);
+
+  /**
+   * Capability is UNKNOWN until the browser tells us (FR-029).
+   *
+   * `canRecord()` reads `navigator`, which does not exist during the server render, so calling
+   * it at render time made the server emit the unsupported page and the client emit the
+   * controls — a deterministic hydration mismatch that flashes "This browser can't record
+   * audio" at every supported browser on the way in.
+   */
+  const [supported, setSupported] = useState<boolean | null>(null);
+  useEffect(() => setSupported(canRecord()), []);
+
+  /**
+   * One id per recording ATTEMPT, rotated when a new recording starts (FR-015, SC-007).
+   *
+   * It was minted once per page load. A participant who re-recorded after a Withheld — which
+   * FR-027a exists to invite — reused the id, so the server replayed the first submission
+   * instead of reviewing the new one. The retry was silently a no-op.
+   */
+  const [submissionId, setSubmissionId] = useState(() => crypto.randomUUID());
+
+  async function startRecording() {
+    setSubmissionId(crypto.randomUUID());
+    await recorder.start();
+  }
 
   async function submit(blob: Blob) {
     setChecking(true);
     const body = new FormData();
     body.set('audio', blob);
     body.set('questionId', questionId);
-    // One id per recording, minted when the recording ends rather than per request, so a
-    // retried upload carries the same one and the server recognises it (FR-015, SC-007).
+    // Stable across retries of THIS recording, fresh for the next one, so a dropped response
+    // replays rather than re-reviews and a re-record is genuinely a new submission.
     body.set('submissionId', submissionId);
     body.set('durationSeconds', String(Math.max(1, recorder.seconds)));
 
@@ -50,6 +75,10 @@ export function RecordAnswer({
       setOutcome({ status: 'lost' });
     } finally {
       setChecking(false);
+      // Principle IV: the browser releases its recording when the submission ends. Without
+      // this the blob stayed in state while the outcome page was open — which is indefinitely,
+      // if someone leaves the tab.
+      recorder.discard();
     }
   }
 
@@ -57,7 +86,14 @@ export function RecordAnswer({
     return (
       <Screen header={<AppHeader />}>
         <Watermark />
-        <AnswerOutcomeView outcome={outcome} questionId={questionId} />
+        <AnswerOutcomeView
+          outcome={outcome}
+          questionId={questionId}
+          onRetry={() => {
+            setOutcome(null);
+            recorder.discard();
+          }}
+        />
       </Screen>
     );
   }
@@ -74,9 +110,37 @@ export function RecordAnswer({
     );
   }
 
-  if (!canRecord()) {
-    // FR-029: rendered instead of the control, never after pressing it. A button that cannot
-    // work is exactly what that requirement forbids.
+  if (questionText === null) {
+    // No question, no recording. The heading was empty and the controls fully functional, so
+    // someone could record a full minute against nothing and get `failed` on submit, with a
+    // retry pointing back at the same missing question — a record-and-fail loop.
+    return (
+      <Screen header={<AppHeader />}>
+        <Watermark />
+        <h1>{copy.empty.heading}</h1>
+        <p>{copy.empty.body}</p>
+        <Link href="/answer">{copy.review.withheld.ghostAnswer}</Link>
+      </Screen>
+    );
+  }
+
+  // Unknown on the server and on the first client render; nothing is drawn until the browser
+  // has answered, which is what keeps the markup identical on both sides.
+  if (supported === null) {
+    return (
+      <Screen header={<AppHeader />}>
+        <Watermark />
+        {/* FR-002: the question is real content and renders on both sides, so the heading is
+            identical server and client. Only the controls wait for the capability answer. */}
+        <h1>{questionText}</h1>
+      </Screen>
+    );
+  }
+
+  if (!supported || recorder.state === 'unsupported') {
+    // FR-029: rendered instead of the control, never after pressing it. `recorder.state` is
+    // checked too — MediaRecorder can exist and still throw on construction, and that state
+    // was produced and never consumed, leaving a dead Start button and no explanation.
     return (
       <Screen header={<AppHeader />}>
         <Watermark />
@@ -125,7 +189,7 @@ export function RecordAnswer({
       {recorder.state === 'recording' ? (
         <Button onClick={recorder.stop}>{copy.review.recording.stop}</Button>
       ) : (
-        <Button onClick={recorder.start} disabled={recorder.state === 'requesting'}>
+        <Button onClick={startRecording} disabled={recorder.state === 'requesting'}>
           {recorder.blob ? copy.review.recording.again : copy.review.recording.start}
         </Button>
       )}

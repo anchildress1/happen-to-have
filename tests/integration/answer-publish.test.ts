@@ -471,3 +471,32 @@ describe('concurrent unlock leaves exactly one ask (SC-005)', () => {
     expect(await readAskEligibility(asker, db)).toBe(true);
   });
 });
+
+describe('a concurrent duplicate is told what actually happened (FR-015, SC-007)', () => {
+  it('replays the winner rather than reporting ineligible to the loser', async () => {
+    // Two requests carrying one submissionId can both clear the pre-insert lookup before
+    // either commits. One publishes; the other's ON CONFLICT returns no row. Calling that
+    // ineligible tells the loser their answer was refused when it was published and the ask
+    // granted — the worst possible reading of a race they cannot see.
+    const asker = await participant();
+    const q = await question(await participant());
+    const submissionId = crypto.randomUUID();
+
+    const [a, b] = await Promise.all([
+      publishAnswer({ ...answer(), submissionId, questionId: q, participantId: asker }, db),
+      publishAnswer({ ...answer(), submissionId, questionId: q, participantId: asker }, db),
+    ]);
+
+    // Exactly one row, as before.
+    const { rows } = await db.query('SELECT id FROM answers');
+    expect(rows).toHaveLength(1);
+
+    // And the loser can find the winner's outcome by its own submission id, which is what the
+    // route now does before it says ineligible.
+    const loser = [a, b].find((r) => !r.published);
+    expect(loser).toBeDefined();
+    await expect(findBySubmission(submissionId, asker, db)).resolves.toMatchObject({
+      askGranted: true,
+    });
+  });
+});

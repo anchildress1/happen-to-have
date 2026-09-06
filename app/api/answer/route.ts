@@ -29,7 +29,9 @@ export async function POST(request: Request): Promise<Response> {
   // unauthenticated flood create rows, and 001 owns participant creation.
   const participantId = await readParticipantId(request);
   if (!participantId) {
-    return json({ status: 'failed', cause: 'exhausted' }, 401);
+    // `no-session`, not `exhausted` — nothing was exhausted, and `cause` is the field that
+    // exists to distinguish these.
+    return json({ status: 'failed', cause: 'no-session' }, 401);
   }
 
   let form: FormData;
@@ -71,7 +73,7 @@ export async function POST(request: Request): Promise<Response> {
   const questionText = await getQuestionText(questionId);
   if (questionText === null) {
     // FR-018: the server does not trust that the interface offered a real question.
-    return json({ status: 'failed', cause: 'exhausted' }, 200);
+    return json({ status: 'failed', cause: 'unknown-question' }, 200);
   }
 
   try {
@@ -103,9 +105,19 @@ export async function POST(request: Request): Promise<Response> {
     });
 
     if (!published.published) {
-      // Review passed but a rule refused — answering your own question, or a second answer
-      // that arrived while this one was in review. Not a content problem, and not the
-      // participant being told their recording was bad.
+      // Before calling it ineligible, check whether THIS submission won under another
+      // request. Two requests carrying one submissionId can both clear the lookup above
+      // before either insert commits; one publishes and the other's ON CONFLICT returns no
+      // row. Reporting ineligible there tells the loser their answer was refused when it was
+      // published and the ask granted.
+      const raced = await findBySubmission(submissionId, participantId);
+      if (raced) {
+        return json({ status: 'published', askGranted: raced.askGranted }, 200);
+      }
+
+      // Genuinely refused by a rule — answering your own question, or a second answer to one
+      // already answered. Not a content problem, and not the participant being told their
+      // recording was bad.
       return json({ status: 'ineligible' }, 200);
     }
 

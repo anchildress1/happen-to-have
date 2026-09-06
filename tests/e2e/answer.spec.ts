@@ -61,6 +61,19 @@ async function reachRecorder(page: Page): Promise<{ question: string; questionId
   return { question, questionId };
 }
 
+/** Records briefly and submits. */
+async function recordAndSubmit(page: Page): Promise<void> {
+  await page.getByRole('button', { name: copy.review.recording.start }).click();
+  await expect(page.getByRole('button', { name: copy.review.recording.stop })).toBeVisible();
+  await page.waitForTimeout(300);
+  await page.getByRole('button', { name: copy.review.recording.stop }).click();
+  // The submit control appears only once `onstop` has assembled the blob, which is async.
+  // Clicking without waiting raced it and timed out.
+  const submit = page.getByRole('button', { name: copy.review.recording.submit });
+  await expect(submit).toBeVisible();
+  await submit.click();
+}
+
 async function stubOutcome(page: Page, body: unknown): Promise<void> {
   await page.route(ANSWER_URL, (route: Route) =>
     route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(body) }),
@@ -379,5 +392,48 @@ test.describe('the recorder is usable at both widths (FR-031)', () => {
       () => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,
     );
     expect(overflows).toBe(false);
+  });
+});
+
+test.describe('the recorder does not offer what it cannot do', () => {
+  test('an unknown question is a dead end, not a recording screen', async ({ page }) => {
+    // The heading was empty and the controls fully functional, so someone could record a full
+    // minute against nothing and get `failed` on submit — with a retry pointing back at the
+    // same missing question. A record-and-fail loop.
+    await page.goto('/answer/record?questionId=11111111-1111-4111-8111-111111111111');
+
+    await expect(page.getByRole('button', { name: copy.review.recording.start })).toHaveCount(0);
+    await expect(
+      page.getByRole('link', { name: copy.review.withheld.ghostAnswer }),
+    ).toHaveAttribute('href', '/answer');
+  });
+
+  test('a fresh recording gets a fresh submission id (FR-015, SC-007)', async ({ page }) => {
+    // The id was minted once per page load, so re-recording after a Withheld — which FR-027a
+    // exists to invite — reused it and the server replayed the first submission instead of
+    // reviewing the new one. The retry was silently a no-op.
+    const seen: string[] = [];
+    await page.route(ANSWER_URL, async (route: Route) => {
+      const body = route.request().postData() ?? '';
+      const match = /name="submissionId"\r?\n\r?\n([0-9a-f-]{36})/.exec(body);
+      if (match) seen.push(match[1]);
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ status: 'withheld', reason: 'relevance' }),
+      });
+    });
+
+    await reachRecorder(page);
+    await recordAndSubmit(page);
+    await expect(page.getByRole('link', { name: copy.review.withheld.actionAnswer })).toBeVisible();
+
+    // Take the retry the product offers, record again, submit again.
+    await page.getByRole('link', { name: copy.review.withheld.actionAnswer }).click();
+    await page.waitForURL(/\/answer\/record\?questionId=/);
+    await recordAndSubmit(page);
+
+    expect(seen).toHaveLength(2);
+    expect(seen[0]).not.toBe(seen[1]);
   });
 });

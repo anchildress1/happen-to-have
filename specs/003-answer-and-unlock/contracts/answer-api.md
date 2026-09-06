@@ -68,9 +68,14 @@ heuristic in the stack.
 | `{ status: 'published', askGranted }` | 200 | review passed and the row landed |
 | `{ status: 'withheld', reason, contentReason? }` | 200 | any refusal from 002 |
 | `{ status: 'rate_limited', retryAt }` | 200 | FR-048 |
-| `{ status: 'failed', cause }` | 200 | retries exhausted, deadline, or an unknown question |
+| `{ status: 'failed', cause }` | 200 | `exhausted`, `deadline`, or `unknown-question` |
+
+`cause` names the actual cause. It reported `exhausted` for a missing session and for an
+unknown question, neither of which exhausted anything — the one field that distinguishes
+causes was lying for two of them. Every body is JSON, including the 401: the client calls
+`response.json()` unconditionally, so a bodiless response there would throw on parse.
 | `{ status: 'ineligible' }` | 200 | review passed, a rule refused |
-| — | 401 | no session |
+| `{ status: 'failed', cause: 'no-session' }` | 401 | no session |
 | — | 499 | the caller aborted; nothing written, nobody left to render for |
 
 **`askGranted` is false on a passing answer from someone already holding an ask.** FR-021. The

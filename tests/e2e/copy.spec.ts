@@ -126,14 +126,17 @@ test.describe('handoff-fixed strings render verbatim (T086b)', () => {
     await expect(page.getByRole('button', { name: copy.action.tryAnother })).toBeVisible();
   });
 
-  test('/answer/record offers a recording control, not the retired placeholder', async ({
-    page,
-  }) => {
-    // 003 replaced the placeholder. The route now records, so the assertion that pinned
-    // "Try another question" was pinning a page that no longer exists — it went red the
-    // moment the real one landed, which is the correct behaviour for a placeholder test.
+  test('/answer/record with no question is a dead end, not a recorder', async ({ page }) => {
+    // Twice-corrected. It first pinned 003's placeholder copy; then a recording control,
+    // reached by navigating straight to a bare URL. Both were wrong for the same reason —
+    // this route has no meaning without a question, and the app never links here without one.
+    // What a bare URL should do is refuse, which is what it now asserts.
+    //
+    // The recording control itself is covered in answer.spec.ts, reached the way a
+    // participant reaches it: from /answer, through the real link.
     await page.goto('/answer/record');
 
-    await expect(page.getByRole('button', { name: 'Start recording' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Start recording' })).toHaveCount(0);
+    await expect(page.getByRole('heading', { name: copy.empty.heading })).toBeVisible();
   });
 });

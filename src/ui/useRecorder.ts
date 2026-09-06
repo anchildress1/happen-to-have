@@ -62,6 +62,13 @@ export interface Recorder {
   blob: Blob | null;
   start: () => Promise<void>;
   stop: () => void;
+  /**
+   * Drops the captured audio (Principle IV: the browser releases its recording once the
+   * submission ends). Separate from `release()`, which frees the microphone — the mic was
+   * always released on stop, while the blob stayed in state for as long as the outcome page
+   * was open, which is indefinitely if the tab is left there.
+   */
+  discard: () => void;
 }
 
 export function useRecorder(): Recorder {
@@ -160,5 +167,10 @@ export function useRecorder(): Recorder {
     return () => clearInterval(tick);
   }, [state, stop]);
 
-  return { state, seconds, reachedLimit, blob, start, stop };
+  const discard = useCallback(() => {
+    chunks.current = [];
+    setBlob(null);
+  }, []);
+
+  return { state, seconds, reachedLimit, blob, start, stop, discard };
 }

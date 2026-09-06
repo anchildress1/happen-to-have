@@ -28,9 +28,20 @@ export type AnswerOutcome =
 export function AnswerOutcomeView({
   outcome,
   questionId,
+  onRetry,
 }: {
   outcome: AnswerOutcome;
   questionId: string;
+  /**
+   * Clears the outcome so the recorder comes back.
+   *
+   * The retry link points at the same URL the participant is already on — FR-027a's whole
+   * content is "the same question" — and a Next `<Link>` to the current route does not
+   * remount, so the outcome state survived and the Withheld page just sat there. The href
+   * stays for middle-click and for anyone landing on it cold; this is what makes the click
+   * work.
+   */
+  onRetry: () => void;
 }) {
   // FR-027a: every Withheld, crisis included, offers a fresh recording FOR THE SAME QUESTION.
   // Without the parameter the retry lands on an empty recorder, which is not the retry the
@@ -52,7 +63,9 @@ export function AnswerOutcomeView({
         </ul>
         {/* Alongside the resources, never behind them: the classification can be wrong
             (FR-027c), and the participant must not dismiss one to reach the other. */}
-        <Link href={retry}>{copy.review.withheld.actionAnswer}</Link>
+        <Link href={retry} onClick={onRetry}>
+          {copy.review.withheld.actionAnswer}
+        </Link>
         <Link href="/answer">{copy.review.crisis.ghostAnswer}</Link>
       </section>
     );
@@ -68,7 +81,9 @@ export function AnswerOutcomeView({
       <section>
         <h1>{heading}</h1>
         <p>{copy.review.withheld.sub}</p>
-        <Link href={retry}>{copy.review.withheld.actionAnswer}</Link>
+        <Link href={retry} onClick={onRetry}>
+          {copy.review.withheld.actionAnswer}
+        </Link>
         <Link href="/answer">{copy.review.withheld.ghostAnswer}</Link>
       </section>
     );
@@ -123,7 +138,9 @@ export function AnswerOutcomeView({
       ) : outcome.status === 'ineligible' ? (
         <Link href="/answer">{copy.review.withheld.ghostAnswer}</Link>
       ) : (
-        <Link href={retry}>{copy.review.withheld.actionAnswer}</Link>
+        <Link href={retry} onClick={onRetry}>
+          {copy.review.withheld.actionAnswer}
+        </Link>
       )}
     </section>
   );
