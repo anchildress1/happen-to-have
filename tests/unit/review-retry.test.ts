@@ -9,7 +9,7 @@ import {
   type RunCheckDeps,
   runCheck,
 } from '../../src/review/retry.js';
-import { judgmentResultSchemaFor } from '../../src/review/schemas.js';
+import { verdictResultSchema } from '../../src/review/schemas.js';
 
 /**
  * FR-038 and FR-039. The retry budget, and the classification that decides
@@ -23,16 +23,7 @@ import { judgmentResultSchemaFor } from '../../src/review/schemas.js';
  * Sleep and the clock are injected, so proving a three-second backoff takes no seconds.
  */
 
-const answerSchema = judgmentResultSchemaFor('answer');
-
-const VALID_JUDGMENT = {
-  crisisCanPublish: true,
-  illegalCanPublish: true,
-  relevanceCanPublish: true,
-  audioQuality: 'clear',
-  primaryReason: 'none',
-  reasonDetail: '',
-};
+const VALID_VERDICT = { canPublish: true, detail: '' };
 
 /**
  * The fresh-builder. `PARAMS` below is a shared instance most tests can read safely; any
@@ -49,7 +40,7 @@ const PARAMS = makeParams();
 function response(overrides: Partial<Record<string, unknown>> = {}): GenerateContentResponse {
   return {
     candidates: [{ finishReason: 'STOP', index: 0 }],
-    text: JSON.stringify(VALID_JUDGMENT),
+    text: JSON.stringify(VALID_VERDICT),
     ...overrides,
   } as unknown as GenerateContentResponse;
 }
@@ -100,7 +91,7 @@ function run(client: GenAiClient, deps: RunCheckDeps = {}) {
     {
       client,
       params: PARAMS,
-      schema: answerSchema,
+      schema: verdictResultSchema,
       signal: new AbortController().signal,
       deadline: DEADLINE,
     },
@@ -223,9 +214,9 @@ describe('runCheck — fault classification (FR-038)', () => {
     // Schema-valid generation and semantically valid output are different things. Absence
     // of a verdict is not permission (FR-019).
     const { client } = scriptedClient([
-      response({ text: '{"crisisCanPublish":true}' }),
-      response({ text: '{"crisisCanPublish":true}' }),
-      response({ text: '{"crisisCanPublish":true}' }),
+      response({ text: '{"canPublish":"yes"}' }),
+      response({ text: '{"canPublish":"yes"}' }),
+      response({ text: '{"canPublish":"yes"}' }),
     ]);
 
     const outcome = await run(client, { sleep: async () => {} });
@@ -239,7 +230,7 @@ describe('runCheck — fault classification (FR-038)', () => {
     const outcome = await run(client, { sleep: async () => {} });
 
     expect(outcome.ok).toBe(true);
-    expect(outcome.ok === true && outcome.value.primaryReason).toBe('none');
+    expect(outcome.ok === true && outcome.value.canPublish).toBe(true);
   });
 });
 
@@ -253,7 +244,7 @@ describe('runCheck — abort and deadline are terminal', () => {
       {
         client,
         params: PARAMS,
-        schema: answerSchema,
+        schema: verdictResultSchema,
         signal: controller.signal,
         deadline: DEADLINE,
       },
@@ -274,7 +265,7 @@ describe('runCheck — abort and deadline are terminal', () => {
       {
         client,
         params: PARAMS,
-        schema: answerSchema,
+        schema: verdictResultSchema,
         signal: new AbortController().signal,
         deadline: 1_000,
       },
@@ -294,7 +285,7 @@ describe('runCheck — abort and deadline are terminal', () => {
       {
         client,
         params: PARAMS,
-        schema: answerSchema,
+        schema: verdictResultSchema,
         signal: controller.signal,
         deadline: DEADLINE,
       },
@@ -314,27 +305,27 @@ describe('runCheck — abort and deadline are terminal', () => {
   });
 });
 
-describe('runCheck — two calls in parallel do not interfere', () => {
+describe('runCheck — parallel calls do not interfere', () => {
   it('keeps each caller its own value when both resolve concurrently', async () => {
-    // The review runs content processing and the judgment call at the same time. Any state
-    // shared between invocations would let one overwrite the other's result — a race that
-    // only appears under the exact concurrency production always uses.
+    // The review runs four calls at once — content, crisis, illegal and relevance. Any
+    // state shared between invocations would let one overwrite another's result, a race
+    // that only appears under the exact concurrency production always uses.
     const slow: GenAiClient = {
       async generateContent() {
         await new Promise((resolve) => setTimeout(resolve, 5));
-        return response({ text: JSON.stringify({ ...VALID_JUDGMENT, reasonDetail: 'slow' }) });
+        return response({ text: JSON.stringify({ ...VALID_VERDICT, detail: 'slow' }) });
       },
     };
     const fast: GenAiClient = {
       async generateContent() {
-        return response({ text: JSON.stringify({ ...VALID_JUDGMENT, reasonDetail: 'fast' }) });
+        return response({ text: JSON.stringify({ ...VALID_VERDICT, detail: 'fast' }) });
       },
     };
 
     const [a, b] = await Promise.all([run(slow), run(fast)]);
 
-    expect(a.ok === true && a.value.reasonDetail).toBe('slow');
-    expect(b.ok === true && b.value.reasonDetail).toBe('fast');
+    expect(a.ok === true && a.value.detail).toBe('slow');
+    expect(b.ok === true && b.value.detail).toBe('fast');
   });
 });
 
@@ -363,7 +354,7 @@ describe('runCheck — the attempt timeout (FR-039)', () => {
       {
         client,
         params: PARAMS,
-        schema: answerSchema,
+        schema: verdictResultSchema,
         signal: new AbortController().signal,
         deadline: 5_000,
       },
@@ -385,7 +376,7 @@ describe('runCheck — the attempt timeout (FR-039)', () => {
       {
         client,
         params: makeParams(),
-        schema: answerSchema,
+        schema: verdictResultSchema,
         signal: controller.signal,
         deadline: DEADLINE,
       },
@@ -410,7 +401,7 @@ describe('runCheck — the attempt timeout (FR-039)', () => {
       {
         client,
         params: makeParams(),
-        schema: answerSchema,
+        schema: verdictResultSchema,
         signal: new AbortController().signal,
         deadline: 90_000,
       },
@@ -436,7 +427,7 @@ describe('runCheck — the attempt timeout (FR-039)', () => {
       {
         client,
         params: mine,
-        schema: answerSchema,
+        schema: verdictResultSchema,
         signal: new AbortController().signal,
         deadline: DEADLINE,
       },
@@ -493,7 +484,7 @@ describe('runCheck — the real sleep (no injected clock)', () => {
       {
         client,
         params: PARAMS,
-        schema: answerSchema,
+        schema: verdictResultSchema,
         signal: new AbortController().signal,
         deadline: DEADLINE,
       },
@@ -527,7 +518,7 @@ describe('runCheck — a sleep failure is not a participant abort', () => {
       {
         client,
         params: makeParams(),
-        schema: answerSchema,
+        schema: verdictResultSchema,
         signal: new AbortController().signal,
         deadline: 300,
       },
