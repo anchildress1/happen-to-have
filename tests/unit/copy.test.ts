@@ -144,6 +144,28 @@ describe('review copy — rate limit (FR-049)', () => {
   });
 });
 
+describe('003 copy is pinned where the spec fixes it verbatim', () => {
+  it('renders FR-020 exactly, because FR-020 says it must not be reworded', () => {
+    // The most-protected string in the feature had the weakest guard: asserted only in e2e,
+    // while 002's FR-025 and FR-026 strings are pinned character-for-character here. An
+    // earlier revision replaced it with "Shared. Thank you." and nothing in this file noticed.
+    expect(copy.review.published.heading).toBe('Your answer counts. Ask one.');
+  });
+
+  it('renders the ceiling line as something that is not a failure (FR-007)', () => {
+    expect(copy.review.recording.reachedLimit).toBe(
+      "That's the minute. Share it, or record again.",
+    );
+  });
+
+  it('gives permission denial its own words, not the processing-failure helper', () => {
+    // The defect this pins: denial rendered `failed.helper`, telling someone something on our
+    // side did not finish when their browser had refused.
+    expect(copy.review.recording.denied.helper).not.toBe(copy.review.failed.helper);
+    expect(copy.review.recording.denied.helper).toContain('browser settings');
+  });
+});
+
 describe('copy — Principle VII forbidden vocabulary', () => {
   // Matched on word boundaries rather than as substrings, so a term can be listed without
   // regard to what it sits inside: bare `bot` would otherwise fire on "both", and `safe` on

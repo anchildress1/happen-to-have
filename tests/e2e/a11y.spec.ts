@@ -17,9 +17,12 @@ import { expect, type Page, test } from '@playwright/test';
 const ROUTES = ['/', '/answer', '/answer/record', '/yours'] as const;
 
 /**
- * FR-021 / SC-005: this flow must never touch the microphone API, on any route. Stubbed
- * before any page script runs so a call is caught instead of silently succeeding because
- * no camera exists in this headless environment.
+ * 001's FR-021 / SC-005: selection must never touch the microphone API. Stubbed before any
+ * page script runs so a call is caught instead of silently succeeding because no microphone
+ * exists in this headless environment.
+ *
+ * `/answer/record` is excluded now — see the test below. 003 makes that route record, so the
+ * rule it once enforced there is the opposite of the requirement.
  */
 async function stubGetUserMedia(page: Page): Promise<void> {
   await page.addInitScript(() => {
@@ -170,10 +173,19 @@ test.describe('accessibility (T083–T084b, SC-005)', () => {
     expect(animatedElements).toEqual([]);
   });
 
-  test('navigator.mediaDevices.getUserMedia is never called on any route (SC-005)', async ({
+  test('getUserMedia is never called on the routes that do not record (SC-005)', async ({
     page,
   }) => {
-    for (const route of ROUTES) {
+    // Scoped to 001's routes. It used to sweep /answer/record too, which was correct while
+    // that route was a placeholder and is now backwards: 003 exists to make it record.
+    //
+    // It passed anyway, because it only hovers. That is worth naming rather than quietly
+    // fixing — the assertion survived the requirement reversing under it, and would have gone
+    // on passing indefinitely while claiming the opposite of the product's rule. A future
+    // change from hover to click would have failed it for the right reason by accident.
+    const SELECTION_ROUTES = ROUTES.filter((route) => route !== '/answer/record');
+
+    for (const route of SELECTION_ROUTES) {
       await page.goto(route);
       // Exercise every interactive element once — the cheapest way to prove a click
       // anywhere on these screens never reaches for the microphone.
@@ -185,12 +197,16 @@ test.describe('accessibility (T083–T084b, SC-005)', () => {
           await el.hover();
         }
       }
-    }
 
-    const calls = await page.evaluate(
-      () => (window as unknown as { __getUserMediaCalls: number }).__getUserMediaCalls,
-    );
-    expect(calls).toBe(0);
+      // Asserted per route, inside the loop. `addInitScript` re-runs on every navigation, so
+      // the counter is reset to 0 by each `goto` — reading it once after the loop only ever
+      // checked the last route, and a call on any earlier one was silently discarded. Proven
+      // directly: call getUserMedia on `/`, navigate to `/yours`, read 0.
+      const calls = await page.evaluate(
+        () => (window as unknown as { __getUserMediaCalls: number }).__getUserMediaCalls,
+      );
+      expect(calls, `getUserMedia was called on ${route}`).toBe(0);
+    }
   });
 
   test('T083b: hit targets meet design.md minimums (measured, not declared)', async ({ page }) => {

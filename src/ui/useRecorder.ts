@@ -1,0 +1,164 @@
+'use client';
+
+import { useCallback, useEffect, useRef, useState } from 'react';
+
+/** FR-006. Hard stop; the recorder enforces it so the server never has to trust a duration. */
+export const MAX_SECONDS = 60;
+
+/**
+ * The formats the two target browsers actually produce, in preference order. Chosen with
+ * `isTypeSupported` rather than assumed: mobile Safari has no WebM and Chrome has no MP4, so
+ * a hard-coded type silently records nothing on one of them.
+ *
+ * The codec-qualified strings are deliberate — that is what MediaRecorder reports back, and
+ * the server matches its allowlist on the base type so they are accepted.
+ */
+const PREFERRED_TYPES = [
+  'audio/webm;codecs=opus',
+  'audio/webm',
+  'audio/mp4;codecs=mp4a.40.2',
+  'audio/mp4',
+];
+
+export function pickMimeType(
+  isSupported: (type: string) => boolean = (type) =>
+    typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported(type),
+): string | null {
+  return PREFERRED_TYPES.find(isSupported) ?? null;
+}
+
+/**
+ * `denied`, `noDevice` and `unsupported` are distinct states because FR-028 and FR-029 want
+ * three different messages. Collapsing them is what produced copy telling someone our
+ * processing failed when their browser refused the microphone.
+ */
+export type RecorderState =
+  | 'idle'
+  | 'requesting'
+  | 'recording'
+  | 'stopped'
+  | 'denied'
+  | 'noDevice'
+  | 'unsupported';
+
+/**
+ * Checked before the control renders, not after it is pressed (FR-029): presenting a button
+ * that cannot work is the thing that requirement forbids.
+ */
+export function canRecord(): boolean {
+  return (
+    typeof navigator !== 'undefined' &&
+    typeof navigator.mediaDevices?.getUserMedia === 'function' &&
+    typeof MediaRecorder !== 'undefined'
+  );
+}
+
+export interface Recorder {
+  state: RecorderState;
+  /** Whole seconds elapsed, for the FR-005 readout. */
+  seconds: number;
+  /** True when recording stopped because the limit was reached, not because of a fault (FR-007). */
+  reachedLimit: boolean;
+  blob: Blob | null;
+  start: () => Promise<void>;
+  stop: () => void;
+}
+
+export function useRecorder(): Recorder {
+  const [state, setState] = useState<RecorderState>('idle');
+  const [seconds, setSeconds] = useState(0);
+  const [reachedLimit, setReachedLimit] = useState(false);
+  const [blob, setBlob] = useState<Blob | null>(null);
+
+  const recorder = useRef<MediaRecorder | null>(null);
+  const chunks = useRef<Blob[]>([]);
+  const stream = useRef<MediaStream | null>(null);
+
+  // Releases the microphone. Without this the browser keeps showing the recording indicator
+  // after the participant has moved on, which reads as the app still listening.
+  const release = useCallback(() => {
+    for (const track of stream.current?.getTracks() ?? []) track.stop();
+    stream.current = null;
+  }, []);
+
+  useEffect(() => release, [release]);
+
+  const stop = useCallback(() => {
+    recorder.current?.state === 'recording' && recorder.current.stop();
+  }, []);
+
+  const start = useCallback(async () => {
+    setState('requesting');
+    setReachedLimit(false);
+    setSeconds(0);
+    chunks.current = [];
+
+    if (!canRecord()) {
+      setState('unsupported');
+      return;
+    }
+
+    let media: MediaStream;
+    try {
+      media = await navigator.mediaDevices.getUserMedia({ audio: true });
+    } catch (error) {
+      // Three outcomes, three next actions. NotFoundError means there is no microphone to
+      // grant access to, so telling someone to check their permissions sends them somewhere
+      // that will not help.
+      const name = error instanceof DOMException ? error.name : '';
+      setState(name === 'NotFoundError' || name === 'OverconstrainedError' ? 'noDevice' : 'denied');
+      return;
+    }
+
+    stream.current = media;
+
+    // Guarded, because everything from here can throw for reasons `canRecord()` cannot see:
+    // a MediaRecorder that exists but rejects every mime type, a track the OS revoked between
+    // the permission grant and this line. Unguarded, the exception escaped after the stream
+    // was assigned — leaving the page stuck in `requesting` with its control disabled and the
+    // microphone still live, which is the browser's recording indicator on for a page that
+    // has given up.
+    try {
+      const mimeType = pickMimeType();
+      const instance = new MediaRecorder(media, mimeType ? { mimeType } : undefined);
+      recorder.current = instance;
+
+      instance.ondataavailable = (event) => {
+        if (event.data.size > 0) chunks.current.push(event.data);
+      };
+      instance.onstop = () => {
+        setBlob(new Blob(chunks.current, { type: instance.mimeType }));
+        setState('stopped');
+        release();
+      };
+
+      instance.start();
+      setState('recording');
+    } catch {
+      release();
+      setState('unsupported');
+    }
+  }, [release]);
+
+  // One interval, owned by the recording state rather than by start(), so a stop from any
+  // source clears it. The limit is enforced here and not by a setTimeout, because a timeout
+  // that fires while the tab is backgrounded would cut a recording the participant is still
+  // making.
+  useEffect(() => {
+    if (state !== 'recording') return;
+
+    const started = Date.now();
+    const tick = setInterval(() => {
+      const elapsed = Math.floor((Date.now() - started) / 1000);
+      setSeconds(elapsed);
+      if (elapsed >= MAX_SECONDS) {
+        setReachedLimit(true);
+        stop();
+      }
+    }, 250);
+
+    return () => clearInterval(tick);
+  }, [state, stop]);
+
+  return { state, seconds, reachedLimit, blob, start, stop };
+}

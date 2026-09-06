@@ -36,7 +36,7 @@
 - [x] Recording behavior specified here is explicitly reused by 004 rather than respecified
 - [x] Shared ownership is identified; cross-flow enforcement references its owning spec
 
-## Constitution Alignment (v2.0.0)
+## Constitution Alignment (v5.0.0)
 
 | Principle | Covered by |
 |-----------|------------|
