@@ -13,6 +13,12 @@ criteria are stated numerically — both are only meaningful as executable check
 
 **Organization**: by user story, in priority order.
 
+⚠️ **T023, T024, T035, T036 and T037 were marked complete in an earlier revision of this file
+and the tests did not exist.** Seven ids were bulk-ticked after one e2e file landed, without
+checking which subjects it covered. Two review subagents found it. They are written and
+mutation-verified now; the episode stays recorded here because a task list nobody can trust is
+worse than no task list.
+
 ⚠️ **Much of this feature was built before the plan existed**, because 002's engine did not
 exist and 003 could not be demonstrated without it. Completed tasks are marked `[x]` and carry
 the PR that landed them. The remaining work is mostly what the plan's audit found and what
@@ -89,7 +95,7 @@ the recording stops at the ceiling with the audio intact.
 - [x] T025 [US2] Create `src/ui/useRecorder.ts` with `MediaRecorder`, the 60 s ceiling on an interval owned by the recording state, and microphone release on stop and unmount (#25)
 - [x] T026 [US2] Pick the mime type with `isTypeSupported` ([research D6](research.md)) — a hard-coded type records an empty blob on one of the two target platforms (#25)
 - [x] T027 [US2] Re-check the declared duration server-side in `app/api/answer/route.ts` — FR-013, plan divergence D-3
-- [ ] T028 [US2] Measure bytes-per-second for a 60 s recording in each target browser and narrow the byte bound to it ([research D3](research.md)). Until then the check is a bound, not a verification, and the contract says so
+- [ ] T028 [US2] **ASHLEY PRESENCE NEEDED** — Measure bytes-per-second for a 60 s recording in each target browser and narrow the byte bound to it ([research D3](research.md)). Until then the check is a bound, not a verification, and the contract says so
 
 ---
 
@@ -132,7 +138,7 @@ confirm each produces a clear state with a way forward.
 - [x] T038 [US4] Split `RecorderState` into `denied`, `noDevice` and `unsupported`, keyed off `NotAllowedError` versus `NotFoundError` ([research D5](research.md)) — plan divergence D-5
 - [x] T039 [US4] Add the three copy blocks to `src/copy.ts` and render each with its own heading and helper
 - [x] T040 [US4] Check `canRecord()` before rendering the control, not after pressing it — FR-029
-- [ ] T041 [US4] Handle a backgrounded tab and a locked screen: whatever was captured is submittable or discarded cleanly, never ambiguous — spec edge case
+- [ ] T041 [US4] **ASHLEY PRESENCE NEEDED** (to verify; the handling itself is mine) — Handle a backgrounded tab and a locked screen: whatever was captured is submittable or discarded cleanly, never ambiguous — spec edge case
 
 ---
 
@@ -142,7 +148,7 @@ confirm each produces a clear state with a way forward.
 - [x] T043 [P] Rename the route's query parameter to `questionId`, matching 001's `QuestionCard` — plan divergence D-6
 - [ ] T044 [P] Sweep `tests/unit/copy.test.ts`'s forbidden vocabulary over the new recording and published strings; the sweep already covers every string in the file, so this is a verification, not a change
 - [ ] T045 [P] Confirm `/answer/record` is usable at phone and desktop widths with visible focus and 44px targets — FR-031, matching 001's a11y suite
-- [ ] T046 Run the full flow on a current iPhone Safari and Android Chrome with a real microphone — SC-009. **Every recording so far has been a faked media stream; no real microphone has recorded into this app**
+- [ ] T046 **ASHLEY PRESENCE NEEDED** — Run the full flow on a current iPhone Safari and Android Chrome with a real microphone — SC-009. **Every recording so far has been a faked media stream; no real microphone has recorded into this app**
 - [ ] T047 Re-measure review latency at the 60-second ceiling — SC-001 is dominated by it, and 002 measured only 12–16 s clips (002 T080)
 - [ ] T048 Delete the answer-row fixture duplication T003 consolidates, and confirm a third NOT NULL column breaks nothing
 
@@ -184,11 +190,16 @@ rule and everything else either protects it or spends it.
 
 Of 48 tasks, **34 are complete**. The remainder is three groups:
 
-1. ~~**E2E coverage**~~ — done. `tests/e2e/answer.spec.ts`, 11 tests across 5 viewports.
-   Chromium's fake device is scoped to that spec rather than added to the shared config, so no
+1. ~~**E2E coverage**~~ — done, and done properly the second time. `answer.spec.ts` (15 tests)
+   plus `answer-denied.spec.ts`, across 5 viewports. The suite navigates from `/answer` through
+   the real link and reads ids back out of the URL the app produced; it no longer builds its
+   own entry point, which is what let it report FR-002 green while the feature was broken.
+   Chromium's fake device is scoped per spec rather than added to the shared config, so no
    other suite silently acquires a microphone.
 2. **Measurements** (T028, T046, T047) — the byte bound has no measured basis, no real
-   microphone has been used, and the latency figure is inherited from short clips.
+   microphone has been used, and the latency figure is inherited from short clips. T028 and
+   T046 are marked **ASHLEY PRESENCE NEEDED**: they need real devices, and no amount of
+   Playwright substitutes for one. T047 needs 60 s recordings, which T046 produces.
 3. **004-blocked** (T020, T034) — the ask flow does not exist yet.
 
 T046 is the one where being wrong is not recoverable by a later fix: it is the whole feature,

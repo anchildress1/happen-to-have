@@ -75,10 +75,15 @@ spec's own assumption says the client value alone is not trusted. The recorder's
 product behaviour — it makes the minute feel intentional (US2) — not a security boundary. A
 crafted request skips the recorder entirely.
 
-Server-side, duration is checked against the audio's byte length as a sanity bound and against
-a client-declared value as a claim. Neither alone is sufficient: bytes vary by codec, and the
-declared value is attacker-controlled. Where they disagree by more than a wide margin the
-submission is refused as content, which is the participant-facing outcome for unusable audio.
+Server-side there are **two independent bounds, not a correlation**. The declared duration must
+be an integer in 1–60, checked in the route before review and again by the column's CHECK. The
+audio has its own size bounds — a 1 KB floor and a 5 MB ceiling, both 002's. Nothing compares
+one to the other.
+
+An earlier draft of this decision described a cross-check that refused a submission "where they
+disagree by more than a wide margin". No such check was ever built, and the sentence was
+unimplementable as written — no number, no unit, no per-container bytes-per-second figure to
+compare against. Two honest bounds beat one imaginary correlation.
 
 ⚠️ **Not yet measured**: the byte-per-second range for a 60 s recording in each target browser.
 The 5 MB ceiling 002 already enforces is ~10x the worst measured case, which bounds abuse but

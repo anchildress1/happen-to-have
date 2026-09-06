@@ -14,7 +14,9 @@ export type AnswerOutcome =
       contentReason: keyof typeof copy.review.withheld.content;
     }
   | { status: 'rate_limited'; retryAt: string }
-  | { status: 'failed' | 'ineligible' };
+  // `lost` is the dropped-connection case: FR-014 forbids describing it as proof that
+  // publication failed, because it is not — the answer may well have published.
+  | { status: 'failed' | 'ineligible' | 'lost' };
 
 /**
  * Every terminal state a submission can render (FR-024 – FR-027, FR-040, FR-049).
@@ -101,11 +103,28 @@ export function AnswerOutcomeView({
 
   // `ineligible` renders here too. It is this system's problem, not something the
   // participant did to their recording, so it must not borrow the Withheld copy.
+  //
+  // `lost` takes a different helper. FR-014: a dropped connection is not proof that
+  // publication failed, and `failed.helper` says the recording was discarded — a claim we
+  // cannot make about a response we never saw. Sends them to Yours to check instead.
   return (
     <section>
       <h1>{copy.review.failed.headingAnswer}</h1>
-      <p>{copy.review.failed.helper}</p>
-      <Link href={retry}>{copy.review.withheld.actionAnswer}</Link>
+      <p>
+        {outcome.status === 'lost' ? copy.review.failed.lostResponse : copy.review.failed.helper}
+      </p>
+      {/* Back to selection, not to the same question. `ineligible` means a rule refused it —
+          own question, or already answered — so retrying it is guaranteed to be refused again,
+          and the spec's deleted-question edge case says return to selection with no penalty.
+          `lost` goes to Yours instead: the answer may well have published, and the one thing
+          that resolves it is looking. */}
+      {outcome.status === 'lost' ? (
+        <Link href="/yours">{copy.review.rateLimited.action}</Link>
+      ) : outcome.status === 'ineligible' ? (
+        <Link href="/answer">{copy.review.withheld.ghostAnswer}</Link>
+      ) : (
+        <Link href={retry}>{copy.review.withheld.actionAnswer}</Link>
+      )}
     </section>
   );
 }

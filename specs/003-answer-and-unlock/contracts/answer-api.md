@@ -33,8 +33,15 @@ relevance against a question of their choosing.
 2. **Shape.** Missing or malformed fields → `withheld / content / unintelligible`. A malformed
    request is indistinguishable from an unusable recording *from the participant's side*, and
    both mean record again.
-3. **Idempotency.** A `submissionId` already on an answer row returns **that answer's original
-   outcome**, without re-reviewing. This is the retried-upload case (SC-007).
+3. **Idempotency.** A `submissionId` already on an answer row returns `published` without
+   re-reviewing. This is the retried-upload case (SC-007).
+
+   `askGranted` on a replay reports whether an ask is **held**, not whether *this* submission
+   granted it. The row carries no such flag, and adding one is a migration for a line of copy.
+   The distinction only shows for a participant who already held an ask before answering: they
+   see the granted line rather than the already-held one, and both sentences are true of them.
+   The direction that mattered is fixed — someone who just earned an ask is no longer told
+   they already had one.
 4. **Cheap bounds.** Size ceiling and the declared duration, before any provider call.
 5. **Question.** Read its text. Unknown → `failed`; the interface offered something that no
    longer exists, which is not the participant's doing.

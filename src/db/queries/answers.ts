@@ -40,7 +40,7 @@ export const PUBLISH_ANSWER_SQL = `
        SET can_ask = true
      WHERE id = $2
        AND EXISTS (SELECT 1 FROM published)
-       -- Already holding one? Answering again does not stack asks (FR-020).
+       -- Already holding one? Answering again does not stack asks (FR-021). FR-020 is the copy.
        AND can_ask = false
     RETURNING id
   )
@@ -68,17 +68,21 @@ export async function findBySubmission(
   submissionId: string,
   participantIdValue: string,
   client: SqlClient = db,
-): Promise<{ answerId: string } | null> {
+): Promise<{ answerId: string; askGranted: boolean } | null> {
   const parsed = z.uuid().safeParse(submissionId);
   if (!parsed.success) {
     return null;
   }
 
-  const { rows } = await client.query<{ id: string }>(FIND_BY_SUBMISSION_SQL, [
+  const { rows } = await client.query<{ id: string; can_ask: boolean }>(FIND_BY_SUBMISSION_SQL, [
     parsed.data,
     participantId.parse(participantIdValue),
   ]);
-  return rows[0] ? { answerId: rows[0].id } : null;
+  // `can_ask` was already selected and thrown away, so a retry after a lost response always
+  // reported askGranted:false and rendered "Your question is still waiting for you" — telling
+  // someone who had just earned an ask that they had not. The contract says replay the
+  // original outcome; this is the outcome.
+  return rows[0] ? { answerId: rows[0].id, askGranted: rows[0].can_ask } : null;
 }
 
 export type PublishResult =
