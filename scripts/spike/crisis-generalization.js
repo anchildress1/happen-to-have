@@ -2,6 +2,13 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { GoogleGenAI, HarmBlockThreshold, HarmCategory } from '@google/genai';
 import { CRISIS_GENERALIZATION_CASES } from '../../tests/fixtures/crisis-generalization.ts';
+import { CRISIS_THIRD_SET_CASES } from '../../tests/fixtures/crisis-third-set.ts';
+
+// SET=t3 runs T082's third set — the one the shipped categories were NOT written against.
+// `gen` is the second set, now a regression suite rather than a generalization test.
+const SET = process.env.SET ?? 'gen';
+const CASES = SET === 't3' ? CRISIS_THIRD_SET_CASES : CRISIS_GENERALIZATION_CASES;
+if (SET !== 't3' && SET !== 'gen') throw new Error(`SET must be 'gen' or 't3', got '${SET}'`);
 
 /**
  * The MERGED judgment call — crisis sharing one response with illegal, relevance and audio
@@ -229,7 +236,7 @@ async function judge(testCase, file) {
 }
 
 const results = [];
-for (const testCase of CRISIS_GENERALIZATION_CASES) {
+for (const testCase of CASES) {
   const file = await synth(testCase);
   await new Promise((r) => setTimeout(r, 5000));
   const verdict = await judge(testCase, file);
@@ -257,7 +264,7 @@ fs.writeFileSync(
     'tests',
     'fixtures',
     'results',
-    `crisis-merged-${MODEL}-${POLARITY}${THINKING ? `-${THINKING}` : ''}${WEIGH ? '-weigh' : ''}${VOICE === 'Kore' ? '' : `-${VOICE}`}.json`,
+    `crisis-merged-${SET === 't3' ? 't3-' : ''}${MODEL}-${POLARITY}${THINKING ? `-${THINKING}` : ''}${WEIGH ? '-weigh' : ''}${VOICE === 'Kore' ? '' : `-${VOICE}`}.json`,
   ),
   JSON.stringify(results, null, 2),
 );

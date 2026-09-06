@@ -2,6 +2,13 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { GoogleGenAI, HarmBlockThreshold, HarmCategory } from '@google/genai';
 import { CRISIS_GENERALIZATION_CASES } from '../../tests/fixtures/crisis-generalization.ts';
+import { CRISIS_THIRD_SET_CASES } from '../../tests/fixtures/crisis-third-set.ts';
+
+// SET=t3 runs T082's third set — the one the shipped categories were NOT written against.
+// `gen` is the second set, now a regression suite rather than a generalization test.
+const SET = process.env.SET ?? 'gen';
+const CASES = SET === 't3' ? CRISIS_THIRD_SET_CASES : CRISIS_GENERALIZATION_CASES;
+if (SET !== 't3' && SET !== 'gen') throw new Error(`SET must be 'gen' or 't3', got '${SET}'`);
 
 /** Crisis alone, no other job in the call. Tests whether merging is what lost the signal. */
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
@@ -72,7 +79,7 @@ async function retry(fn) {
 }
 
 const results = [];
-for (const testCase of CRISIS_GENERALIZATION_CASES) {
+for (const testCase of CASES) {
   const file = path.join(
     AUDIO,
     VOICE === 'Kore' ? `${testCase.id}.wav` : `${testCase.id}.${VOICE}.wav`,
@@ -119,7 +126,7 @@ fs.writeFileSync(
     'tests',
     'fixtures',
     'results',
-    `crisis-dedicated-${MODEL}${VOICE === 'Kore' ? '' : `-${VOICE}`}.json`,
+    `crisis-dedicated-${SET === 't3' ? 't3-' : ''}${MODEL}${VOICE === 'Kore' ? '' : `-${VOICE}`}.json`,
   ),
   JSON.stringify(results, null, 2),
 );

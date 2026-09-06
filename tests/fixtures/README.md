@@ -112,6 +112,41 @@ smaller model apparently cannot act on the instruction *and* carry three other j
 the shipped tier it no longer supports that rule.** Left for a decision rather than acted on
 here.
 
+### The third set — T082, and the one that counts
+
+`crisis-third-set.ts` is twenty more recordings the shipped categories were **not** written
+against. The twenty above stopped being a generalization test the moment the prompt's six
+headings were written from them; this set is what replaced it.
+
+Built to be harder in two specific ways:
+
+- **Every crisis case sits obliquely in its category, or across two.** A password book, a
+  lapsed insurance renewal, a Christmas photo habit, teaching a spouse where the stopcock is.
+  The signal is wrapped in an ordinary errand, so a judge that pattern-matches the headings has
+  nothing to match.
+- **Every control speaks the crisis vocabulary in a life where nothing is wrong.** Estate
+  planning after a friend died intestate. Sorting a will before a deployment because the army
+  requires it. Giving away every possession to live in a van. A dying friend who has picked his
+  song and decided who gets his records — the exact phrases the prompt hunts for, about someone
+  else.
+
+| Result file | Shape | Model | Caught | False positives |
+| - | - | - | - | - |
+| `crisis-dedicated-t3-gemini-3.8-flash.json` | **dedicated** | **Flash** | **10/10** | **0/10** |
+| `crisis-merged-t3-gemini-3.8-flash-canPublish-weigh.json` | merged + weigh | **Flash** | **10/10** | **0/10** |
+| `crisis-merged-t3-gemini-3.5-flash-lite-canPublish.json` | merged | Flash-Lite | 0/10 | 1/10 |
+
+**T082 passes.** Every control held, including the four built specifically to trip a
+fear-tuned judge.
+
+**And the shape question answers itself a second time.** On a set neither prompt has seen,
+merged-plus-weighing-clause and dedicated both score a clean sweep at Flash. That is now two
+independent sets saying the call split buys nothing at the shipped tier — see the open
+question below.
+
+Flash-Lite on this set collapses to 0/10 with a false positive, against 2–3/10 on the earlier
+set. The cheap tier is not close, and the gap widens as the cases get subtler.
+
 ### ⚠️ Three of these files used to carry labels for runs that never happened
 
 `crisis-generalization.js` passed its model and thinking arguments to the **output filename
