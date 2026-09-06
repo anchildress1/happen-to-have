@@ -1,5 +1,6 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { PUBLISH_ANSWER_SQL, publishAnswer } from '../../src/db/queries/answers.js';
+import { getQuestionText } from '../../src/db/queries/questions.js';
 import { createTestDb, type TestDb } from '../helpers/pglite.js';
 
 /**
@@ -197,5 +198,23 @@ describe('eligibility is enforced in SQL, not by the interface (FR-016 – FR-01
         db,
       ),
     ).rejects.toThrow();
+  });
+});
+
+describe('the server reads the question itself (FR-018)', () => {
+  it('returns the text for a real question', async () => {
+    const q = await question(await participant());
+
+    await expect(getQuestionText(q, db)).resolves.toBe('How do you get through a hard week?');
+  });
+
+  it('returns null for an unknown question rather than throwing', async () => {
+    await expect(getQuestionText('11111111-1111-4111-8111-111111111111', db)).resolves.toBeNull();
+  });
+
+  it('returns null for a malformed id rather than reaching Postgres', async () => {
+    // The route turns null into a failure page. Letting a malformed id through would surface
+    // as a driver error, which is a 500 rather than something a participant can act on.
+    await expect(getQuestionText('../../etc/passwd', db)).resolves.toBeNull();
   });
 });
