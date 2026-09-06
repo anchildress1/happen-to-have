@@ -17,7 +17,7 @@ const ALLOWED_BASE_TYPES = new Set([
 ]);
 
 /** ~10x the worst measured 60s recording. An abuse bound, not the provider's 20 MB limit. */
-const MAX_BYTES = 5 * 1024 * 1024;
+export const MAX_BYTES = 5 * 1024 * 1024;
 /** Smaller than any container's own headers, so it cannot contain speech. */
 const MIN_BYTES = 1024;
 

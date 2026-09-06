@@ -1,3 +1,4 @@
+import { z } from 'zod';
 import { db, type SqlClient } from '../client';
 
 export interface EligibleQuestion {
@@ -60,4 +61,25 @@ export function toSelectionPayload(eligible: EligibleQuestion[]): SelectionPaylo
     displayText: q.display_text,
   }));
   return { question: queue[0] ?? null, queue };
+}
+
+/**
+ * The question's text, or null when no such question exists.
+ *
+ * FR-018: eligibility is decided on the server regardless of what the interface allowed, so
+ * the submit route reads the question itself rather than trusting a text field from the
+ * client. A client-supplied question text would let anyone have any recording judged for
+ * relevance against a question of their choosing.
+ */
+export async function getQuestionText(id: string, client: SqlClient = db): Promise<string | null> {
+  const parsed = z.uuid().safeParse(id);
+  if (!parsed.success) {
+    return null;
+  }
+
+  const { rows } = await client.query<{ display_text: string }>(
+    'SELECT display_text FROM questions WHERE id = $1',
+    [parsed.data],
+  );
+  return rows[0]?.display_text ?? null;
 }

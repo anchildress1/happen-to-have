@@ -126,11 +126,17 @@ test.describe('handoff-fixed strings render verbatim (T086b)', () => {
     await expect(page.getByRole('button', { name: copy.action.tryAnother })).toBeVisible();
   });
 
-  test('Recording placeholder (/answer/record) offers Try another question verbatim', async ({
-    page,
-  }) => {
+  test('/answer/record with no question is a dead end, not a recorder', async ({ page }) => {
+    // Twice-corrected. It first pinned 003's placeholder copy; then a recording control,
+    // reached by navigating straight to a bare URL. Both were wrong for the same reason —
+    // this route has no meaning without a question, and the app never links here without one.
+    // What a bare URL should do is refuse, which is what it now asserts.
+    //
+    // The recording control itself is covered in answer.spec.ts, reached the way a
+    // participant reaches it: from /answer, through the real link.
     await page.goto('/answer/record');
 
-    await expect(page.getByRole('link', { name: copy.action.tryAnother })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Start recording' })).toHaveCount(0);
+    await expect(page.getByRole('heading', { name: copy.empty.heading })).toBeVisible();
   });
 });

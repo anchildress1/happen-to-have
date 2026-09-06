@@ -1,20 +1,33 @@
-import Link from 'next/link';
-import { copy } from '@/copy';
-import { AppHeader } from '@/ui/AppHeader';
-import { Screen } from '@/ui/Screen';
-import { Watermark } from '@/ui/Watermark';
+import { Suspense } from 'react';
+import { getQuestionText } from '@/db/queries/questions';
+import { RecordAnswer } from './RecordAnswer';
 
 /**
- * Placeholder; 003 replaces this route. Touches no recording API — SC-005 asserts zero
- * getUserMedia calls anywhere in this feature, and this route is inside it until then.
+ * Reads the question's text on the server, from its id (FR-002).
+ *
+ * It arrived through the URL before, which meant it never arrived at all: `QuestionCard`
+ * links with `questionId` alone, so the recorder fell back to a placeholder heading reading
+ * "Recording isn't built yet" for every real participant. Eleven e2e tests were green because
+ * they built their own URL with a `text` parameter nothing in the app emits.
+ *
+ * The server was always the right source. `contracts/answer-api.md` already forbids the
+ * client supplying question text on submit, for the same reason it should not supply it for
+ * display: the question is the server's fact, not the caller's claim.
  */
-export default function RecordPlaceholder() {
+export default async function RecordAnswerPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ questionId?: string }>;
+}) {
+  const { questionId = '' } = await searchParams;
+  const questionText = questionId ? await getQuestionText(questionId) : null;
+
   return (
-    <Screen header={<AppHeader />}>
-      <Watermark />
-      <h1>{copy.recordPlaceholder.heading}</h1>
-      <p>{copy.recordPlaceholder.body}</p>
-      <Link href="/answer">{copy.action.tryAnother}</Link>
-    </Screen>
+    // `useSearchParams` in the client half still suspends, so the boundary stays. The
+    // fallback is empty on purpose: the heading is real content now, and a placeholder would
+    // flash a question the participant is not answering.
+    <Suspense fallback={null}>
+      <RecordAnswer questionId={questionId} questionText={questionText} />
+    </Suspense>
   );
 }
