@@ -34,7 +34,11 @@ const VALID_JUDGMENT = {
   reasonDetail: '',
 };
 
-/** Built fresh per use: a shared mutable object makes the no-mutation test order-dependent. */
+/**
+ * The fresh-builder. `PARAMS` below is a shared instance most tests can read safely; any
+ * test that asserts something about mutation must build its own, or it only means anything
+ * when it happens to run after the tests that could have mutated the shared one.
+ */
 function makeParams(): GenerateContentParameters {
   return { model: 'gemini-3.5-flash-lite', contents: 'judge this' };
 }
@@ -512,7 +516,33 @@ describe('retry constants (FR-039)', () => {
 });
 
 describe('runCheck — a sleep failure is not a participant abort', () => {
-  it('retries when the injected sleep throws for a reason other than abort', async () => {
+  it('clamps the backoff to the remaining budget', async () => {
+    // An unclamped backoff started near the boundary sleeps past the deadline, holding
+    // request-scoped audio longer than FR-039 allows — and buys nothing, since the next
+    // iteration only reports expiry.
+    const { client } = scriptedClient([new Error('transient'), response()]);
+    const waited: number[] = [];
+
+    await runCheck(
+      {
+        client,
+        params: makeParams(),
+        schema: answerSchema,
+        signal: new AbortController().signal,
+        deadline: 300,
+      },
+      {
+        now: () => 0,
+        sleep: async (ms) => {
+          waited.push(ms);
+        },
+      },
+    );
+
+    expect(waited).toEqual([300]);
+  });
+
+  it('reports a sleep failure as a fault rather than a participant abort', async () => {
     // A bare catch reported every sleep failure as 'aborted', which is terminal and means
     // "the participant left" — the gate would render nothing for someone still waiting.
     const { client, calls } = scriptedClient([new Error('transient'), response()]);

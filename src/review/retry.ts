@@ -166,16 +166,23 @@ export async function runCheck<T>(
       return { ok: false, fault: result.fault, attempts, cause: result.cause };
     }
 
+    // Clamped to what is left of the budget. An unclamped backoff started near the boundary
+    // sleeps straight past the deadline, holding request-scoped audio longer than FR-039
+    // allows before the loop head notices — and the wait buys nothing, because the next
+    // iteration will only report expiry.
+    const backoff = Math.min(BACKOFF_MS[attempt], Math.max(0, deadline - now()));
+
     try {
-      await sleep(BACKOFF_MS[attempt], signal);
-    } catch {
+      await sleep(backoff, signal);
+    } catch (error) {
       // Only the caller's signal makes this terminal. A throw from an injected sleep, or a
-      // RangeError out of setTimeout, is a fault we can still retry — reporting it as
-      // 'aborted' would tell the gate the participant left, and it would render nothing for
-      // someone still sitting there.
+      // RangeError out of setTimeout, is reported as a fault rather than an abort: 'aborted'
+      // tells the gate the participant left, and it would render nothing for someone still
+      // sitting there. This attempt is spent either way — the budget is not refunded — but
+      // the classification stays honest, and the cause is kept for logs.
       return signal.aborted
-        ? { ok: false, fault: 'aborted', attempts }
-        : { ok: false, fault: 'network', attempts };
+        ? { ok: false, fault: 'aborted', attempts, cause: error }
+        : { ok: false, fault: 'network', attempts, cause: error };
     }
   }
 
