@@ -141,13 +141,20 @@ plainly that the recording is gone.
 | Element | String |
 | - | - |
 | Heading | `You've sent a lot today. You can record again at <time>.` |
-| Helper | `Everything you've already sent is still being checked or is published. Listening is always open.` |
+| Helper | `Everything you've sent today has been handled. Listening is always open.` |
 | Muted | `Go to Yours` |
 
 `<time>` is interpolated from `ReviewOutcome.retryAt`, which is why that field exists — FR-049
 requires the response state *when* the participant may try again, not merely that they cannot.
 
 `Listening is always open` confirms the limit covers submission only, never playback.
+
+`has been handled` rather than `is still being checked or is published`, because the limiter
+deliberately counts submissions that were withheld, failed, or rejected as invalid audio — and
+those are gone. Telling a participant who hit the limit that way that everything is still in
+flight is false, and sends them to Yours to look for contributions that cannot exist. `handled`
+is true of every counted submission without asserting which of the three happened to any of
+them.
 
 ---
 
