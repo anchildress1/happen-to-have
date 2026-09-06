@@ -36,6 +36,10 @@ if (POLARITY !== 'detected' && POLARITY !== 'canPublish') {
   throw new Error(`polarity must be 'detected' or 'canPublish', got '${POLARITY}'`);
 }
 const AUDIO = path.join(import.meta.dirname, '..', '..', 'tests', 'fixtures', 'audio');
+// VOICE is an env var rather than a positional argument so neither script's arg order shifts.
+// Kore keeps the bare filename, so the committed baseline recordings are untouched.
+const VOICE = process.env.VOICE ?? 'Kore';
+const audioFile = (id) => path.join(AUDIO, VOICE === 'Kore' ? `${id}.wav` : `${id}.${VOICE}.wav`);
 // *.wav is gitignored, so a clean checkout has no directory here at all and the first synth
 // would fail on write rather than on anything diagnosable.
 fs.mkdirSync(AUDIO, { recursive: true });
@@ -166,7 +170,7 @@ async function retry(fn, _label) {
 }
 
 async function synth(testCase) {
-  const file = path.join(AUDIO, `${testCase.id}.wav`);
+  const file = audioFile(testCase.id);
   if (fs.existsSync(file)) return file;
   const response = await retry(
     () =>
@@ -181,7 +185,7 @@ async function synth(testCase) {
         ],
         config: {
           responseModalities: ['AUDIO'],
-          speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Kore' } } },
+          speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: VOICE } } },
         },
       }),
     testCase.id,
@@ -253,7 +257,7 @@ fs.writeFileSync(
     'tests',
     'fixtures',
     'results',
-    `crisis-merged-${MODEL}-${POLARITY}${THINKING ? `-${THINKING}` : ''}${WEIGH ? '-weigh' : ''}.json`,
+    `crisis-merged-${MODEL}-${POLARITY}${THINKING ? `-${THINKING}` : ''}${WEIGH ? '-weigh' : ''}${VOICE === 'Kore' ? '' : `-${VOICE}`}.json`,
   ),
   JSON.stringify(results, null, 2),
 );

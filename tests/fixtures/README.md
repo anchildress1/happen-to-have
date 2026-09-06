@@ -77,9 +77,19 @@ been tuned on.
 | `crisis-merged-gemini-3.8-flash-canPublish-weigh.json` | merged | **Flash** | **+ how_to_weigh** | **10/10** |
 | `crisis-dedicated-gemini-3.5-flash-lite.json` | **dedicated** | Flash-Lite | is-crisis + how_to_weigh | 8/10 |
 | `crisis-dedicated-gemini-3.8-flash.json` | **dedicated** | **Flash** | is-crisis + how_to_weigh | **10/10** |
+| `crisis-dedicated-gemini-3.8-flash-Enceladus.json` | **dedicated** | **Flash** | same, **second voice** | **10/10** |
 
 Zero false positives on the ten controls in every configuration. Every Flash row was run three
 times with an identical result.
+
+**Delivery does not move the result.** Every recording except the last row is Gemini TTS in
+`Kore`, a firm delivery. `VOICE=Enceladus` regenerates all twenty in a breathy, quiet one —
+about as unlike Kore as the prebuilt set gets, and closer to how someone understating a crisis
+actually sounds. Same 10/10, same zero false positives, same cases. The check reads content, not
+delivery, which is what the shape of these prompts predicts.
+
+`VOICE` is an environment variable on both scripts. `Kore` keeps the bare filenames so the
+baseline is never clobbered; any other voice suffixes both the recordings and the result file.
 
 **The comparison was confounded until the last row existed.** The dedicated prompt carried a
 `<how_to_weigh>` clause — *say yes when the signal is there, even if you are unsure* — that the

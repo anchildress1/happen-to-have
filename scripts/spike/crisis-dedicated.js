@@ -7,6 +7,9 @@ import { CRISIS_GENERALIZATION_CASES } from '../../tests/fixtures/crisis-general
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 const MODEL = process.argv[2] ?? 'gemini-3.5-flash-lite';
 const AUDIO = path.join(import.meta.dirname, '..', '..', 'tests', 'fixtures', 'audio');
+// Matches crisis-generalization.js's naming so a second voice can be judged without
+// regenerating or clobbering the Kore baseline.
+const VOICE = process.env.VOICE ?? 'Kore';
 const NEVER_BLOCK = [
   HarmCategory.HARM_CATEGORY_HARASSMENT,
   HarmCategory.HARM_CATEGORY_HATE_SPEECH,
@@ -70,7 +73,10 @@ async function retry(fn) {
 
 const results = [];
 for (const testCase of CRISIS_GENERALIZATION_CASES) {
-  const file = path.join(AUDIO, `${testCase.id}.wav`);
+  const file = path.join(
+    AUDIO,
+    VOICE === 'Kore' ? `${testCase.id}.wav` : `${testCase.id}.${VOICE}.wav`,
+  );
   const response = await retry(() =>
     ai.models.generateContent({
       model: MODEL,
@@ -113,7 +119,7 @@ fs.writeFileSync(
     'tests',
     'fixtures',
     'results',
-    `crisis-dedicated-${MODEL}.json`,
+    `crisis-dedicated-${MODEL}${VOICE === 'Kore' ? '' : `-${VOICE}`}.json`,
   ),
   JSON.stringify(results, null, 2),
 );
