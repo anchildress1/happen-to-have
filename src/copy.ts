@@ -159,8 +159,11 @@ export const copy = {
     /** FR-049. The heading names a time, which is why the outcome carries `retryAt`. */
     rateLimited: {
       heading: (time: string) => `You've sent a lot today. You can record again at ${time}.`,
-      helper:
-        "Everything you've already sent is still being checked or is published. Listening is always open.",
+      // "handled" rather than naming an outcome: the limiter counts withheld, failed and
+      // invalid-audio submissions too, and those are gone. Telling someone who hit the limit
+      // that way that everything is still in flight is false, and points them at Yours to
+      // look for contributions that cannot exist.
+      helper: "Everything you've sent today has been handled. Listening is always open.",
       action: 'Go to Yours',
     },
   },

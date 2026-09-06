@@ -139,7 +139,7 @@ describe('review copy — rate limit (FR-049)', () => {
     // `toContain('Listening is always open')` would pass with policy-violating text bolted on
     // either side of it.
     expect(copy.review.rateLimited.helper).toBe(
-      "Everything you've already sent is still being checked or is published. Listening is always open.",
+      "Everything you've sent today has been handled. Listening is always open.",
     );
   });
 });
