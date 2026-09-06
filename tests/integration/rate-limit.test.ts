@@ -4,6 +4,7 @@ import {
   rateLimitConfig,
   SWEEP_CLOSED_RATE_LIMIT_WINDOWS_SQL,
 } from '../../src/db/queries/rateLimits.js';
+import { SWEEP_CONTRIBUTIONLESS_PARTICIPANTS_SQL } from '../../src/db/queries/sweep-sql.js';
 import { createTestDb, type TestDb } from '../helpers/pglite.js';
 
 /**
@@ -216,6 +217,42 @@ describe('sweeping closed windows', () => {
     const { rows } = await db.query(SWEEP_CLOSED_RATE_LIMIT_WINDOWS_SQL, [0, 3_600]);
 
     expect(rows).toEqual([]);
+  });
+
+  it('does not reset a live window by deleting the participant it belongs to', async () => {
+    // The participant sweep cascades onto submission_rate_limits through the foreign key. A
+    // participant with a live window has by definition just submitted, and one with nothing
+    // published is exactly who the limiter exists to slow down — so a DAYS=0 sweep that
+    // removes them hands an abuser a fresh counter for free.
+    const active = await createParticipant();
+    await makeRateLimitClient(db, limitOf(20)).recordSubmission(active);
+
+    const { rows: deleted } = await db.query<{ id: string }>(
+      SWEEP_CONTRIBUTIONLESS_PARTICIPANTS_SQL,
+      [0, 3_600],
+    );
+
+    expect(deleted).toEqual([]);
+
+    const { rows: windows } = await db.query<{ participant_id: string }>(
+      'SELECT participant_id FROM submission_rate_limits',
+    );
+    expect(windows.map((row) => row.participant_id)).toEqual([active]);
+  });
+
+  it('still sweeps a contribution-less participant whose window has closed', async () => {
+    // The guard above must not turn the participant sweep into a no-op. A closed window is
+    // not a reason to keep an account that never contributed anything.
+    const stale = await createParticipant();
+    await makeRateLimitClient(db, limitOf(20)).recordSubmission(stale);
+    await ageWindow(stale, 7_200);
+
+    const { rows: deleted } = await db.query<{ id: string }>(
+      SWEEP_CONTRIBUTIONLESS_PARTICIPANTS_SQL,
+      [0, 3_600],
+    );
+
+    expect(deleted.map((row) => row.id)).toEqual([stale]);
   });
 
   it('sweeps a window that has closed, once its full length has elapsed', async () => {

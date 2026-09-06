@@ -15,16 +15,12 @@ import { type SqlClient, db } from '../client';
 /** FR-048: configurable without a code change. Defaults live here so a deployment that sets
  * neither still has a limit. */
 const DEFAULT_MAX = 20;
-const DEFAULT_WINDOW_SECONDS = 3_600;
 
-function readPositiveInt(raw: string | undefined, fallback: number): number {
-  // `Number` rather than `parseInt`, which accepts a valid prefix and discards the rest:
-  // `parseInt('3_600')` is 3, and `parseInt('1e9')` is 1. Both are silent, and the first
-  // turns a one-hour window into three seconds — effectively no limit at all, from an env
-  // var that reads as correct.
-  const parsed = Number(raw);
-  return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
-}
+// The window default and its parser live in sweep-sql.ts, which the sweep CLI can load under
+// plain Node. One copy, because the sweep deciding a window is closed while the limiter still
+// counts it open is how the limit disappears without anything failing.
+export { DEFAULT_WINDOW_SECONDS, readPositiveInt } from './sweep-sql';
+import { DEFAULT_WINDOW_SECONDS, readPositiveInt } from './sweep-sql';
 
 /**
  * Typed as a plain record rather than `NodeJS.ProcessEnv`: Next.js augments that interface
