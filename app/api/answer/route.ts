@@ -1,4 +1,4 @@
-import { publishAnswer } from '@/db/queries/answers';
+import { findBySubmission, publishAnswer } from '@/db/queries/answers';
 import { getQuestionText } from '@/db/queries/questions';
 import { reviewContribution } from '@/review';
 import { readParticipantId } from '@/session/session';
@@ -39,8 +39,28 @@ export async function POST(request: Request): Promise<Response> {
 
   const audio = form.get('audio');
   const questionId = form.get('questionId');
-  if (!(audio instanceof Blob) || typeof questionId !== 'string') {
+  const submissionId = form.get('submissionId');
+  const declaredDuration = Number(form.get('durationSeconds'));
+  if (
+    !(audio instanceof Blob) ||
+    typeof questionId !== 'string' ||
+    typeof submissionId !== 'string'
+  ) {
     return json({ status: 'withheld', reason: 'content', contentReason: 'unintelligible' }, 200);
+  }
+
+  // FR-013. The recorder's ceiling is a product behaviour, not a security boundary — a
+  // crafted request never runs it. Checked here, where it cannot be skipped.
+  if (!Number.isInteger(declaredDuration) || declaredDuration < 1 || declaredDuration > 60) {
+    return json({ status: 'withheld', reason: 'content', contentReason: 'unpublishable' }, 200);
+  }
+
+  // FR-015, SC-007. The retried-upload case: the insert landed, the response did not. Answered
+  // from the existing row rather than re-reviewed, because the review was already paid for and
+  // would be asked to judge the same audio a second time.
+  const already = await findBySubmission(submissionId, participantId);
+  if (already) {
+    return json({ status: 'published', askGranted: false }, 200);
   }
   if (audio.size > MAX_BYTES) {
     return json({ status: 'withheld', reason: 'content', contentReason: 'unpublishable' }, 200);
@@ -76,6 +96,8 @@ export async function POST(request: Request): Promise<Response> {
       displayText: outcome.displayText,
       sourceLanguage: outcome.sourceLanguage,
       emotion: outcome.emotion,
+      durationSeconds: declaredDuration,
+      submissionId,
     });
 
     if (!published.published) {

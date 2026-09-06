@@ -48,8 +48,12 @@ async function createQuestion(options: {
 async function publishAnswer(questionId: string, participantId: string): Promise<void> {
   // display_text is NOT NULL since 003: a published answer carries the text a reader sees.
   // These suites only care that the row exists, so any valid text does.
+  // duration_seconds and submission_id are NOT NULL since 003. These suites only care that
+  // the row exists, so any valid values do — but the id must be fresh per row, because it is
+  // unique across the table.
   await db.query(
-    'INSERT INTO answers (question_id, participant_id, display_text) VALUES ($1, $2, $3)',
+    `INSERT INTO answers (question_id, participant_id, display_text, duration_seconds, submission_id)
+     VALUES ($1, $2, $3, 9, gen_random_uuid())`,
     [questionId, participantId, 'One thing at a time.'],
   );
 }

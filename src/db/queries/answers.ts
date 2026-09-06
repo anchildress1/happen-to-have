@@ -26,8 +26,9 @@ export const PUBLISH_ANSWER_SQL = `
        )
   ),
   published AS (
-    INSERT INTO answers (question_id, participant_id, display_text, source_language, emotion)
-    SELECT e.id, $2, $3, $4, $5 FROM eligible e
+    INSERT INTO answers (question_id, participant_id, display_text, source_language, emotion,
+                         duration_seconds, submission_id)
+    SELECT e.id, $2, $3, $4, $5, $6, $7 FROM eligible e
     -- FR-015: exactly one answer per submission. The unique constraint is the backstop for
     -- the race the NOT EXISTS above cannot close on its own.
     ON CONFLICT (participant_id, question_id) DO NOTHING
@@ -46,6 +47,38 @@ export const PUBLISH_ANSWER_SQL = `
     (SELECT id FROM published)                    AS answer_id,
     (SELECT count(*) FROM granted)::int > 0       AS ask_granted
 `;
+
+/**
+ * FR-015, SC-007. Returns the answer a submission id already produced, if any.
+ *
+ * This is the retried-upload case: the insert succeeded, the response never arrived, the
+ * client sent the same recording again. Without this the retry is refused as "already
+ * answered" and the participant is told they answered a question whose outcome they never
+ * saw — which is indistinguishable, from their side, from having lost the answer.
+ */
+export const FIND_BY_SUBMISSION_SQL = `
+  SELECT a.id, p.can_ask
+    FROM answers a
+    JOIN participants p ON p.id = a.participant_id
+   WHERE a.submission_id = $1 AND a.participant_id = $2
+`;
+
+export async function findBySubmission(
+  submissionId: string,
+  participantIdValue: string,
+  client: SqlClient = db,
+): Promise<{ answerId: string } | null> {
+  const parsed = z.uuid().safeParse(submissionId);
+  if (!parsed.success) {
+    return null;
+  }
+
+  const { rows } = await client.query<{ id: string }>(FIND_BY_SUBMISSION_SQL, [
+    parsed.data,
+    participantId.parse(participantIdValue),
+  ]);
+  return rows[0] ? { answerId: rows[0].id } : null;
+}
 
 export type PublishResult =
   | { published: true; answerId: string; askGranted: boolean }
@@ -67,6 +100,8 @@ export async function publishAnswer(
     displayText: string;
     sourceLanguage: string;
     emotion: string | null;
+    durationSeconds: number;
+    submissionId: string;
   },
   client: SqlClient = db,
 ): Promise<PublishResult> {
@@ -77,7 +112,15 @@ export async function publishAnswer(
 
   const { rows } = await client.query<{ answer_id: string | null; ask_granted: boolean }>(
     PUBLISH_ANSWER_SQL,
-    [question, participant, input.displayText, input.sourceLanguage, input.emotion],
+    [
+      question,
+      participant,
+      input.displayText,
+      input.sourceLanguage,
+      input.emotion,
+      input.durationSeconds,
+      z.uuid().parse(input.submissionId),
+    ],
   );
 
   const row = rows[0];

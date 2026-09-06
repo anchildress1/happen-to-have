@@ -27,7 +27,31 @@ export function pickMimeType(
   return PREFERRED_TYPES.find(isSupported) ?? null;
 }
 
-export type RecorderState = 'idle' | 'requesting' | 'recording' | 'stopped' | 'denied';
+/**
+ * `denied`, `noDevice` and `unsupported` are distinct states because FR-028 and FR-029 want
+ * three different messages. Collapsing them is what produced copy telling someone our
+ * processing failed when their browser refused the microphone.
+ */
+export type RecorderState =
+  | 'idle'
+  | 'requesting'
+  | 'recording'
+  | 'stopped'
+  | 'denied'
+  | 'noDevice'
+  | 'unsupported';
+
+/**
+ * Checked before the control renders, not after it is pressed (FR-029): presenting a button
+ * that cannot work is the thing that requirement forbids.
+ */
+export function canRecord(): boolean {
+  return (
+    typeof navigator !== 'undefined' &&
+    typeof navigator.mediaDevices?.getUserMedia === 'function' &&
+    typeof MediaRecorder !== 'undefined'
+  );
+}
 
 export interface Recorder {
   state: RecorderState;
@@ -69,13 +93,20 @@ export function useRecorder(): Recorder {
     setSeconds(0);
     chunks.current = [];
 
+    if (!canRecord()) {
+      setState('unsupported');
+      return;
+    }
+
     let media: MediaStream;
     try {
       media = await navigator.mediaDevices.getUserMedia({ audio: true });
-    } catch {
-      // Denial is a state, not an error to surface raw: FR-007's sibling case, where the
-      // participant needs to know what to do rather than what failed.
-      setState('denied');
+    } catch (error) {
+      // Three outcomes, three next actions. NotFoundError means there is no microphone to
+      // grant access to, so telling someone to check their permissions sends them somewhere
+      // that will not help.
+      const name = error instanceof DOMException ? error.name : '';
+      setState(name === 'NotFoundError' || name === 'OverconstrainedError' ? 'noDevice' : 'denied');
       return;
     }
 
