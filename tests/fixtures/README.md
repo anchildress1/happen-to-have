@@ -67,36 +67,40 @@ and 10 near-miss controls, none of which appeared in any prompt. It exists becau
 fixtures above could not test the crisis prompt — its crisis cases were the ones the prompt had
 been tuned on.
 
-| Result file | Shape | Model | Crisis wording | Caught |
+| Result file | Shape | Model | Crisis prompt | Caught |
 | - | - | - | - | - |
-| `crisis-merged-gemini-3.5-flash-lite-canPublish.json` | merged judgment | Flash-Lite | may this publish | 2/10 |
-| `crisis-merged-gemini-3.5-flash-lite-detected.json` | merged judgment | Flash-Lite | is this crisis | 3/10 |
-| `crisis-merged-gemini-3.5-flash-lite-canPublish-HIGH.json` | merged judgment | Flash-Lite, HIGH thinking | may this publish | 3/10 |
-| `crisis-merged-gemini-3.8-flash-canPublish.json` | merged judgment | **Flash** | may this publish | **9/10** |
-| `crisis-dedicated-gemini-3.5-flash-lite.json` | **dedicated** | Flash-Lite | is this crisis | 8/10 |
-| `crisis-dedicated-gemini-3.8-flash.json` | **dedicated** | **Flash** | is this crisis | **10/10** |
+| `crisis-merged-gemini-3.5-flash-lite-canPublish.json` | merged | Flash-Lite | may-publish | 2/10 |
+| `crisis-merged-gemini-3.5-flash-lite-detected.json` | merged | Flash-Lite | is-crisis | 3/10 |
+| `crisis-merged-gemini-3.5-flash-lite-canPublish-HIGH.json` | merged | Flash-Lite, HIGH thinking | may-publish | 3/10 |
+| `crisis-merged-gemini-3.5-flash-lite-canPublish-weigh.json` | merged | Flash-Lite | **+ how_to_weigh** | 2/10 |
+| `crisis-merged-gemini-3.8-flash-canPublish.json` | merged | **Flash** | may-publish | 9/10 |
+| `crisis-merged-gemini-3.8-flash-canPublish-weigh.json` | merged | **Flash** | **+ how_to_weigh** | **10/10** |
+| `crisis-dedicated-gemini-3.5-flash-lite.json` | **dedicated** | Flash-Lite | is-crisis + how_to_weigh | 8/10 |
+| `crisis-dedicated-gemini-3.8-flash.json` | **dedicated** | **Flash** | is-crisis + how_to_weigh | **10/10** |
 
-Zero false positives on the ten controls in every configuration listed.
+Zero false positives on the ten controls in every configuration. Every Flash row was run three
+times with an identical result.
 
-**Two levers, both real, and the earlier reading of this table was wrong.**
+**The comparison was confounded until the last row existed.** The dedicated prompt carried a
+`<how_to_weigh>` clause — *say yes when the signal is there, even if you are unsure* — that the
+merged prompt had no equivalent of. Codex caught it on #23. With that clause added to the merged
+prompt and nothing else changed, the two shapes are indistinguishable at the shipped tier.
 
-| Change | At Flash-Lite | At Flash |
+| Lever | At Flash-Lite | At Flash |
 | - | - | - |
-| Give crisis its own call | 2–3 → 8 | 9 → 10 |
-| Move to the larger model | merged 2–3 → 9 · dedicated 8 → 10 | — |
+| Move to the larger model | — | merged+weigh 2 → 10 |
+| Give crisis its own call | 2 → 8 | **10 → 10, no effect** |
+| Add `how_to_weigh` to a merged call | 3 → 2, no effect | 9 → 10 |
+| Raise thinking to HIGH | 2 → 3, no effect | not run |
+| Flip the question's polarity | 2 → 3, no effect | not run |
 
-Merged-on-Flash misses exactly one recording, `gen-crisis-tired-of-going`, and misses the same
-one on three separate runs. Dedicated-on-Flash caught all ten on three separate runs. The split
-is worth one detection at the shipped tier — reproducibly, not as noise — and five to six on the
-cheap one.
+So: **the model tier is the whole story at Flash, and the call split is worth nothing there.**
+The split is worth six detections on Flash-Lite, where the weighing clause does nothing — a
+smaller model apparently cannot act on the instruction *and* carry three other judgments.
 
-**Two levers that are NOT real**, both previously claimed and both now measured:
-
-- *Thinking level.* HIGH on Flash-Lite scores 3/10 against 2/10 without it — inside the same
-  2–3 band four merged Flash-Lite runs produce. No effect worth the latency.
-- *Crisis question polarity.* Asking "may this publish" scores 2/10 and asking "is this person
-  in trouble" scores 3/10, again inside the same band. The shipped call uses the positive form
-  because that is the wording measured at 10/10, not because polarity was shown to matter.
+⚠️ **This is the evidence constitution 4.0.0 cited for "signals MUST NOT share a call", and at
+the shipped tier it no longer supports that rule.** Left for a decision rather than acted on
+here.
 
 ### ⚠️ Three of these files used to carry labels for runs that never happened
 
@@ -117,10 +121,13 @@ dependency since T001, and `GEMINI_API_KEY`.
 
 ```bash
 pnpm install                      # @google/genai is already a dependency
-node scripts/spike/tts.js         # regenerate any missing recording; existing files are skipped
+node scripts/spike/tts.js         # regenerates the 16 cases.ts recordings only
 node scripts/spike/lite3.js       # the retired merged judgment call against all 16
-# merged shape: [model] [polarity: detected|canPublish] [thinkingLevel]
+# The twenty gen-* recordings are synthesized by crisis-generalization.js, not by tts.js,
+# which only iterates cases.ts. Run it once before crisis-dedicated.js on a clean checkout.
+# merged shape: [model] [polarity: detected|canPublish] [thinkingLevel] [weigh]
 node scripts/spike/crisis-generalization.js gemini-3.8-flash canPublish
+node scripts/spike/crisis-generalization.js gemini-3.8-flash canPublish weigh
 node scripts/spike/crisis-dedicated.js gemini-3.8-flash    # the shipped crisis call
 ```
 

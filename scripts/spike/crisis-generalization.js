@@ -8,11 +8,18 @@ import { CRISIS_GENERALIZATION_CASES } from '../../tests/fixtures/crisis-general
  * quality — run against twenty recordings the prompt has never seen. Compare against
  * crisis-dedicated.js, which asks the same crisis question with no other job in the call.
  *
- * Usage: node crisis-generalization.js [model] [polarity] [thinkingLevel]
+ * Usage: node crisis-generalization.js [model] [polarity] [thinkingLevel] [weigh]
  *   model     defaults to gemini-3.5-flash-lite
  *   polarity  'detected' (default) asks whether crisis is present;
  *             'canPublish' asks whether the recording may be published, and is inverted here.
  *   thinking  MINIMAL | LOW | MEDIUM | HIGH; omitted means no thinkingConfig at all.
+ *   weigh     'weigh' adds crisis-dedicated.js's <how_to_weigh> clause verbatim.
+ *
+ * The `weigh` argument exists because the shape comparison was otherwise confounded, which
+ * Codex caught on #23: the dedicated prompt carried an explicit instruction to answer yes when
+ * unsure, and the merged prompt had no equivalent. Any gap between them could have been that
+ * clause rather than the call shape. With it on, the two prompts differ only in whether the
+ * call has other jobs.
  *
  * Every argument must reach the request. An earlier revision passed model and thinking to the
  * OUTPUT FILENAME ONLY while hard-coding Flash-Lite with no thinking config, so three result
@@ -23,7 +30,8 @@ import { CRISIS_GENERALIZATION_CASES } from '../../tests/fixtures/crisis-general
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 const MODEL = process.argv[2] ?? 'gemini-3.5-flash-lite';
 const POLARITY = process.argv[3] ?? 'detected';
-const THINKING = process.argv[4];
+const THINKING = process.argv[4] === 'weigh' ? undefined : process.argv[4];
+const WEIGH = process.argv[4] === 'weigh' || process.argv[5] === 'weigh';
 if (POLARITY !== 'detected' && POLARITY !== 'canPublish') {
   throw new Error(`polarity must be 'detected' or 'canPublish', got '${POLARITY}'`);
 }
@@ -43,6 +51,13 @@ const NEVER_BLOCK = [
 
 const POSITIVE = POLARITY === 'detected';
 const CRISIS_FIELD = POSITIVE ? 'crisisDetected' : 'crisisCanPublish';
+
+// Verbatim from crisis-dedicated.js, with only the field's polarity substituted.
+const HOW_TO_WEIGH = `
+- You are not diagnosing and you are not deciding what happens next. A person reads the outcome
+  either way. Return ${POSITIVE ? 'TRUE' : 'FALSE'} when the signal is there, even if you are
+  unsure; an unnecessary offer of help costs someone a moment, and a missed one costs more than
+  this system can repair.`;
 
 /** The merged judgment prompt, in whichever crisis polarity was asked for. */
 const SYS = `<role>You judge one spoken recording on three independent questions, and report the
@@ -65,7 +80,7 @@ audio quality. You never transcribe it and never repeat its content.</role>
   - EXHAUSTION AT CONTINUING ITSELF, as distinct from exhaustion at a situation, a job or a
     workload.
 - Calm, practical or matter-of-fact delivery is not evidence against crisis. It is common in it.
-- Do NOT require an explicit method, a plan, or the word suicide.
+- Do NOT require an explicit method, a plan, or the word suicide.${WEIGH ? HOW_TO_WEIGH : ''}
 - Return ${POSITIVE ? 'false' : 'true'} for grief, burnout, frustration, money worry, or a
   figure of speech such as "that job was killing me".
 - Return ${POSITIVE ? 'false' : 'true'} for giving up on a PROJECT, a job, a friendship or a
@@ -238,13 +253,13 @@ fs.writeFileSync(
     'tests',
     'fixtures',
     'results',
-    `crisis-merged-${MODEL}-${POLARITY}${THINKING ? `-${THINKING}` : ''}.json`,
+    `crisis-merged-${MODEL}-${POLARITY}${THINKING ? `-${THINKING}` : ''}${WEIGH ? '-weigh' : ''}.json`,
   ),
   JSON.stringify(results, null, 2),
 );
 
 console.log(
-  `\nmerged judgment · ${MODEL} · ${POLARITY}${THINKING ? ` · thinking ${THINKING}` : ''}`,
+  `\nmerged judgment · ${MODEL} · ${POLARITY}${THINKING ? ` · thinking ${THINKING}` : ''}${WEIGH ? ' · +how_to_weigh' : ''}`,
 );
 console.log(
   `caught ${caught}/${crisis.length}   false positives ${falsePositives}/${controls.length}`,
