@@ -5,6 +5,10 @@ import { CASES } from '../../tests/fixtures/cases.ts';
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 const DIR = path.join(import.meta.dirname, '..', '..', 'tests', 'fixtures', 'audio');
+// *.wav is gitignored and git does not keep empty directories, so a clean checkout has no
+// audio directory at all. Without this, every TTS request succeeds, is billed, and then throws
+// ENOENT on write — which the retry wrapper reads as a provider fault and repeats five times.
+fs.mkdirSync(DIR, { recursive: true });
 function wav(pcm, rate = 24000, bits = 16, ch = 1) {
   const h = Buffer.alloc(44),
     br = (rate * ch * bits) / 8;
