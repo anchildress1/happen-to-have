@@ -26,8 +26,13 @@ const PERMIT = {
   verdict: { canPublish: true, detail: '' },
 };
 
-function fakeProvider(overrides: Record<string, unknown> = {}) {
+function fakeProvider(
+  overrides: Record<string, unknown> = {},
+  /** Per-call delay in ms, so fail-fast can be observed rather than assumed. */
+  delays: Record<string, number> = {},
+) {
   const seen: Array<{ model: string; parts: unknown[] }> = [];
+  const settledSlow = new Set<string>();
   const client: GenAiClient = {
     async generateContent(params) {
       const parts = (params.contents as Array<{ parts: unknown[] }>)[0].parts;
@@ -43,6 +48,10 @@ function fakeProvider(overrides: Record<string, unknown> = {}) {
           : instruction.includes('engage the question')
             ? 'relevance'
             : 'content';
+      if (delays[which]) {
+        await new Promise((r) => setTimeout(r, delays[which]));
+        settledSlow.add(which);
+      }
       const body =
         overrides[which] ??
         PERMIT[which === 'content' ? 'content' : which === 'crisis' ? 'crisis' : 'verdict'];
@@ -54,7 +63,7 @@ function fakeProvider(overrides: Record<string, unknown> = {}) {
       } as never;
     },
   };
-  return { client, seen };
+  return { client, seen, settledSlow };
 }
 
 const allowAll: RateLimitClient = {
@@ -126,10 +135,6 @@ describe('review fan-out — width and isolation (FR-002 – FR-005)', () => {
 
     await run('answer', client);
 
-    const models = Object.fromEntries(
-      seen.map((c) => [String(c.parts).length && c.model, c.model]),
-    );
-    void models;
     const flash = seen.filter((c) => c.model === 'gemini-3.8-flash');
     expect(flash).toHaveLength(2);
   });
@@ -261,5 +266,42 @@ describe('review fan-out — programmer error is the only throw', () => {
     };
 
     await expect(run('answer', client)).resolves.toMatchObject({ status: 'failed' });
+  });
+});
+
+describe('review fan-out — fail fast actually means fast (FR-022)', () => {
+  it('resolves on the first refusal without waiting for a slow sibling', async () => {
+    // The previous implementation awaited Promise.all and merely aborted the controller, so a
+    // provider that ignores cancellation held the participant on the checking screen until its
+    // own deadline. Named failFast, behaved like Promise.all.
+    const { client, settledSlow } = fakeProvider(
+      { illegal: { canPublish: false, detail: 'x' } },
+      { content: 3_000 },
+    );
+
+    const started = Date.now();
+    const outcome = await run('answer', client);
+    const elapsed = Date.now() - started;
+
+    expect(outcome).toEqual({ status: 'withheld', reason: 'illegal' });
+    // Nowhere near the 3s the slow content call takes. The exact bound matters less than the
+    // gap between them.
+    expect(elapsed).toBeLessThan(1_500);
+    expect(settledSlow.has('content')).toBe(false);
+  });
+
+  it('does not let a late higher-precedence refusal rewrite a resolved reason (FR-022)', async () => {
+    // "Late results MUST NOT change the outcome", in as many words. A crisis refusal arriving
+    // after the gate resolved on illegal would silently re-route the participant — better for
+    // them in isolation, and exactly the nondeterminism the requirement forbids.
+    const { client } = fakeProvider(
+      {
+        illegal: { canPublish: false, detail: 'x' },
+        crisis: { inTrouble: true, signal: 'BURDEN' },
+      },
+      { crisis: 2_000 },
+    );
+
+    await expect(run('answer', client)).resolves.toEqual({ status: 'withheld', reason: 'illegal' });
   });
 });

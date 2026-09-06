@@ -60,7 +60,10 @@ function verdictCall(model: string, systemInstruction: string) {
       {
         parts: [
           { inlineData: { mimeType, data: Buffer.from(audio).toString('base64') } },
-          ...(questionText
+          // `!== undefined`, not truthiness: an empty question is still a question the
+          // relevance call was given, and dropping it silently asks the model to judge
+          // relevance against nothing.
+          ...(questionText !== undefined
             ? [{ text: `The question asked was: "${questionText}"\n\nJudge the recording above.` }]
             : []),
         ],

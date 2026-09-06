@@ -59,7 +59,15 @@ export async function reviewContribution(
   let audio: Uint8Array | null = input.audio;
 
   try {
-    const decision = await rateLimit.recordSubmission(participantId);
+    // The limiter talks to Postgres, and a transient outage there rejects. Left unhandled it
+    // escapes as an arbitrary error, and the contract says only programmer error and caller
+    // abort reject — a caller with neither has no ReviewOutcome to render.
+    let decision: Awaited<ReturnType<RateLimitClient['recordSubmission']>>;
+    try {
+      decision = await rateLimit.recordSubmission(participantId);
+    } catch {
+      return { status: 'failed', cause: 'exhausted' };
+    }
     if (!decision.allowed) {
       return { status: 'rate_limited', retryAt: decision.retryAt };
     }
@@ -72,42 +80,71 @@ export async function reviewContribution(
     // Chained so a refusal aborts the siblings, and the caller's own abort still propagates.
     const controller = new AbortController();
     const onAbort = () => controller.abort(signal.reason);
+    // Checked as well as listened for: the signal can fire while `recordSubmission` is
+    // awaiting, and `addEventListener` does not replay an event that already happened. Without
+    // this every call is dispatched for a participant who has already left — billed work for
+    // an outcome nobody will read.
+    if (signal.aborted) {
+      throw new DOMException('The review was aborted.', 'AbortError');
+    }
     signal.addEventListener('abort', onAbort, { once: true });
 
     try {
       const shared = { client: genai, signal: controller.signal, deadline };
+      // The deadline above is computed in `deps.now`'s clock domain, so the retry layer has to
+      // read the same clock. Passing only one of them makes `now: () => 0` produce a deadline
+      // of 90000 that real epoch time treats as long expired, and no call is ever made.
+      const clock = { now };
       const calls: Array<Promise<CheckResult>> = [
-        runCheck({
-          ...shared,
-          params: contentCall(audio, mimeType),
-          schema: contentResultSchema,
-        }).then((o) => settle('content', o, (v) => v.canPublish)),
-        runCheck({
-          ...shared,
-          params: crisisCall(audio, mimeType),
-          schema: crisisResultSchema,
-          // The one inverted signal: a permit is `inTrouble: false`.
-        }).then((o) => settle('crisis', o, (v) => !v.inTrouble)),
-        runCheck({
-          ...shared,
-          params: illegalCall(audio, mimeType),
-          schema: verdictResultSchema,
-        }).then((o) => settle('illegal', o, (v) => v.canPublish)),
+        runCheck(
+          {
+            ...shared,
+            params: contentCall(audio, mimeType),
+            schema: contentResultSchema,
+          },
+          clock,
+        ).then((o) => settle('content', o, (v) => v.canPublish)),
+        runCheck(
+          {
+            ...shared,
+            params: crisisCall(audio, mimeType),
+            schema: crisisResultSchema,
+            // The one inverted signal: a permit is `inTrouble: false`.
+          },
+          clock,
+        ).then((o) => settle('crisis', o, (v) => !v.inTrouble)),
+        runCheck(
+          {
+            ...shared,
+            params: illegalCall(audio, mimeType),
+            schema: verdictResultSchema,
+          },
+          clock,
+        ).then((o) => settle('illegal', o, (v) => v.canPublish)),
       ];
       const dispatched: CheckResult['call'][] = ['content', 'crisis', 'illegal'];
 
       if (kind === 'answer') {
         calls.push(
-          runCheck({
-            ...shared,
-            params: relevanceCall(audio, mimeType, questionText ?? undefined),
-            schema: verdictResultSchema,
-          }).then((o) => settle('relevance', o, (v) => v.canPublish)),
+          runCheck(
+            {
+              ...shared,
+              params: relevanceCall(audio, mimeType, questionText ?? undefined),
+              schema: verdictResultSchema,
+            },
+            clock,
+          ).then((o) => settle('relevance', o, (v) => v.canPublish)),
         );
         dispatched.push('relevance');
       }
 
       const results = await failFast(calls, controller);
+      // Abandonment rejects rather than resolving. The chained controller turns a caller abort
+      // into aborted faults, and resolving those as `failed` would hand a processing-failure
+      // page to a request that no longer exists — the contract's one documented rejection.
+      if (signal.aborted) {
+        throw new DOMException('The review was aborted.', 'AbortError');
+      }
       return resolve(results, dispatched, now() >= deadline ? 'deadline' : 'exhausted');
     } finally {
       signal.removeEventListener('abort', onAbort);
@@ -150,18 +187,42 @@ async function failFast(
   controller: AbortController,
 ): Promise<CheckResult[]> {
   const settled: CheckResult[] = [];
-  let refused = false;
 
-  await Promise.all(
-    calls.map(async (call) => {
-      const result = await call;
-      settled.push(result);
-      if (result.outcome === 'refuse' && !refused) {
-        refused = true;
-        controller.abort();
+  // Resolves on the FIRST refusal, not after every call settles. The previous version awaited
+  // Promise.all and merely aborted the controller, which made the name a lie twice over: it
+  // waited for any provider that ignores cancellation, and — because `settled` kept growing —
+  // a later refusal could still change the chosen reason. FR-022 forbids exactly that: only
+  // rejections already known at resolution count, and late results must not change the outcome.
+  await new Promise<void>((resolve) => {
+    let done = false;
+    const finish = () => {
+      if (!done) {
+        done = true;
+        resolve();
       }
-    }),
-  );
+    };
+
+    let outstanding = calls.length;
+    for (const call of calls) {
+      void call.then((result) => {
+        // A result arriving after resolution is dropped rather than merged. Pushing it would
+        // reintroduce the reason-changing race through the back door.
+        if (done) {
+          return;
+        }
+        settled.push(result);
+        if (result.outcome === 'refuse') {
+          controller.abort();
+          finish();
+          return;
+        }
+        outstanding -= 1;
+        if (outstanding === 0) {
+          finish();
+        }
+      });
+    }
+  });
 
   return settled;
 }
