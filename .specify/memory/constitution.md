@@ -1,6 +1,32 @@
 <!--
 SYNC IMPACT REPORT
 ==================
+Version change: 5.0.0 → 5.0.1
+
+AMENDMENT 5.0.1 (2026-09-06) — the pinned model table is brought into line with Principle III.
+
+Bump rationale: PATCH. No principle is added, removed, or narrowed. Principle III has required
+the crisis judgment to run on the content tier since 4.0.0 and still does; the Application Stack
+table simply was not updated alongside it, and a reference table contradicting the rule it
+references is a defect in the document rather than a change to the governance.
+
+  Application Stack
+    - Crisis check: `gemini-3.5-flash-lite` → `gemini-3.8-flash`, matching Principle III.
+    - The sentence "The three guardrails are boolean classification and belong on Flash-Lite"
+      asserted the opposite of the principle above it. It now names the exception: relevance
+      and illegal-or-dangerous belong on Flash-Lite; crisis does not.
+
+Why it went unnoticed: 4.0.0 and 5.0.0 both amended Principle III's *argument* and neither
+touched the table that pins the ids. Nothing cross-checks the two, and the code follows the
+principle rather than the table — `src/review/client.ts` has pinned crisis to `gemini-3.8-flash`
+since the engine was built, so the running system was never wrong. The document was.
+
+Found by a review pass over 003's completed tasks, which read the constitution as the authority
+for a model pin and found it disagreeing with itself. Recorded because "the code was right all
+along" is the reason a stale governance document survives, not a reason to leave it stale.
+
+--- 5.0.0 (2026-09-06), retained below ---
+
 Version change: 4.0.0 → 5.0.0
 
 AMENDMENT 5.0.0 (2026-09-06) — the call-split prohibition is removed. The tier and the
@@ -541,12 +567,14 @@ a performance or a marketing hook is the one failure that cannot be patched late
   | - | - | - |
   | Content processing (transcribe, translate, redact, emotion) | `gemini-3.8-flash` | The one call doing real extraction and transformation. GA, accepts audio, structured output. |
   | Relevance check | `gemini-3.5-flash-lite` | Single boolean. GA, fastest, cheapest. |
-  | Crisis check | `gemini-3.5-flash-lite` | Single boolean. |
+  | Crisis check | `gemini-3.8-flash` | Single boolean, and the tier is the load-bearing rule for it — see Principle III. Measured 8/10 on Flash-Lite against 10/10 here on recordings the prompt had never seen. |
   | Illegal or dangerous check | `gemini-3.5-flash-lite` | Single boolean. |
   | Generated playback (TTS) | `gemini-3.1-flash-tts-preview` | Lowest-latency TTS with expressive control. |
 
-- Running all four review calls at the top tier buys latency and cost, not accuracy. The three
-  guardrails are boolean classification and belong on Flash-Lite.
+- Running every review call at the top tier buys latency and cost, not accuracy — with one
+  measured exception. Relevance and illegal-or-dangerous are boolean classification and belong
+  on Flash-Lite. **Crisis does not.** It is the only signal whose failure causes harm outside
+  the software, and the only one where the tier was measured to change the answer.
 - Content processing runs on Flash, not Pro. The participant is blocked on the Checking state
   while the review runs, so the critical path takes the GA tier with the better latency and cost
   profile. The job is extraction and transformation over one minute of audio, not the multi-step
@@ -657,4 +685,4 @@ a performance or a marketing hook is the one failure that cannot be patched late
 - `AGENTS.md` and `CLAUDE.md` carry runtime development guidance and MUST NOT restate or
   contradict the principles above.
 
-**Version**: 5.0.0 | **Ratified**: 2026-09-04 | **Last Amended**: 2026-09-06
+**Version**: 5.0.1 | **Ratified**: 2026-09-04 | **Last Amended**: 2026-09-06
