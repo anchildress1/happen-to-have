@@ -24,7 +24,7 @@ The text in `cases.ts` **is** the fixture. The audio is derived from it, so run 
 after cloning:
 
 ```bash
-pnpm add @google/genai      # T001
+pnpm install                # @google/genai is already a dependency
 node scripts/spike/tts.js   # writes any missing recording; existing files are skipped
 ```
 
@@ -62,11 +62,11 @@ wrong — decide which, and record why.
 
 ## Regenerating
 
-Scripts are in [`scripts/spike/`](../../scripts/spike). They need `@google/genai` — **not yet a
-dependency** (task T001) — and `GEMINI_API_KEY`.
+Scripts are in [`scripts/spike/`](../../scripts/spike). They need `@google/genai`, a production
+dependency since T001, and `GEMINI_API_KEY`.
 
 ```bash
-pnpm add @google/genai            # T001
+pnpm install                      # @google/genai is already a dependency
 node scripts/spike/tts.js         # regenerate any missing recording; existing files are skipped
 node scripts/spike/lite3.js       # the shipped judgment call against all 16
 ```

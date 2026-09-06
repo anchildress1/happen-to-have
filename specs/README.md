@@ -5,7 +5,7 @@ Five specs. Build in numeric order; each depends only on lower numbers.
 | # | Spec | Owns |
 |---|------|------|
 | 001 | [participant-and-pool](001-participant-and-pool/spec.md) | Anonymous identity, landing, seeded pool, selection, skip, empty states |
-| 002 | [contribution-review](002-contribution-review/spec.md) | The two-call review, aggregate decision, shared result page, crisis routing, retry, audio lifecycle, rate limiting |
+| 002 | [contribution-review](002-contribution-review/spec.md) | The per-signal review fan-out, aggregate decision, shared result page, crisis routing, retry, audio lifecycle, rate limiting |
 | 003 | [answer-and-unlock](003-answer-and-unlock/spec.md) | Answer recording, 60s ceiling, checking state, **granting** one ask |
 | 004 | [ask-one](004-ask-one/spec.md) | Question recording, publication, **consuming** the ask, question lifecycle and closure |
 | 005 | [yours-and-playback](005-yours-and-playback/spec.md) | `Yours` history, flat responses, lazy generated playback |
@@ -95,8 +95,9 @@ The handoff's validation cases map to the specs below; this is planned coverage,
 The kill spike ran on 2026-09-05, scoped down to the guardrail checks
 ([results](../docs/spike-002-guardrails.md)). It found the provider returns no safety ratings
 and its adjustable filters ship off by default, so nothing screens a contribution unless 002
-does — which it now does in two parallel calls. The constitution was amended to 3.0.0. Fan-out latency measured
-2.4s median and 3.6s p90 on 12–16 second clips; cost and latency at the 60-second ceiling remain
-unmeasured.
+does — which it now does in one parallel call per signal: four for an answer, three for a
+question, with crisis on the content tier. The constitution was amended to 4.0.0. Fan-out latency
+measured 2.4s median and 3.6s p90 on 12–16 second clips of the earlier two-call shape; cost, and
+latency at both the 60-second ceiling and the wider fan-out, remain unmeasured.
 
 Day 1 → 001, 002, 003. Day 2 → 004, 005, deploy, demo.

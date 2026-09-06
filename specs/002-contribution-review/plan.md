@@ -26,11 +26,13 @@ any threshold, and at its default guardrails it passed 7 of 8 recordings that mu
 free rating, and the provider's own filter is barred from counting as a check at all. Evidence:
 [spike-002-guardrails](../../docs/spike-002-guardrails.md).
 
-**One signal per call, because merging was measured and it cost lives-worth of signal.** On
-twenty understated-crisis recordings the prompt had never seen, the same model with the same
-wording caught 3 of 10 when crisis shared a call with two other judgments and 10 of 10 when it
-had a call of its own on the content tier — zero false positives throughout. A call holding
-several jobs stops doing the subtle one. Full measurement in [research D2](research.md).
+**Two levers, both measured, and the tier is the bigger one.** On twenty understated-crisis
+recordings the prompt had never seen, with zero false positives throughout: a merged judgment
+call catches 2–3 of 10 on Flash-Lite and 9 of 10 on Flash, while a dedicated crisis call catches
+8 of 10 on Flash-Lite and 10 of 10 on Flash. Moving up a tier is worth six detections merged and
+two dedicated; splitting the call is worth five or six on the cheap tier and one on the shipped
+one — the same recording, missed on all three merged runs. Full measurement in
+[research D2](research.md).
 
 Content processing stays separate for a second, independent reason: it reproduces the recording
 as text and is the call the provider's filter trips — measured returning an empty candidate on two
@@ -40,7 +42,9 @@ render as a processing failure.
 
 That measurement took the constitution to **4.0.0**, removing the merge permission 3.0.0 had
 granted. 3.0.0's evidence could not have found the effect: its crisis cases were the ones the
-crisis prompt had been tuned on.
+crisis prompt had been tuned on. 4.0.0 was itself drafted twice — its first table credited the
+split with the tier's effect, because the measurement script's model argument reached the output
+filename and nothing else.
 
 Two decisions deserve early scrutiny. Rate limiting writes the only row this feature persists,
 which sits against Principle V ([research D7](research.md), justified in Complexity Tracking).
@@ -104,19 +108,19 @@ service's request timeout must exceed the 90 s deadline and is asserted in `depl
 assumed. A provider `429` is a fault that retries — never this system's own rate limit, and never
 that message.
 
-**Scale/Scope**: weekend challenge scale. One module, four screens, one table, two provider
-calls per contribution.
+**Scale/Scope**: weekend challenge scale. One module, four screens, one table, four provider
+calls per answer and three per question.
 
 ## Constitution Check
 
-Checked against constitution **v3.0.0** — all three amendments this feature's measurements caused. Re-checked
+Checked against constitution **v4.0.0** — all four amendments this feature's measurements caused. Re-checked
 after Phase 1 design; result unchanged.
 
 | Principle | Applies here? | Status | Evidence |
 | - | - | - | - |
 | I. Human Contribution Is The Product | Yes | **PASS** | FR-014/FR-015 forbid the review adding advice or altering substance; content processing transcribes and redacts only. No generated advice anywhere (spec Out of Scope). |
 | II. Server-Authoritative Reciprocity | Partially | **PASS** | 002 returns a decision and never grants or consumes an ask. FR-042 keeps a failed question's ask unspent. Granting is 003, consumption is 004. |
-| III. Aggregate Guardrail Gate | Yes | **PASS** | Two parallel calls, split on the provider's fault line ([research D2](research.md)). Uniform `canPublish`; either refusing resolves Withheld and aborts the other ([research D6](research.md)). Provider's own filter explicitly not counted as a signal. |
+| III. Aggregate Guardrail Gate | Yes | **PASS** | One parallel call per signal, crisis on the content tier ([research D2](research.md)). Uniform `canPublish`; either refusing resolves Withheld and aborts the other ([research D6](research.md)). Provider's own filter explicitly not counted as a signal. |
 | IV. Original Audio Is Transient | Yes | **PASS** | Audio never reaches storage ([research D1](research.md)), bounded by the 90 s deadline, released on abort. FR-047 keeps playback of an original off every surface. |
 | V. Structured Output Or Failure | Yes | **PASS with one tension** | Every result Zod-parsed before use ([research D9](research.md)); invalid output retries and never renders. Check results and retry counts live only in the request. **The rate-limit counter is the exception** — see Complexity Tracking. |
 | VI. Scope Discipline | Yes | **PASS** | No object storage, no job queue, no polling infrastructure, no cache service, no human moderation or appeals. Each rejection recorded in research alternatives. |

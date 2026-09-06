@@ -3,7 +3,7 @@ SYNC IMPACT REPORT
 ==================
 Version change: 3.0.0 → 4.0.0
 
-AMENDMENT 4.0.0 (2026-09-06) — signals do not share a call, and crisis moves up a tier.
+AMENDMENT 4.0.0 (2026-09-06) — crisis moves up a tier, and does not share a call.
 
 Bump rationale: MAJOR. The permission 3.0.0 granted — that the three judgments MAY share one
 call — is REMOVED. Removing a principle is MAJOR under this document's own policy.
@@ -11,31 +11,55 @@ call — is REMOVED. Removing a principle is MAJOR under this document's own pol
   III. Aggregate Guardrail Gate
     - Four calls for an answer, three for a question. Content processing, crisis, illegal-or-
       dangerous, and relevance, each on its own call.
+    - NEW: crisis runs on the content tier, not the cheap one. This is the larger effect.
     - NEW: signals MUST NOT share a call.
-    - NEW: crisis runs on the content tier, not the cheap one.
     - REMOVED: "each judging call MUST report which signal it found". With one signal per call
       the refusing call is the reason; the field it replaced no longer has anything to add.
     - REMOVED: the audio-quality fallback for a content refusal with no stated reason. It
       existed only because a merged judgment call happened to be listening to the same audio,
       and schema validation had already made it unreachable. Such a refusal is now a fault.
-    - The crisis call answers in positive polarity (`inTrouble`), inverted in code. The measured
-      wording asks whether the person is in trouble, and flipping it in the prompt scored worse.
+    - The crisis call answers in positive polarity (`inTrouble`), inverted in code. Not because
+      polarity was shown to matter — it was not — but because that is the wording measured at
+      10/10, and changing a measured artefact without re-measuring is how this amendment's
+      first draft went wrong.
 
-Evidence (tests/fixtures/crisis-generalization.ts, twenty unseen recordings, 2026-09-06):
+Evidence (tests/fixtures/crisis-generalization.ts, twenty unseen recordings — 10 understated
+crisis, 10 near-miss controls, none appearing in any prompt; 2026-09-06):
 
-    merged judgment  flash-lite  shipped wording               2/10
-    merged judgment  flash       + named signal categories     3/10
-    merged judgment  flash-lite  + HIGH thinking               3/10
-    DEDICATED call   flash-lite  + named signal categories     8/10
-    DEDICATED call   flash       + named signal categories    10/10
+    SHAPE      MODEL       VARIANT              CAUGHT
+    merged     flash-lite  ask-may-publish       2/10
+    merged     flash-lite  ask-is-crisis         3/10
+    merged     flash-lite  + HIGH thinking       3/10
+    merged     FLASH       ask-may-publish       9/10   (3 runs, same single miss)
+    DEDICATED  flash-lite  ask-is-crisis         8/10
+    DEDICATED  FLASH       ask-is-crisis        10/10   (3 runs)
 
-  Zero false positives in every configuration.
+  Zero false positives on the ten controls in every configuration.
+
+  Holding one variable at a time:
+    tier,  merged    2-3 -> 9    the dominant lever
+    tier,  dedicated   8 -> 10
+    split, flash-lite 2-3 -> 8
+    split, flash        9 -> 10  one recording, missed on every merged run
+
+  Thinking level and question polarity both move the result inside the 2-3 band four
+  Flash-Lite runs already span. Neither is an effect.
+
+This amendment was drafted twice. Its first draft claimed merging cost five to eight
+detections, on a table in which three rows carried labels for runs that never happened: the
+measurement script interpolated its model and thinking arguments into the output FILENAME while
+hard-coding Flash-Lite. Two review bots caught it. Re-measured, the tier is the dominant lever
+and the split is worth one detection at the shipped tier.
+
+Both rules are kept, and the shipped configuration is unchanged, because dedicated-on-Flash is
+still the only configuration that reaches 10/10 — reproducibly, missing nothing, across three
+runs. But the margin the split earns at the shipped tier is one recording in ten, not eight, and
+a future amendment weighing it should weigh the real number.
 
 3.0.0 removed the merge prohibition because the sixteen-fixture set showed no difference. That
-set could not show one: its crisis cases were the cases the prompt had been tuned on. Against
-recordings the prompt had never seen, merging cost five to eight detections out of ten. The
-prohibition 3.0.0 called "asserted, never measured" was right for a reason nobody had
-articulated, and the measurement that retired it was not capable of finding the effect.
+set could not show one: its crisis cases were the cases the prompt had been tuned on. The
+prohibition 3.0.0 called "asserted, never measured" was right, though for a smaller reason than
+this amendment first credited it with.
 
 The 3.0.0 amendment's other conclusions stand: the provider returns no safety ratings, its
 adjustable filters ship off by default, and an empty candidate is a fault rather than a verdict.
@@ -275,10 +299,11 @@ wrong about crisis too, so that result MUST NOT remove the participant's ability
   - **Crisis** — is this person in trouble right now, and nothing else.
   - **Illegal or dangerous** — would publishing this be unsafe or unlawful.
   - **Relevance** — answers only; a question does not evaluate it.
-- Signals MUST NOT share a call. Measured on twenty unseen understated-crisis recordings, the
-  same model with the same wording caught 3 of 10 when crisis shared a call with two other
-  judgments and 8 of 10 when it did not. A call holding several jobs stops doing the subtle
-  one, and crisis is the subtle one.
+- Signals MUST NOT share a call. Measured on twenty unseen understated-crisis recordings, at the
+  shipped tier a merged call caught 9 of 10 and dedicated calls caught 10 of 10 — the same
+  single recording missed on every merged run, across three runs of each. On the cheap tier the
+  gap is 2-3 against 8. A call holding several jobs stops doing the subtle one, and crisis is
+  the subtle one; the tier decides how much that costs.
 - The provider's own safety signal MUST NOT be treated as one of these checks. It returns no
   ratings to read, and its four adjustable filters are off by default for the models in use, so
   nothing screens a contribution unless this product screens it. The non-adjustable core-harm
@@ -293,10 +318,10 @@ wrong about crisis too, so that result MUST NOT remove the participant's ability
 - Content processing MUST remain its own call for a second, independent reason: it reproduces
   the recording as text and was measured returning an empty candidate on recordings the other
   calls handled cleanly. Keeping it separate leaves a usable verdict when the transcript is lost.
-- The crisis call MUST run on the content tier rather than the cheap one. Dedicated, it caught
-  8 of 10 on the small model and 10 of 10 on the large one. Crisis is the only signal whose
-  failure causes harm outside the software, and it is the only one where the tier was measured
-  to matter.
+- The crisis call MUST run on the content tier rather than the cheap one. This is the larger
+  of the two effects measured: dedicated, the small model caught 8 of 10 unseen understated
+  recordings and the large one caught 10 of 10; merged, the same move carries 2-3 of 10 to 9 of
+  10. Crisis is the only signal whose failure causes harm outside the software.
 - The Withheld reason is the call that refused. With one signal per call there is nothing to
   infer and no model-reported reason field to read.
 - Relevance MUST NOT substitute for the content, crisis, or illegal-content decisions.

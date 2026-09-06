@@ -36,7 +36,7 @@
 - [x] Provider names, schemas, and column lists deliberately excluded (constitution + plan own those)
 - [x] Shared ownership is identified; cross-flow enforcement references its owning spec
 
-## Constitution Alignment (v3.0.0)
+## Constitution Alignment (v4.0.0)
 
 | Principle | Covered by |
 |-----------|------------|
@@ -64,6 +64,6 @@
 
 - Specification decisions are synchronized; implementation validation remains pending.
 - Highest-risk spec in the split. Spike results now exist — plan against those, not assumptions.
-- Fan-out is two calls: content processing, and one judgment call carrying crisis, illegal and
-  (answers only) relevance. Any plan saying three, four, or "one call per check" predates the
-  2026-09-05 amendments.
+- Fan-out is one call per signal: content processing, crisis, illegal-or-dangerous, and — for an
+  answer only — relevance. Four calls for an answer, three for a question. Crisis runs on the
+  content tier. Any plan describing a merged judgment call predates constitution 4.0.0.

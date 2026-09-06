@@ -37,8 +37,21 @@ export interface ReviewDeps {
 ```
 
 `reviewContribution` **never throws for a review outcome**. A provider outage returns
-`{ status: 'failed', cause: 'exhausted' }`; it does not reject the promise. It throws only for
-programmer error, which means exactly one case: `kind: 'answer'` with a null `questionText`.
+`{ status: 'failed', cause: 'exhausted' }`; it does not reject the promise.
+
+It rejects in exactly two cases, and neither is a review outcome:
+
+| Rejection | When |
+| - | - |
+| `TypeError` | programmer error — `kind: 'answer'` with a null `questionText` |
+| `DOMException` named `AbortError` | the caller's `signal` fired (FR-045) |
+
+**Abandonment is a rejection, not a variant of `ReviewOutcome`.** The signal fires because the
+participant's request is gone, so there is nobody left to render a decision for; a
+`{ status: 'abandoned' }` variant would oblige every caller to handle a case in which no response
+can be written. Rejecting with `AbortError` is the platform's own convention for this, so a
+caller that already awaits inside a request handler needs no special path — but the audio is
+still released before the rejection propagates, and no row is written.
 
 **Invalid audio is not a programmer error.** Empty, undersized, oversized, and wrong-type
 recordings are participant-facing outcomes and resolve `withheld / content` inside this function
@@ -64,8 +77,15 @@ The browser chooses the container, and the two target browsers choose differentl
 | Mobile Safari (18.4+) | still MP4 / AAC by default | `audio/mp4` |
 | Android Chrome, desktop Chrome/Firefox | WebM / Opus | `audio/webm` |
 
-**Allowlist**: `audio/mp4`, `audio/webm`, `audio/m4a`, `audio/aac`, `audio/ogg`, `audio/wav`.
-Anything else is rejected before any call.
+**Allowlist**, matched against the **base type only**: `audio/mp4`, `audio/webm`, `audio/m4a`,
+`audio/aac`, `audio/ogg`, `audio/wav`. Anything else is rejected before any call.
+
+Base type means everything before the first `;`, lowercased and trimmed. `MediaRecorder` reports
+the type it was constructed with, and a client that picks its format with
+`isTypeSupported('audio/webm;codecs=opus')` — which is the documented way to pick one — then
+reports exactly that string. An exact-match allowlist would reject those recordings before any
+provider call and render *We couldn't make out the recording* for audio nothing had listened to.
+The original value is forwarded to the provider unchanged; only the comparison is normalized.
 
 `audio/mp4` is **not** in the provider's published supported-formats list, which names `m4a` and
 `aac` but not `mp4`. It was tested directly and accepted, so no container remapping is needed —

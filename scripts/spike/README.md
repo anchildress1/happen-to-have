@@ -8,7 +8,7 @@ two of the spike's findings are prompt properties rather than model properties.
 `make ai-checks` by design. The suites that gate the build mock at the SDK boundary
 (research D12).
 
-They need `@google/genai`, which is **not yet a dependency** (task T001), and `GEMINI_API_KEY`.
+They need `@google/genai`, a production dependency since T001, and `GEMINI_API_KEY`. `pnpm install` is enough; do not `pnpm add` it again.
 
 | Script | What it measured |
 | - | - |

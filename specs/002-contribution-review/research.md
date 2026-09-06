@@ -58,30 +58,42 @@ blocked on nothing, and named the failing signal correctly every time.
 
 **That set could not have found the problem.** Its crisis cases were the cases the crisis prompt
 had been tuned on. Run against twenty understated recordings the prompt had never seen, with
-zero false positives throughout:
+zero false positives on the ten controls throughout:
 
-| Shape | Model | Wording | Caught |
+| Shape | Model | Variant | Caught |
 | - | - | - | - |
-| Merged judgment | Flash-Lite | shipped | 2/10 |
-| Merged judgment | Flash-Lite | + named signal categories | 3/10 |
-| Merged judgment | Flash | + named signal categories | 3/10 |
+| Merged judgment | Flash-Lite | ask *may this publish* | 2/10 |
+| Merged judgment | Flash-Lite | ask *is this crisis* | 3/10 |
 | Merged judgment | Flash-Lite | + HIGH thinking | 3/10 |
-| Merged judgment | Flash-Lite | + positive polarity | 2/10 |
-| **Dedicated** | Flash-Lite | + named signal categories | **8/10** |
-| **Dedicated** | **Flash** | + named signal categories | **10/10** |
+| Merged judgment | **Flash** | ask *may this publish* | **9/10** — 3 runs, same single miss |
+| **Dedicated** | Flash-Lite | ask *is this crisis* | **8/10** |
+| **Dedicated** | **Flash** | ask *is this crisis* | **10/10** — 3 runs |
 
-Merging cost five to eight detections out of ten. Same model, same wording, same audio — the
-only variable was whether the call had other jobs. A call holding several judgments stops doing
-the subtle one, and crisis is the subtle one.
+Holding one variable at a time:
 
-The tier then carried the last two. That reverses D4's earlier conclusion, which is corrected
-there.
+| Change | Effect |
+| - | - |
+| Tier, inside a merged call | 2–3 → 9 — **the dominant lever** |
+| Tier, with a dedicated call | 8 → 10 |
+| Split, on Flash-Lite | 2–3 → 8 |
+| Split, on Flash | 9 → 10 — one recording, missed on every merged run |
+
+Both levers are real; the tier is much the larger. The split still closes the last gap, and does
+so deterministically: merged-on-Flash missed `gen-crisis-tired-of-going` on all three runs, and
+dedicated-on-Flash missed nothing on all three.
+
+⚠️ **This table is the second version.** The first claimed merging cost five to eight detections,
+because three of its rows were labels on runs that never happened — `crisis-generalization.js`
+interpolated its model and thinking arguments into the output filename while hard-coding
+Flash-Lite. Both review bots caught it on #23. The shipped configuration did not change; the
+reason for it did.
 
 **Illegal and relevance are separated on the same principle rather than on their own evidence.**
 Merging them would save roughly $0.0007 per contribution, and no degradation was measured on the
 six illegal fixtures — but those fixtures are not subtle in the way the crisis cases are, and the
-relevance bleed recorded in D5 is itself a cross-contamination symptom. Given what merging did to
-crisis, the asymmetry of consequences settles it.
+relevance bleed recorded in D5 is itself a cross-contamination symptom. The asymmetry of
+consequences settles it: neither is a signal whose failure reaches a person, but a uniform rule
+is easier to hold than a per-signal exception nobody re-measures.
 
 **Cost**: about $0.0048 per 60-second contribution, against $0.0033 for the two-call shape and
 $0.0042 for the original four-call one. Crisis detection that works is more expensive than the
@@ -92,8 +104,9 @@ design chosen to be cheap. That is the correct trade under Principle III.
 - *One fully merged call* — cheapest, and it loses every judgment when the provider blocks the
   transcript, on precisely the recordings where a verdict matters most.
 - *Merged judgments on Flash-Lite* — the shape this replaces. Cheaper by $0.0015 and misses
-  five to eight crisis recordings in ten.
-- *Merged judgments on Flash* — 3/10. The tier does not rescue a call that is doing three jobs.
+  seven or eight crisis recordings in ten.
+- *Merged judgments on Flash* — 9/10, three runs, and genuinely close. It is rejected for one
+  reproducible miss on the signal whose failure reaches a person, not for a wide margin.
 
 **Cost paid**: a MAJOR constitution amendment to 4.0.0, removing the merge permission 3.0.0 had
 granted. The prohibition 3.0.0 retired as "asserted, never measured" was right for a reason
@@ -161,9 +174,9 @@ order, a foreshortened future, burden framed as logic or arithmetic, withdrawal 
 who matter, means or escape held in reserve, and exhaustion at continuing itself rather than at a
 situation. The judge reports which one fired, which also makes a miss diagnosable.
 
-*Tier.* Dedicated and correctly worded, Flash-Lite reaches 8 of 10 and Flash reaches 10 of 10.
-The earlier "the tier does not help" finding was measured with the bad wording inside a merged
-call — a configuration where nothing helped, so it could not distinguish which lever was stuck.
+*Tier.* This is the dominant lever, not the secondary one. Dedicated, Flash-Lite reaches 8 of 10
+and Flash reaches 10 of 10; merged, the same move carries 2–3 of 10 to 9 of 10. The earlier "the
+tier does not help" finding was measured on a script that never actually changed the model.
 
 **The controls are the part that makes this a result.** Ten near-misses — grief, burnout, a
 layoff, money worry, abandoning a novel after twelve years, ending a friendship — produced zero
@@ -172,9 +185,11 @@ anything sad would be unusable, and would bury the crisis page under noise until
 
 **Alternatives considered**:
 
-- *Raise thinking level instead of the tier* — tested at HIGH on Flash-Lite, no change.
-- *Flip the question's polarity* so the model answers "is this person in trouble" rather than
-  "may this be published" — tested, slightly worse, and the inversion belongs in code anyway.
+- *Raise thinking level instead of the tier* — HIGH on Flash-Lite scores 3/10 against 2/10
+  without it, inside the band four Flash-Lite runs already span. Not an effect.
+- *Flip the question's polarity* — 3/10 asking *is this crisis* against 2/10 asking *may this
+  publish*, again inside that band. Not an effect either. The shipped call keeps the positive
+  form because that is the wording measured at 10/10, and the inversion belongs in code.
 - *Accept 8/10 on the cheap model* — a 20% miss rate on the one failure that causes harm outside
   the software, to save $0.0016 a contribution.
 
@@ -183,6 +198,11 @@ they are now a regression set rather than a generalization test. The honest next
 launch is a third set nobody has tuned against. `gen-crisis-who-gets-what` is also the weakest
 fixture in the set: making a will is ordinary advice in a home-buying context, and it is labelled
 crisis.
+
+⚠️ **This decision was measured twice.** Its first version concluded that wording was the lever
+and the tier was not, on a script whose model argument reached the output filename and nothing
+else. Every number attributed to a model change was Flash-Lite's. Both review bots caught it on
+#23; the re-measured grid is in D2.
 
 ---
 

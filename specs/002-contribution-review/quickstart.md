@@ -159,8 +159,9 @@ answer path costs more than twice the old two-call shape rather than double it.
 | - | - | - |
 | Median answer, measured | within 20% of ~8,800 input tokens | more than 2x the model |
 
-**Fail action**: the model is wrong and the retry policy needs revisiting before 003 ships. **The
-fan-out width is not the lever** — narrowing it is what cost 7 of 10 crisis detections
+**Fail action**: the model is wrong and the retry policy needs revisiting before 003 ships.
+Narrowing the fan-out is not the first lever to reach for: at the shipped tier it costs one
+crisis detection in ten, reproducibly, on the signal whose failure reaches a person
 ([research D2](research.md)). Output tokens are not budgeted: each judgment returns under 60
 tokens and content processing returns at most 2,000 characters.
 
@@ -180,8 +181,8 @@ Ten and ten because this is the one failure that causes harm outside the softwar
 below 100% on the catch side is a decision to ship a known miss.
 
 **Fail action**: do not ship the crisis path. The tier lever is spent — Flash already beats
-Flash-Lite 10/10 to 8/10 on this prompt, and Pro is not on the table for latency. A failure here
-means the categories need another one, not a bigger model.
+Flash-Lite 10/10 to 8/10 dedicated, and Pro is not on the table for latency. A failure here means
+the categories need another pass, not a bigger model.
 
 Also weak: `gen-crisis-who-gets-what` is labelled crisis, and making a will is ordinary advice in
 a home-buying context. Re-record or re-label it rather than counting a coin flip as a catch.
@@ -228,8 +229,9 @@ Recorded here so nobody spends a morning re-deriving them.
 | Does Safari's `audio/mp4` work despite being undocumented? | Yes; `audio/m4a` also works for identical bytes | direct test |
 | Does a 60-second recording fit inline? | Yes — 250–530 KB against a 20 MB ceiling | measured |
 | Is one fully merged call viable? | No — it scores well but loses every judgment when the provider blocks | 16 fixtures |
-| Do separate calls classify better than a merged one? | **Yes, decisively, for crisis** — 3/10 merged against 10/10 dedicated on unseen cases | 20 unseen recordings |
+| Do separate calls classify better than a merged one? | Yes for crisis, by a margin that depends on the tier — 2–3 against 8 on Flash-Lite, 9 against 10 on Flash | 20 unseen recordings, 3 runs at Flash |
+| Which lever matters more, the tier or the split? | **The tier.** Worth six detections merged and two dedicated; the split is worth one at the shipped tier | 20 unseen recordings |
 | Was the earlier "merging is fine" finding wrong? | Yes. Its crisis cases were the ones the prompt had been tuned on, so it could not have found the effect | 16 fixtures vs 20 unseen |
-| Does raising the model tier fix the crisis miss? | **Only once the call is dedicated** — 8/10 on Flash-Lite, 10/10 on Flash. Inside a merged call the tier changed nothing | both shapes, both tiers |
-| Does more thinking help instead? | No — HIGH on Flash-Lite scored the same 3/10 | 20 unseen recordings |
-| Does flipping the crisis question's polarity help? | No, slightly worse | 20 unseen recordings |
+| Does raising the model tier fix the crisis miss? | Very nearly, in either shape — merged 2–3 → 9, dedicated 8 → 10. The earlier "the tier changes nothing" result came from a script that never changed the model | both shapes, both tiers |
+| Does more thinking help instead? | No — HIGH on Flash-Lite scores 3/10 against 2/10 without it, inside the band four Flash-Lite runs span | 20 unseen recordings |
+| Does flipping the crisis question's polarity help? | No — 3/10 against 2/10, inside the same band. The shipped positive form is kept because it is the wording measured at 10/10 | 20 unseen recordings |

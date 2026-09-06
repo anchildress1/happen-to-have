@@ -119,8 +119,12 @@ than dressed up with another call's opinion of the audio (FR-008h).
 
 What `reviewContribution()` returns — a discriminated union, so a caller cannot read
 `displayText` off a rejection. The three terminal states are exactly FR-020's: publishable,
-Withheld carrying a reason, or processing failure. Abandonment publishes nothing and returns
-nothing, because the request is gone.
+Withheld carrying a reason, or processing failure.
+
+**Abandonment is not among them.** When the caller's signal fires the promise rejects with an
+`AbortError` rather than resolving, because there is no longer a request to render a decision
+into. Giving it a variant would oblige every caller to handle an outcome that can never be
+displayed ([contracts/review.md](contracts/review.md)).
 
 | Variant | Fields | Consumed by |
 | - | - | - |
