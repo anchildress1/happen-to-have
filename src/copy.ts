@@ -91,8 +91,10 @@ export const copy = {
       /** Fixed verbatim by FR-026. Not to be reworded. */
       illegal: "That response can't be shared here. Try another.",
       /**
-       * Selected by the content call's `contentReason`. Where it refused without one, the
-       * judgment call's `audioQuality` chooses instead — which is what FR-008h is for.
+       * Selected by the content call's `contentReason`, which is the only thing that can
+       * select it. A refusal arriving without one never reaches here: validation rejects it
+       * as a fault and the call retries (FR-008h). Nothing else listens to the audio, so
+       * there is no second opinion to guess a heading from.
        */
       content: {
         silence: "We couldn't hear anything. Try recording again.",
