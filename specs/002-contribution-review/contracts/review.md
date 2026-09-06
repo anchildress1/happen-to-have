@@ -164,10 +164,14 @@ Steps 1 and 2 exist to make abuse and accidents cheap. Everything that reaches s
 Each receives the **original audio** and nothing derived from any other (FR-004, FR-005). All are
 dispatched simultaneously ([research D13](../research.md)).
 
-**One signal per call is measured, not stylistic.** On twenty understated-crisis recordings the
-prompt had never seen, the same model with the same wording caught 3 of 10 sharing a call and
-10 of 10 alone on the content tier ([research D2](../research.md)). A call holding several jobs
-stops doing the subtle one.
+**One signal per call is a choice, not a requirement.** Controlled for prompt content, a merged
+judgment call ties dedicated calls at 10 of 10 on the content tier across two unseen sets
+([research D2](../research.md)). 002 ships four calls because they are built and degrade better
+if the tier is ever forced down — not because separate calls classify better. They do not.
+
+**What does carry the result** is the tier, and the `<how_to_weigh>` clause in the crisis
+instruction below. Isolated, that clause is worth the difference between 9 of 10 and 10 of 10;
+the cheap tier misses between two and ten regardless of shape.
 
 Content processing is separated for a second, independent reason: it reproduces the recording as
 text and is the call the provider's filter trips, while the judgment calls emit booleans and have

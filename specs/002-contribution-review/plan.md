@@ -26,13 +26,15 @@ any threshold, and at its default guardrails it passed 7 of 8 recordings that mu
 free rating, and the provider's own filter is barred from counting as a check at all. Evidence:
 [spike-002-guardrails](../../docs/spike-002-guardrails.md).
 
-**Two levers, both measured, and the tier is the bigger one.** On twenty understated-crisis
-recordings the prompt had never seen, with zero false positives throughout: a merged judgment
-call catches 2–3 of 10 on Flash-Lite and 9 of 10 on Flash, while a dedicated crisis call catches
-8 of 10 on Flash-Lite and 10 of 10 on Flash. Moving up a tier is worth six detections merged and
-two dedicated; splitting the call is worth five or six on the cheap tier and one on the shipped
-one — the same recording, missed on all three merged runs. Full measurement in
-[research D2](research.md).
+**Two levers carry crisis detection, and neither is the fan-out shape.** The tier does most of
+it, and an explicit weighing clause in the crisis instruction does the rest. Controlled for
+prompt content across two unseen sets, merged and dedicated shapes both reach 10 of 10 with zero
+false positives on the content tier; on the cheap tier both fail, at 0 to 8 of 10 depending on
+the set. Full measurement in [research D2](research.md).
+
+002 still ships four calls. They are built, measured, and degrade better under a forced
+downgrade — but that is an implementation choice, and constitution 5.0.0 removed the rule that
+made it a requirement.
 
 Content processing stays separate for a second, independent reason: it reproduces the recording
 as text and is the call the provider's filter trips — measured returning an empty candidate on two
@@ -40,11 +42,11 @@ fixtures even at `BLOCK_NONE`. The judgment calls emit booleans and have never b
 blocking. Merged, a single block would destroy every verdict and an unlawful recording would
 render as a processing failure.
 
-That measurement took the constitution to **4.0.0**, removing the merge permission 3.0.0 had
-granted. 3.0.0's evidence could not have found the effect: its crisis cases were the ones the
-crisis prompt had been tuned on. 4.0.0 was itself drafted twice — its first table credited the
-split with the tier's effect, because the measurement script's model argument reached the output
-filename and nothing else.
+This principle has now been amended three times and got it wrong twice. 3.0.0 permitted merging
+on a fixture set whose crisis cases the prompt had been tuned on. 4.0.0 forbade it on a table
+whose model labels described runs that never executed. 5.0.0 permits it again, after controlling
+for the one thing neither earlier round held constant: the dedicated prompt carried a weighing
+clause the merged prompt did not. Review caught both errors; we caught neither.
 
 Two decisions deserve early scrutiny. Rate limiting writes the only row this feature persists,
 which sits against Principle V ([research D7](research.md), justified in Complexity Tracking).

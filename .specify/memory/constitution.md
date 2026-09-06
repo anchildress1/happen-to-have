@@ -1,6 +1,59 @@
 <!--
 SYNC IMPACT REPORT
 ==================
+Version change: 4.0.0 → 5.0.0
+
+AMENDMENT 5.0.0 (2026-09-06) — the call-split prohibition is removed. The tier and the
+weighing clause are what carry crisis detection.
+
+Bump rationale: MAJOR. A NON-NEGOTIABLE prohibition — "signals MUST NOT share a call" — is
+REMOVED. Removing a principle is MAJOR under this document's own policy, and it is removed
+because its evidence did not survive contact with a controlled measurement.
+
+  III. Aggregate Guardrail Gate
+    - REMOVED: "Signals MUST NOT share a call."
+    - NEW: the crisis instruction MUST carry an explicit weighing clause telling the model to
+      answer yes when the signal is present even if unsure. This is the effect the removed
+      rule was accidentally measuring.
+    - RETAINED, and now the load-bearing rule: crisis MUST run on the content tier.
+    - RETAINED: content processing MUST remain its own call — unchanged, and for a reason that
+      was never about classification. It is the call the provider blocks.
+
+Evidence. 4.0.0 credited the call split with a gap that belonged to prompt content: the
+dedicated crisis prompt carried a weighing clause the merged prompt did not, so the two shapes
+were never compared on equal terms. Codex caught the confound on PR #23. Controlled — same
+clause, same categories, only the call shape differing:
+
+    SET  SHAPE            MODEL       CAUGHT   FALSE POSITIVES
+    gen  merged + weigh   flash       10/10    0/10   (3 runs)
+    gen  dedicated        flash       10/10    0/10   (3 runs)
+    t3   merged + weigh   flash       10/10    0/10
+    t3   dedicated        flash       10/10    0/10
+    t3   merged           flash-lite   0/10    1/10
+    gen  dedicated        flash-lite   8/10    0/10
+
+  Two independent sets, one of which (t3) neither prompt had seen. At the content tier the
+  shapes are indistinguishable. The split is worth five to eight detections on the CHEAP tier
+  only, which is a tier this product is already forbidden to use for crisis.
+
+  The weighing clause, isolated: merged Flash goes 9/10 without it and 10/10 with it. That one
+  paragraph is the whole difference the removed prohibition was standing on.
+
+This is the second amendment to this principle built on a measurement that could not support
+it, and both were caught by review rather than by us. 3.0.0 removed the original prohibition
+on a fixture set whose crisis cases the prompt had been tuned on. 4.0.0 restored it on a table
+whose model labels described runs that never executed, and on a comparison confounded by prompt
+content. The rule now standing — tier plus weighing clause — is the only part that survived
+being controlled for.
+
+**The four-call fan-out in 002 is unchanged.** It is built, measured at 10/10, and costs
+$0.0015 more per contribution than merging would. It is now an implementation choice rather
+than a constitutional requirement, and the reason to keep it is that it is already built and
+degrades better if the tier is ever forced down — not that separate calls classify better.
+They do not.
+
+--- 4.0.0 (2026-09-06), retained below ---
+
 Version change: 3.0.0 → 4.0.0
 
 AMENDMENT 4.0.0 (2026-09-06) — crisis moves up a tier, and does not share a call.
@@ -299,11 +352,16 @@ wrong about crisis too, so that result MUST NOT remove the participant's ability
   - **Crisis** — is this person in trouble right now, and nothing else.
   - **Illegal or dangerous** — would publishing this be unsafe or unlawful.
   - **Relevance** — answers only; a question does not evaluate it.
-- Signals MUST NOT share a call. Measured on twenty unseen understated-crisis recordings, at the
-  shipped tier a merged call caught 9 of 10 and dedicated calls caught 10 of 10 — the same
-  single recording missed on every merged run, across three runs of each. On the cheap tier the
-  gap is 2-3 against 8. A call holding several jobs stops doing the subtle one, and crisis is
-  the subtle one; the tier decides how much that costs.
+- The crisis instruction MUST carry an explicit weighing clause: answer yes when the signal is
+  present, even when unsure, because an unnecessary offer of help costs someone a moment and a
+  missed one costs more than this system can repair. Isolated, that paragraph is worth the
+  difference between 9 of 10 and 10 of 10 on unseen recordings.
+- Signals MAY share a call. Two independent unseen sets, three runs each, found merged and
+  dedicated shapes indistinguishable at the content tier once both carried the same crisis
+  instruction. The prohibition this replaces was measuring the weighing clause, not the split.
+- A call carrying several judgments MUST NOT be run on the cheap tier. That is where the split
+  does matter — 0 to 8 of 10 depending on the set — and it is already forbidden for crisis by
+  the tier rule below.
 - The provider's own safety signal MUST NOT be treated as one of these checks. It returns no
   ratings to read, and its four adjustable filters are off by default for the models in use, so
   nothing screens a contribution unless this product screens it. The non-adjustable core-harm
@@ -318,10 +376,11 @@ wrong about crisis too, so that result MUST NOT remove the participant's ability
 - Content processing MUST remain its own call for a second, independent reason: it reproduces
   the recording as text and was measured returning an empty candidate on recordings the other
   calls handled cleanly. Keeping it separate leaves a usable verdict when the transcript is lost.
-- The crisis call MUST run on the content tier rather than the cheap one. This is the larger
-  of the two effects measured: dedicated, the small model caught 8 of 10 unseen understated
-  recordings and the large one caught 10 of 10; merged, the same move carries 2-3 of 10 to 9 of
-  10. Crisis is the only signal whose failure causes harm outside the software.
+- The crisis judgment MUST run on the content tier rather than the cheap one. **This is the
+  load-bearing rule.** Every configuration that reaches 10 of 10 is on the content tier, and
+  every configuration on the cheap tier misses between two and ten of them depending on the
+  set and the shape. Crisis is the only signal whose failure causes harm outside the software,
+  and the tier is the only lever measured to move it reliably.
 - The Withheld reason is the call that refused. With one signal per call there is nothing to
   infer and no model-reported reason field to read.
 - Relevance MUST NOT substitute for the content, crisis, or illegal-content decisions.
@@ -598,4 +657,4 @@ a performance or a marketing hook is the one failure that cannot be patched late
 - `AGENTS.md` and `CLAUDE.md` carry runtime development guidance and MUST NOT restate or
   contradict the principles above.
 
-**Version**: 4.0.0 | **Ratified**: 2026-09-04 | **Last Amended**: 2026-09-06
+**Version**: 5.0.0 | **Ratified**: 2026-09-04 | **Last Amended**: 2026-09-06

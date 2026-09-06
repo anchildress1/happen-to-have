@@ -69,24 +69,37 @@ zero false positives on the ten controls throughout:
 | **Dedicated** | Flash-Lite | ask *is this crisis* | **8/10** |
 | **Dedicated** | **Flash** | ask *is this crisis* | **10/10** — 3 runs |
 
-Holding one variable at a time:
+**That table is still confounded.** The dedicated prompt carried a `<how_to_weigh>` clause the
+merged prompt did not, so the two shapes were never compared on equal terms. Codex caught it on
+#23. Adding the clause to the merged prompt and changing nothing else:
+
+| Set | Shape | Model | Caught | False positives |
+| - | - | - | - | - |
+| gen | merged + weigh | Flash | **10/10** ×3 | 0/10 |
+| gen | dedicated | Flash | **10/10** ×3 | 0/10 |
+| t3 | merged + weigh | Flash | **10/10** | 0/10 |
+| t3 | dedicated | Flash | **10/10** | 0/10 |
+| t3 | merged | Flash-Lite | 0/10 | 1/10 |
+| gen | dedicated | Flash-Lite | 8/10 | 0/10 |
+
+`t3` is the third set, which neither prompt had seen. Holding one variable at a time, for real
+this time:
 
 | Change | Effect |
 | - | - |
-| Tier, inside a merged call | 2–3 → 9 — **the dominant lever** |
-| Tier, with a dedicated call | 8 → 10 |
-| Split, on Flash-Lite | 2–3 → 8 |
-| Split, on Flash | 9 → 10 — one recording, missed on every merged run |
+| Tier | 0–8 → 10 — **the whole story** |
+| Weighing clause, merged on Flash | 9 → 10 |
+| Split, on Flash | **10 → 10, nothing** |
+| Split, on Flash-Lite | 0–3 → 8 |
 
-Both levers are real; the tier is much the larger. The split still closes the last gap, and does
-so deterministically: merged-on-Flash missed `gen-crisis-tired-of-going` on all three runs, and
-dedicated-on-Flash missed nothing on all three.
+**The call split buys nothing at the tier this product runs on.** Two independent sets agree.
+What the earlier table was measuring was one paragraph of prompt.
 
-⚠️ **This table is the second version.** The first claimed merging cost five to eight detections,
-because three of its rows were labels on runs that never happened — `crisis-generalization.js`
-interpolated its model and thinking arguments into the output filename while hard-coding
-Flash-Lite. Both review bots caught it on #23. The shipped configuration did not change; the
-reason for it did.
+⚠️ **This is the third version of this table, and the second time it was wrong.** Version one
+credited the split with the tier's effect, because the measurement script interpolated its model
+argument into the output filename while hard-coding Flash-Lite. Version two credited the split
+with the weighing clause's effect. Review caught both. Constitution 5.0.0 removed the
+prohibition version two had restored.
 
 **Illegal and relevance are separated on the same principle rather than on their own evidence.**
 Merging them would save roughly $0.0007 per contribution, and no degradation was measured on the
@@ -95,18 +108,21 @@ relevance bleed recorded in D5 is itself a cross-contamination symptom. The asym
 consequences settles it: neither is a signal whose failure reaches a person, but a uniform rule
 is easier to hold than a per-signal exception nobody re-measures.
 
-**Cost**: about $0.0048 per 60-second contribution, against $0.0033 for the two-call shape and
-$0.0042 for the original four-call one. Crisis detection that works is more expensive than the
-design chosen to be cheap. That is the correct trade under Principle III.
+**Cost**: about $0.0048 per 60-second contribution, against $0.0033 for a two-call shape. That
+$0.0015 buys no measured accuracy at the content tier. It is kept because the fan-out is already
+built and because a merged call collapses hardest under a tier downgrade — 0 of 10 on the third
+set — which is a real failure mode for a project that will be tempted to cut cost later.
 
 **Alternatives considered**:
 
 - *One fully merged call* — cheapest, and it loses every judgment when the provider blocks the
   transcript, on precisely the recordings where a verdict matters most.
-- *Merged judgments on Flash-Lite* — the shape this replaces. Cheaper by $0.0015 and misses
-  seven or eight crisis recordings in ten.
-- *Merged judgments on Flash* — 9/10, three runs, and genuinely close. It is rejected for one
-  reproducible miss on the signal whose failure reaches a person, not for a wide margin.
+- *Merged judgments on Flash-Lite* — cheapest, and caught **none** of the third set's ten while
+  producing a false positive. Not viable at any price.
+- *Merged judgments on Flash, with the weighing clause* — ties the shipped shape at 10/10 on both
+  unseen sets and saves $0.0015. A legitimate option, and the reason FR-008a is now MAY rather
+  than MUST. Not taken because the four-call fan-out is already built and tested, and rebuilding
+  it mid-stack on a weekend deadline trades measured working code for a rounding error.
 
 **Cost paid**: a MAJOR constitution amendment to 4.0.0, removing the merge permission 3.0.0 had
 granted. The prohibition 3.0.0 retired as "asserted, never measured" was right for a reason

@@ -229,8 +229,9 @@ Recorded here so nobody spends a morning re-deriving them.
 | Does Safari's `audio/mp4` work despite being undocumented? | Yes; `audio/m4a` also works for identical bytes | direct test |
 | Does a 60-second recording fit inline? | Yes — 250–530 KB against a 20 MB ceiling | measured |
 | Is one fully merged call viable? | No — it scores well but loses every judgment when the provider blocks | 16 fixtures |
-| Do separate calls classify better than a merged one? | Yes for crisis, by a margin that depends on the tier — 2–3 against 8 on Flash-Lite, 9 against 10 on Flash | 20 unseen recordings, 3 runs at Flash |
-| Which lever matters more, the tier or the split? | **The tier.** Worth six detections merged and two dedicated; the split is worth one at the shipped tier | 20 unseen recordings |
+| Do separate calls classify better than a merged one? | **No, not at the content tier.** Controlled for prompt content they tie at 10/10 with zero false positives | 2 unseen sets, 3 runs each |
+| What actually carries crisis detection, then? | The tier, and the weighing clause in the crisis instruction. The clause alone is 9/10 → 10/10 | 2 unseen sets |
+| Does the split matter anywhere? | On the cheap tier only — 0 to 8 of 10 there depending on the set. Crisis may not use that tier anyway | 2 unseen sets |
 | Was the earlier "merging is fine" finding wrong? | Yes. Its crisis cases were the ones the prompt had been tuned on, so it could not have found the effect | 16 fixtures vs 20 unseen |
 | Does raising the model tier fix the crisis miss? | Very nearly, in either shape — merged 2–3 → 9, dedicated 8 → 10. The earlier "the tier changes nothing" result came from a script that never changed the model | both shapes, both tiers |
 | Does more thinking help instead? | No — HIGH on Flash-Lite scores 3/10 against 2/10 without it, inside the band four Flash-Lite runs span | 20 unseen recordings |
