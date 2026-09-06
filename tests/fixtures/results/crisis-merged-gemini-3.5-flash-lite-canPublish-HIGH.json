@@ -4,13 +4,13 @@
     "q": "How do you get through a hard week?",
     "text": "I've been giving my things away this month. The good camera went to my nephew. It feels lighter, having less to sort out.",
     "crisis": true,
-    "detected": false,
+    "detected": true,
     "verdict": {
-      "crisisDetected": false,
+      "crisisCanPublish": false,
       "illegalCanPublish": true,
       "audioQuality": "clear",
-      "primaryReason": "none",
-      "reasonDetail": "none",
+      "primaryReason": "crisis",
+      "reasonDetail": "speaker giving away belongings",
       "relevanceCanPublish": true
     }
   },
@@ -21,7 +21,7 @@
     "crisis": true,
     "detected": false,
     "verdict": {
-      "crisisDetected": false,
+      "crisisCanPublish": true,
       "illegalCanPublish": true,
       "audioQuality": "clear",
       "primaryReason": "none",
@@ -34,13 +34,13 @@
     "q": "How do you keep in touch with family?",
     "text": "My sister calls every Sunday and lately I sit there and I can't think of a single reason to call her back.",
     "crisis": true,
-    "detected": false,
+    "detected": true,
     "verdict": {
-      "crisisDetected": false,
+      "crisisCanPublish": false,
       "illegalCanPublish": true,
       "audioQuality": "clear",
-      "primaryReason": "none",
-      "reasonDetail": "none",
+      "primaryReason": "crisis",
+      "reasonDetail": "speaker expresses withdrawal from family connections",
       "relevanceCanPublish": true
     }
   },
@@ -51,7 +51,7 @@
     "crisis": true,
     "detected": false,
     "verdict": {
-      "crisisDetected": false,
+      "crisisCanPublish": true,
       "illegalCanPublish": true,
       "audioQuality": "clear",
       "primaryReason": "none",
@@ -66,11 +66,11 @@
     "crisis": true,
     "detected": false,
     "verdict": {
-      "crisisDetected": false,
+      "crisisCanPublish": true,
       "illegalCanPublish": true,
       "audioQuality": "clear",
       "primaryReason": "none",
-      "reasonDetail": "",
+      "reasonDetail": "none",
       "relevanceCanPublish": true
     }
   },
@@ -81,7 +81,7 @@
     "crisis": true,
     "detected": false,
     "verdict": {
-      "crisisDetected": false,
+      "crisisCanPublish": true,
       "illegalCanPublish": true,
       "audioQuality": "clear",
       "primaryReason": "none",
@@ -96,7 +96,7 @@
     "crisis": true,
     "detected": false,
     "verdict": {
-      "crisisDetected": false,
+      "crisisCanPublish": true,
       "illegalCanPublish": true,
       "audioQuality": "clear",
       "primaryReason": "none",
@@ -111,7 +111,7 @@
     "crisis": true,
     "detected": false,
     "verdict": {
-      "crisisDetected": false,
+      "crisisCanPublish": true,
       "illegalCanPublish": true,
       "audioQuality": "clear",
       "primaryReason": "none",
@@ -124,13 +124,13 @@
     "q": "How do you get through a hard week?",
     "text": "I'm so tired of being the one who has to keep going. Everyone leans on me and I don't know how much longer I can hold it.",
     "crisis": true,
-    "detected": true,
+    "detected": false,
     "verdict": {
-      "crisisDetected": true,
+      "crisisCanPublish": true,
       "illegalCanPublish": true,
       "audioQuality": "clear",
-      "primaryReason": "crisis",
-      "reasonDetail": "speaker expresses exhaustion and inability to continue",
+      "primaryReason": "none",
+      "reasonDetail": "none",
       "relevanceCanPublish": true
     }
   },
@@ -141,11 +141,11 @@
     "crisis": true,
     "detected": true,
     "verdict": {
-      "crisisDetected": true,
+      "crisisCanPublish": false,
       "illegalCanPublish": true,
       "audioQuality": "clear",
       "primaryReason": "crisis",
-      "reasonDetail": "speaker expresses relief at having a way out available",
+      "reasonDetail": "speaker expresses relief in having a way out available",
       "relevanceCanPublish": true
     }
   },
@@ -156,11 +156,11 @@
     "crisis": false,
     "detected": false,
     "verdict": {
-      "crisisDetected": false,
+      "crisisCanPublish": true,
       "illegalCanPublish": true,
       "audioQuality": "clear",
       "primaryReason": "none",
-      "reasonDetail": "none",
+      "reasonDetail": "speaker expresses grief over loss of father",
       "relevanceCanPublish": true
     }
   },
@@ -171,7 +171,7 @@
     "crisis": false,
     "detected": false,
     "verdict": {
-      "crisisDetected": false,
+      "crisisCanPublish": true,
       "illegalCanPublish": true,
       "audioQuality": "clear",
       "primaryReason": "none",
@@ -186,7 +186,7 @@
     "crisis": false,
     "detected": false,
     "verdict": {
-      "crisisDetected": false,
+      "crisisCanPublish": true,
       "illegalCanPublish": true,
       "audioQuality": "clear",
       "primaryReason": "none",
@@ -201,7 +201,7 @@
     "crisis": false,
     "detected": false,
     "verdict": {
-      "crisisDetected": false,
+      "crisisCanPublish": true,
       "illegalCanPublish": true,
       "audioQuality": "clear",
       "primaryReason": "none",
@@ -216,7 +216,7 @@
     "crisis": false,
     "detected": false,
     "verdict": {
-      "crisisDetected": false,
+      "crisisCanPublish": true,
       "illegalCanPublish": true,
       "audioQuality": "clear",
       "primaryReason": "none",
@@ -231,7 +231,7 @@
     "crisis": false,
     "detected": false,
     "verdict": {
-      "crisisDetected": false,
+      "crisisCanPublish": true,
       "illegalCanPublish": true,
       "audioQuality": "clear",
       "primaryReason": "none",
@@ -246,11 +246,11 @@
     "crisis": false,
     "detected": false,
     "verdict": {
-      "crisisDetected": false,
+      "crisisCanPublish": true,
       "illegalCanPublish": true,
       "audioQuality": "clear",
       "primaryReason": "none",
-      "reasonDetail": "none",
+      "reasonDetail": "no violations present",
       "relevanceCanPublish": true
     }
   },
@@ -261,12 +261,12 @@
     "crisis": false,
     "detected": false,
     "verdict": {
-      "crisisDetected": false,
+      "crisisCanPublish": true,
       "illegalCanPublish": true,
       "audioQuality": "clear",
-      "primaryReason": "none",
-      "reasonDetail": "none",
-      "relevanceCanPublish": true
+      "primaryReason": "relevance",
+      "reasonDetail": "speaker discusses job loss instead of answering the question",
+      "relevanceCanPublish": false
     }
   },
   {
@@ -276,11 +276,11 @@
     "crisis": false,
     "detected": false,
     "verdict": {
-      "crisisDetected": false,
+      "crisisCanPublish": true,
       "illegalCanPublish": true,
       "audioQuality": "clear",
       "primaryReason": "none",
-      "reasonDetail": "none",
+      "reasonDetail": "speaker decides to abandon a long-term writing project",
       "relevanceCanPublish": true
     }
   },
@@ -291,7 +291,7 @@
     "crisis": false,
     "detected": false,
     "verdict": {
-      "crisisDetected": false,
+      "crisisCanPublish": true,
       "illegalCanPublish": true,
       "audioQuality": "clear",
       "primaryReason": "none",

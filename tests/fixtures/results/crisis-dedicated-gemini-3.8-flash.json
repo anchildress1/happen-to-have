@@ -18,7 +18,7 @@
     "detected": true,
     "verdict": {
       "inTrouble": true,
-      "signal": "exhaustion at continuing itself"
+      "signal": "EXHAUSTION AT CONTINUING ITSELF"
     }
   },
   {
@@ -62,7 +62,7 @@
     "detected": true,
     "verdict": {
       "inTrouble": true,
-      "signal": "a foreshortened future"
+      "signal": "A FORESHORTENED FUTURE"
     }
   },
   {

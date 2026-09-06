@@ -67,21 +67,48 @@ and 10 near-miss controls, none of which appeared in any prompt. It exists becau
 fixtures above could not test the crisis prompt — its crisis cases were the ones the prompt had
 been tuned on.
 
-| File | Shape | Caught |
+| Result file | Shape | Model | Crisis wording | Caught |
+| - | - | - | - | - |
+| `crisis-merged-gemini-3.5-flash-lite-canPublish.json` | merged judgment | Flash-Lite | may this publish | 2/10 |
+| `crisis-merged-gemini-3.5-flash-lite-detected.json` | merged judgment | Flash-Lite | is this crisis | 3/10 |
+| `crisis-merged-gemini-3.5-flash-lite-canPublish-HIGH.json` | merged judgment | Flash-Lite, HIGH thinking | may this publish | 3/10 |
+| `crisis-merged-gemini-3.8-flash-canPublish.json` | merged judgment | **Flash** | may this publish | **9/10** |
+| `crisis-dedicated-gemini-3.5-flash-lite.json` | **dedicated** | Flash-Lite | is this crisis | 8/10 |
+| `crisis-dedicated-gemini-3.8-flash.json` | **dedicated** | **Flash** | is this crisis | **10/10** |
+
+Zero false positives on the ten controls in every configuration listed.
+
+**Two levers, both real, and the earlier reading of this table was wrong.**
+
+| Change | At Flash-Lite | At Flash |
 | - | - | - |
-| `crisis-generalization.json` | merged judgment, Flash-Lite, shipped wording | 2/10 |
-| `crisis-generalization-gemini-3.8-flash.json` | merged judgment, Flash | 3/10 |
-| `crisis-generalization-gemini-3.5-flash-lite.json` | merged judgment, named categories | 3/10 |
-| `crisis-generalization-gemini-3.5-flash-lite-HIGH.json` | merged judgment, HIGH thinking | 3/10 |
-| `crisis-dedicated-gemini-3.5-flash-lite.json` | **dedicated call**, Flash-Lite | 8/10 |
-| `crisis-dedicated-gemini-3.8-flash.json` | **dedicated call**, Flash | **10/10** |
+| Give crisis its own call | 2–3 → 8 | 9 → 10 |
+| Move to the larger model | merged 2–3 → 9 · dedicated 8 → 10 | — |
 
-Zero false positives on the ten controls in every configuration. The only variable between 3/10
-and 10/10 is whether the crisis question shared its call with two other judgments — which is why
-the merged shape is retired and every signal now gets its own call.
+Merged-on-Flash misses exactly one recording, `gen-crisis-tired-of-going`, and misses the same
+one on three separate runs. Dedicated-on-Flash caught all ten on three separate runs. The split
+is worth one detection at the shipped tier — reproducibly, not as noise — and five to six on the
+cheap one.
 
-These twenty are a **regression set now, not a generalization test**: the shipped categories were
-written against them. T082 is a third set nobody has tuned against.
+**Two levers that are NOT real**, both previously claimed and both now measured:
+
+- *Thinking level.* HIGH on Flash-Lite scores 3/10 against 2/10 without it — inside the same
+  2–3 band four merged Flash-Lite runs produce. No effect worth the latency.
+- *Crisis question polarity.* Asking "may this publish" scores 2/10 and asking "is this person
+  in trouble" scores 3/10, again inside the same band. The shipped call uses the positive form
+  because that is the wording measured at 10/10, not because polarity was shown to matter.
+
+### ⚠️ Three of these files used to carry labels for runs that never happened
+
+`crisis-generalization.js` passed its model and thinking arguments to the **output filename
+only**, while hard-coding Flash-Lite with no thinking config. Three files therefore claimed
+configurations that were never executed, and the merged-on-Flash number in every downstream
+document was Flash-Lite's.
+
+Both bots caught it on #23. The script now sends every argument to the request, the mislabeled
+files are deleted rather than relabelled, and the rows above were re-measured. The conclusion
+that survived is that the model tier matters *more* than the call split, which is the opposite
+of what the mislabeled table implied.
 
 ## Regenerating
 
@@ -92,9 +119,12 @@ dependency since T001, and `GEMINI_API_KEY`.
 pnpm install                      # @google/genai is already a dependency
 node scripts/spike/tts.js         # regenerate any missing recording; existing files are skipped
 node scripts/spike/lite3.js       # the retired merged judgment call against all 16
-node scripts/spike/crisis-generalization.js          # merged shape against the twenty
-node scripts/spike/crisis-dedicated.js gemini-3.8-flash   # the shipped crisis call
+# merged shape: [model] [polarity: detected|canPublish] [thinkingLevel]
+node scripts/spike/crisis-generalization.js gemini-3.8-flash canPublish
+node scripts/spike/crisis-dedicated.js gemini-3.8-flash    # the shipped crisis call
 ```
+
+Every argument reaches the request, so a filename always describes the run that produced it.
 
 Regeneration produces **different bytes**, so token counts and latency will shift. Verdicts should
 not. If they do, that is a finding, not noise.
