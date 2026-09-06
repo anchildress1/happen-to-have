@@ -49,6 +49,14 @@ describe('contentResultSchema', () => {
     expect(contentResultSchema.safeParse(rejected).success).toBe(true);
   });
 
+  it('rejects a missing canPublish — the field the whole decision turns on', () => {
+    // Required, and untested until review pointed it out. Without it a response that simply
+    // omitted the verdict would parse, and every downstream check reads it as a boolean.
+    const { canPublish: _canPublish, ...withoutVerdict } = VALID_CONTENT;
+
+    expect(contentResultSchema.safeParse(withoutVerdict).success).toBe(false);
+  });
+
   it('rejects a missing emotion key — the model must state that it found none', () => {
     // Nullable but never optional. If an omitted key parsed, "no emotion detected" and
     // "the model forgot the field" would be indistinguishable, and FR-017 requires the
@@ -229,6 +237,34 @@ describe('judgmentResultSchema', () => {
     const mismatched = { ...VALID_JUDGMENT, crisisCanPublish: false, primaryReason: 'relevance' };
 
     expect(answerSchema.safeParse(mismatched).success).toBe(false);
+  });
+
+  it('requires the HIGHEST-precedence refusing signal when two refuse', () => {
+    // A recording that is both a crisis and unlawful is not hypothetical. The gate takes
+    // withheld.reason straight from this field, so accepting 'illegal' here would render the
+    // illegal variant and omit the crisis resources — on the one page where that matters
+    // most. FR-022 fixes the order as crisis, illegal, relevance.
+    const both = {
+      ...VALID_JUDGMENT,
+      crisisCanPublish: false,
+      illegalCanPublish: false,
+      primaryReason: 'illegal',
+    };
+
+    expect(answerSchema.safeParse(both).success).toBe(false);
+    expect(answerSchema.safeParse({ ...both, primaryReason: 'crisis' }).success).toBe(true);
+  });
+
+  it('prefers illegal over relevance when both refuse', () => {
+    const both = {
+      ...VALID_JUDGMENT,
+      illegalCanPublish: false,
+      relevanceCanPublish: false,
+      primaryReason: 'relevance',
+    };
+
+    expect(answerSchema.safeParse(both).success).toBe(false);
+    expect(answerSchema.safeParse({ ...both, primaryReason: 'illegal' }).success).toBe(true);
   });
 
   it('accepts a coherent refusal', () => {

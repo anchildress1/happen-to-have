@@ -67,8 +67,8 @@ Produced only by the content-processing call.
 | Field | Type | Notes |
 | - | - | - |
 | `canPublish` | `boolean` | intelligibility and privacy-safety, not relevance or legality |
-| `displayText` | `string` | translated, redacted, 1–2000 chars — matches the `questions.display_text` bound 001 set |
-| `sourceLanguage` | `string` | BCP-47-ish, as detected (FR-010) |
+| `displayText` | `string` | translated and redacted, capped at 2000 to match `questions.display_text`. Only floored at 1 when `canPublish` is true: a silent recording has nothing to transcribe, and rejecting its empty text would turn a withheld outcome into a processing failure |
+| `sourceLanguage` | `string \| null` | BCP-47-ish, as detected (FR-010). Null where there was no discernible speech to detect a language from |
 | `emotion` | `string \| null` | broad direction, `null` when not reliably detectable (FR-017, edge case *No reliable emotion*) |
 | `contentReason` | `'silence' \| 'unintelligible' \| 'unpublishable' \| null` | why `canPublish` is false; `null` when it is true |
 

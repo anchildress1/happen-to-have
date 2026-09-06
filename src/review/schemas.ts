@@ -37,10 +37,10 @@ export const contentResultSchema = z
     // exact case FR-021 wants withheld into three faults and a processing failure, and the
     // participant would read "we couldn't check that" instead of "we couldn't hear anything".
     displayText: z.string().max(2000),
-    // Capped, never floored, for the same reason as displayText: a recording with no
-    // discernible speech has no source language either, and `''` or null is its natural
-    // emission. Every fixture is a clear recording, so this path has no observations behind
-    // it — which argues for accepting what the model sends, not for guessing a floor.
+    // Nullable so a recording with no discernible speech can say so — it has no source
+    // language for the same reason it has no transcript. `null` is the way to express that;
+    // a blank string is not, because whitespace reaching questions.source_language is a
+    // silent data defect rather than an honest absence.
     sourceLanguage: z.string().trim().min(1).nullable(),
     // Nullable, never optional: the model must state that it found no reliable direction
     // rather than omitting the field, so a missing key stays a schema failure.
@@ -143,13 +143,24 @@ export function judgmentResultSchemaFor(kind: 'answer' | 'question') {
       },
     )
     .refine(
-      (result) =>
-        result.primaryReason === 'none' ||
-        (result.primaryReason === 'crisis' && !result.crisisCanPublish) ||
-        (result.primaryReason === 'illegal' && !result.illegalCanPublish) ||
-        (result.primaryReason === 'relevance' && result.relevanceCanPublish === false),
+      (result) => {
+        // Precedence, not merely membership. When two signals refuse — a recording that is
+        // both a crisis and unlawful is not hypothetical — accepting either name would let
+        // the gate render the illegal variant and omit the crisis resources entirely, since
+        // it takes withheld.reason straight from this field. FR-022 fixes the order.
+        const refusedInPrecedenceOrder = (
+          [
+            ['crisis', !result.crisisCanPublish],
+            ['illegal', !result.illegalCanPublish],
+            ['relevance', result.relevanceCanPublish === false],
+          ] as const
+        ).find(([, refused]) => refused);
+
+        return result.primaryReason === (refusedInPrecedenceOrder?.[0] ?? 'none');
+      },
       {
-        message: 'primaryReason must name a signal that actually refused',
+        message:
+          'primaryReason must name the highest-precedence refusing signal (crisis, illegal, relevance)',
         path: ['primaryReason'],
       },
     );

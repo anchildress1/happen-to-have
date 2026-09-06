@@ -4,7 +4,10 @@
  * the active submission (FR-023, constitution Principle V). Only published questions and
  * answers become rows, and 003 and 004 own that.
  *
- * See specs/002-contribution-review/data-model.md, which is the authoritative field list.
+ * specs/002-contribution-review/data-model.md describes the same shapes in prose. Where the
+ * two differ, these types and the Zod schemas beside them are what actually runs — several
+ * fields were deliberately loosened after measurement showed strictness discarding real
+ * refusals, and the spec text trails those decisions.
  */
 
 /**
