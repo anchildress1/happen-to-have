@@ -12,7 +12,7 @@
 LOAD_ENV := set -a; [ -f .env ] && . ./.env; set +a;
 
 .PHONY: help install dev format format-check format-files lint typecheck test build e2e perf \
-	secret-scan clean db-up migrate seed db-sweep db-shell lhci ai-checks
+	secret-scan clean db-up migrate seed db-sweep db-shell lhci fixtures ai-checks
 
 ## ---- Required tooling gates (constitution: Required Tooling) ----
 
@@ -46,6 +46,26 @@ test: ## Run unit and integration tests
 
 build: ## Production Next.js build
 	pnpm run build
+
+## Deliberately NOT in ai-checks. This calls the live provider and bills real money, so a
+## suite that runs it per commit stops being run at all. The suites that gate the build fake
+## the provider at the SDK boundary (research D12) and stay free and deterministic.
+##
+## Generates any missing recording first: tests/fixtures/audio is gitignored, because
+## .gitignore refuses original recordings and that guard is worth more than committing
+## 8 MB of binaries derivable from tests/fixtures/cases.ts.
+##
+## Runs the SHIPPED crisis call, not the retired merged judgment in lite3.js. That script
+## stays reachable for reproducing the comparison in research D2, but a target advertised as
+## "the guardrail run" must exercise the shape being shipped or it reports on nothing.
+## The remaining three calls join this target with T035's runner; until then it covers the
+## one signal whose failure reaches a person.
+fixtures: ## Run the crisis fixture set against the live provider (costs money)
+	$(LOAD_ENV) \
+	if [ -z "$$GEMINI_API_KEY" ]; then \
+		echo "GEMINI_API_KEY is not set. See .env.example."; exit 1; \
+	fi; \
+	node scripts/spike/tts.js && node scripts/spike/crisis-dedicated.js gemini-3.8-flash
 
 ## Never the branch in .env (FR-005b). Every browser context is a new participant by design
 ## (FR-001), so a suite run against a shared branch adds hundreds of rows to a database

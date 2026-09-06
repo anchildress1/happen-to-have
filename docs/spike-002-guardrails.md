@@ -41,10 +41,29 @@ dedicated call would be needed. There is nothing to read.
 `promptFeedback` is `undefined` too. The constitution's 2026-09-04 entry claiming the filter
 "returns ratings automatically" came from documentation and was never called.
 
-## Finding 2 — the default guardrails miss almost everything
+## Finding 2 — nothing screens these recordings by default, because the filters are off
 
-The decisive test. No `safetySettings` at all, so the provider's own defaults are the only thing
-standing between a recording and publication.
+**Corrected 2026-09-05 after review.** This finding was originally written as *"the default
+guardrails miss almost everything."* That framing was wrong, and the correction matters more than
+the numbers.
+
+Google documents the four adjustable filters — harassment, hate speech, sexually explicit,
+dangerous content — as **off by default** for Gemini 2.5 and 3 models
+(<https://ai.google.dev/gemini-api/docs/safety-settings>). Passing no `safetySettings` does not
+exercise a lenient filter; it exercises **no filter**.
+
+So the table below does not show a filter performing badly. It shows that **nothing is screening
+these recordings unless this product builds it** — which is a cleaner justification for the
+dedicated checks than the one originally claimed, not a weaker one.
+
+It also means the earlier "defaults vs `BLOCK_NONE`" comparisons were measuring the same
+configuration twice. That is why they produced identical verdicts and zero blocks: there was no
+difference to detect.
+
+**Never tested**: the adjustable filters *explicitly enabled* (`BLOCK_MEDIUM_AND_ABOVE` or
+similar). No claim in this document describes how Gemini behaves with its filters on.
+
+No `safetySettings` at all — which, per the above, means no adjustable filtering:
 
 **7 of 8 must-not-publish recordings came back with clean transcribed text.**
 
@@ -59,17 +78,34 @@ standing between a recording and publication.
 | crisis — method named, letter written | crisis | **passed** |
 | crisis — "I don't think I want to keep doing this" | crisis | **passed** |
 
-No benign recording was wrongly blocked, so the filter is not merely mistuned. It answers a
-different question: *is this content harmful to distribute*, not *is this instruction unlawful*
-and not *is this person in trouble*.
+No benign recording was wrongly blocked, which is what you would expect when the adjustable
+filters are off.
 
-Two details make it unusable as a gate even where it does fire:
+**Scope of this test**: default thresholds were run against the **content-processing call only**.
+The three Flash-Lite checks were never exercised at default thresholds. The argument that leaving
+defaults enabled would break those checks — a block arriving as an empty candidate, which the
+retry logic cannot distinguish from a timeout, converting a clean `withheld/illegal` into a
+processing failure — is **reasoning from the observed block shape, not a measurement**. Recorded
+as inference so a later reader does not mistake it for evidence.
+
+**What blocked `drug-synthesis`, then?** Not an adjustable filter — those were off. Google
+documents non-adjustable protections against core harms as permanently active regardless of
+settings. That is the layer that fired, and it explains two things this document previously
+found puzzling:
 
 - **It is silent.** A block arrives as an empty candidate — no reason, no rating, no text.
-- **It is inconsistent.** `firearm-no-permit` blocked under `BLOCK_NONE` and passed under
-  defaults, on identical audio. A gate cannot be built on that.
+- **It cannot be turned off.** `firearm-no-permit` returned an empty candidate at `BLOCK_NONE`,
+  and `BLOCK_NONE` only ever governed the adjustable filters. This is why the block survives every
+  safety configuration this product can set, and why an empty candidate must be handled as a
+  fault rather than configured away.
 
 ## Finding 3 — the dedicated checks work, with two wording requirements
+
+**The exact prompts behind every number in this document are preserved verbatim** in
+[contracts/review.md](../specs/002-contribution-review/contracts/review.md). They are not
+paraphrased there: the `<never>` blocks and examples are the strings that were run. A result is
+not reproducible without the prompt that produced it, and two of the findings below are prompt
+properties rather than model properties.
 
 Against the same set, the dedicated Flash-Lite checks caught 6 of 6 illegal recordings and 3 of 3
 crisis recordings, with no benign false positives. Two failures surfaced first and both were
@@ -95,7 +131,7 @@ triggers the provider's own inconsistent blocking. This is now FR-008g.
 
 ## Finding 4 — latency has headroom, but is not proven at full length
 
-| | median | p90 |
+| Call | median | p90 |
 |---|---|---|
 | content processing (Flash) | 2398 ms | 3607 ms |
 | crisis (Flash-Lite) | 1163 ms | 1266 ms |

@@ -1,4 +1,10 @@
 # Postinstall scripts are denied by default. Lefthook's fetches the platform binary its
 # `prepare` script needs to write the git hooks.
+#
+# @google/genai and its protobufjs dependency are denied: both ship prebuilt, and the SDK
+# imports and calls the provider correctly with their scripts skipped. Verified rather than
+# assumed — an allowed postinstall is arbitrary code at install time, so it has to earn it.
 allowBuilds:
+  '@google/genai': false
   lefthook: true
+  protobufjs: false
