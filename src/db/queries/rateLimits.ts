@@ -122,17 +122,7 @@ export function makeRateLimitClient(
 /** The production instance, bound to the Neon pool. */
 export const rateLimitClient: RateLimitClient = makeRateLimitClient();
 
-/**
- * Deletes rows whose window closed long ago. Joined to the existing `db-sweep` job rather
- * than given a second scheduled task: a closed window carries no meaning, and the row is
- * abuse infrastructure rather than anything worth retaining.
- *
- * `$1` is in **days**, unlike every other duration in this module, which is in seconds.
- * Passing `windowSeconds` here would sweep roughly ten years of nothing and quietly stop
- * cleaning up at all.
- */
-export const SWEEP_CLOSED_RATE_LIMIT_WINDOWS_SQL = `
-  DELETE FROM submission_rate_limits
-  WHERE window_started_at < now() - ($1 || ' days')::interval
-  RETURNING participant_id
-`;
+// Re-exported so the limiter's tests reach it through the module they exercise. The
+// statement itself lives in `sweep-sql.ts`, which has no imports, because `scripts/` loads
+// it under plain Node where `src/`'s extensionless imports do not resolve.
+export { SWEEP_CLOSED_RATE_LIMIT_WINDOWS_SQL } from './sweep-sql';

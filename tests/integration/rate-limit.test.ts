@@ -132,10 +132,15 @@ describe('submission rate limit — the window (FR-048)', () => {
       return;
     }
 
-    // 45s into a 60s window: about 15s left, nowhere near a fresh 60.
-    const secondsOut = (refused.retryAt.getTime() - Date.now()) / 1_000;
-    expect(secondsOut).toBeLessThan(30);
-    expect(secondsOut).toBeGreaterThan(0);
+    // Compared against the stored anchor rather than the wall clock, so a slow runner cannot
+    // make this flaky. 45s into a 60s window, retryAt must be exactly window start + 60s.
+    const { rows } = await db.query<{ window_started_at: Date }>(
+      'SELECT window_started_at FROM submission_rate_limits WHERE participant_id = $1',
+      [participantId],
+    );
+    const expected = new Date(rows[0].window_started_at).getTime() + 60_000;
+
+    expect(refused.retryAt.getTime()).toBe(expected);
   });
 });
 
@@ -190,7 +195,7 @@ describe('sweeping closed windows', () => {
 
     const { rows: swept } = await db.query<{ participant_id: string }>(
       SWEEP_CLOSED_RATE_LIMIT_WINDOWS_SQL,
-      [30],
+      [30, 3_600],
     );
 
     expect(swept.map((row) => row.participant_id)).toEqual([stale]);
@@ -201,11 +206,36 @@ describe('sweeping closed windows', () => {
     expect(left.map((row) => row.participant_id)).toEqual([live]);
   });
 
+  it('leaves a live window alone even at DAYS=0', async () => {
+    // DAYS=0 is a documented invocation. Measuring retention from window_started_at rather
+    // than from the window's end deletes counters whose window is still open — silently
+    // resetting active participants and removing the limit for everyone.
+    const participantId = await createParticipant();
+    await makeRateLimitClient(db, limitOf(20)).recordSubmission(participantId);
+
+    const { rows } = await db.query(SWEEP_CLOSED_RATE_LIMIT_WINDOWS_SQL, [0, 3_600]);
+
+    expect(rows).toEqual([]);
+  });
+
+  it('sweeps a window that has closed, once its full length has elapsed', async () => {
+    const participantId = await createParticipant();
+    await makeRateLimitClient(db, limitOf(20)).recordSubmission(participantId);
+    await ageWindow(participantId, 7_200);
+
+    const { rows } = await db.query<{ participant_id: string }>(
+      SWEEP_CLOSED_RATE_LIMIT_WINDOWS_SQL,
+      [0, 3_600],
+    );
+
+    expect(rows.map((row) => row.participant_id)).toEqual([participantId]);
+  });
+
   it('sweeps nothing when every window is inside the cutoff', async () => {
     const participantId = await createParticipant();
     await makeRateLimitClient(db, limitOf(20)).recordSubmission(participantId);
 
-    const { rows } = await db.query(SWEEP_CLOSED_RATE_LIMIT_WINDOWS_SQL, [30]);
+    const { rows } = await db.query(SWEEP_CLOSED_RATE_LIMIT_WINDOWS_SQL, [30, 3_600]);
 
     expect(rows).toEqual([]);
   });
