@@ -46,10 +46,12 @@ async function createQuestion(options: {
 }
 
 async function publishAnswer(questionId: string, participantId: string): Promise<void> {
-  await db.query('INSERT INTO answers (question_id, participant_id) VALUES ($1, $2)', [
-    questionId,
-    participantId,
-  ]);
+  // display_text is NOT NULL since 003: a published answer carries the text a reader sees.
+  // These suites only care that the row exists, so any valid text does.
+  await db.query(
+    'INSERT INTO answers (question_id, participant_id, display_text) VALUES ($1, $2, $3)',
+    [questionId, participantId, 'One thing at a time.'],
+  );
 }
 
 function idsOf(eligible: { id: string }[]): string[] {
