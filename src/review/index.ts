@@ -16,6 +16,30 @@ export type { ReviewInput, ReviewOutcome } from './types';
 /** FR-039. The whole submission stops here, however many attempts remain. */
 const DEADLINE_MS = 90_000;
 
+/** Sentinel so the caller can tell a blown deadline from any other rejection. */
+const DEADLINE = Symbol('deadline');
+
+/**
+ * Rejects with DEADLINE if the promise has not settled by the submission's deadline.
+ *
+ * The provider calls already respect it through `runCheck`; this is for the preflight work
+ * that does not, where an unbounded await holds the participant's audio for as long as the
+ * query stalls.
+ */
+function withDeadline<T>(work: Promise<T>, deadline: number, now: () => number): Promise<T> {
+  const remaining = deadline - now();
+  if (remaining <= 0) {
+    return Promise.reject(DEADLINE);
+  }
+  return Promise.race([
+    work,
+    new Promise<never>((_, reject) => {
+      const timer = setTimeout(() => reject(DEADLINE), remaining);
+      void work.finally(() => clearTimeout(timer));
+    }),
+  ]);
+}
+
 /** Injection seam for tests (research D12). Production callers pass nothing. */
 export interface ReviewDeps {
   genai?: GenAiClient;
@@ -56,37 +80,64 @@ export async function reviewContribution(
   const deadline = now() + DEADLINE_MS;
 
   // Held in a local so every exit path can drop the reference, including the throwing ones.
+  // Typed nullable because `finally` clears it; narrowed once here so nothing downstream has
+  // to re-check, and so a future refactor cannot quietly hand `null` to a provider call.
   let audio: Uint8Array | null = input.audio;
+  const recording = audio;
+
+  /**
+   * Abandonment outranks every other outcome, so it is checked before each preflight return
+   * rather than once after them.
+   *
+   * Checked below the limiter and the audio bounds, a caller who had already left got
+   * `rate_limited` or `withheld` resolved at them — outcomes for a request that no longer
+   * exists, when the contract says abort rejects.
+   */
+  const abortIfGone = () => {
+    if (signal.aborted) {
+      throw new DOMException('The review was aborted.', 'AbortError');
+    }
+  };
 
   try {
+    abortIfGone();
+
     // The limiter talks to Postgres, and a transient outage there rejects. Left unhandled it
     // escapes as an arbitrary error, and the contract says only programmer error and caller
     // abort reject — a caller with neither has no ReviewOutcome to render.
+    //
+    // Raced against the submission deadline as well: an unbounded await here holds the audio
+    // for as long as the query stalls, and a query that never settles means the submission
+    // never stops at 90 s (FR-039).
     let decision: Awaited<ReturnType<RateLimitClient['recordSubmission']>>;
     try {
-      decision = await rateLimit.recordSubmission(participantId);
-    } catch {
-      return { status: 'failed', cause: 'exhausted' };
+      decision = await withDeadline(rateLimit.recordSubmission(participantId), deadline, now);
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') {
+        throw error;
+      }
+      return { status: 'failed', cause: error === DEADLINE ? 'deadline' : 'exhausted' };
     }
+
+    abortIfGone();
+
     if (!decision.allowed) {
       return { status: 'rate_limited', retryAt: decision.retryAt };
     }
 
-    const rejected = rejectAudio(audio, mimeType);
+    const rejected = rejectAudio(recording, mimeType);
     if (rejected) {
+      abortIfGone();
       return { status: 'withheld', reason: 'content', contentReason: rejected };
     }
 
     // Chained so a refusal aborts the siblings, and the caller's own abort still propagates.
     const controller = new AbortController();
     const onAbort = () => controller.abort(signal.reason);
-    // Checked as well as listened for: the signal can fire while `recordSubmission` is
-    // awaiting, and `addEventListener` does not replay an event that already happened. Without
-    // this every call is dispatched for a participant who has already left — billed work for
-    // an outcome nobody will read.
-    if (signal.aborted) {
-      throw new DOMException('The review was aborted.', 'AbortError');
-    }
+    // Checked as well as listened for: `addEventListener` does not replay an event that has
+    // already fired, so without this every call is dispatched for a participant who left
+    // during the preflight — billed work for an outcome nobody will read.
+    abortIfGone();
     signal.addEventListener('abort', onAbort, { once: true });
 
     try {
@@ -99,7 +150,7 @@ export async function reviewContribution(
         runCheck(
           {
             ...shared,
-            params: contentCall(audio, mimeType),
+            params: contentCall(recording, mimeType),
             schema: contentResultSchema,
           },
           clock,
@@ -107,7 +158,7 @@ export async function reviewContribution(
         runCheck(
           {
             ...shared,
-            params: crisisCall(audio, mimeType),
+            params: crisisCall(recording, mimeType),
             schema: crisisResultSchema,
             // The one inverted signal: a permit is `inTrouble: false`.
           },
@@ -116,7 +167,7 @@ export async function reviewContribution(
         runCheck(
           {
             ...shared,
-            params: illegalCall(audio, mimeType),
+            params: illegalCall(recording, mimeType),
             schema: verdictResultSchema,
           },
           clock,
@@ -129,7 +180,7 @@ export async function reviewContribution(
           runCheck(
             {
               ...shared,
-              params: relevanceCall(audio, mimeType, questionText ?? undefined),
+              params: relevanceCall(recording, mimeType, questionText ?? undefined),
               schema: verdictResultSchema,
             },
             clock,

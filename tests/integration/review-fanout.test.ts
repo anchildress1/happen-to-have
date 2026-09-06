@@ -305,3 +305,123 @@ describe('review fan-out — fail fast actually means fast (FR-022)', () => {
     await expect(run('answer', client)).resolves.toEqual({ status: 'withheld', reason: 'illegal' });
   });
 });
+
+describe('abandonment outranks every preflight outcome', () => {
+  const aborted = () => {
+    const c = new AbortController();
+    c.abort();
+    return c.signal;
+  };
+
+  const runWith = (signal: AbortSignal, rateLimit: RateLimitClient, client: GenAiClient) =>
+    reviewContribution(
+      {
+        kind: 'question',
+        audio: AUDIO,
+        mimeType: MIME,
+        questionText: null,
+        participantId: '11111111-1111-4111-8111-111111111111',
+        signal,
+      },
+      { genai: client, rateLimit },
+    );
+
+  it('rejects rather than resolving rate_limited for a caller who has left', async () => {
+    // The abort check sat below every preflight return, so someone who had already closed the
+    // tab got a rate-limit page resolved at them — an outcome for a request that no longer
+    // exists, when the contract says abort rejects.
+    const limited: RateLimitClient = {
+      async recordSubmission() {
+        return { allowed: false, retryAt: new Date(), count: 21 };
+      },
+    };
+    const { client } = fakeProvider();
+
+    await expect(runWith(aborted(), limited, client)).rejects.toThrow(/abort/i);
+  });
+
+  it('rejects rather than resolving withheld for unusable audio', async () => {
+    const { client } = fakeProvider();
+
+    await expect(
+      reviewContribution(
+        {
+          kind: 'question',
+          audio: new Uint8Array(16),
+          mimeType: MIME,
+          questionText: null,
+          participantId: '11111111-1111-4111-8111-111111111111',
+          signal: aborted(),
+        },
+        { genai: client, rateLimit: allowAll },
+      ),
+    ).rejects.toThrow(/abort/i);
+  });
+
+  it('rejects when the caller leaves DURING the limiter await, not after it resolves', async () => {
+    // The check that catches this is the second one, after the await. An already-aborted
+    // signal never reaches it — the check at the top of the try catches that — so a test that
+    // aborts up front passes with the second check deleted. It did; this is the case it
+    // exists for.
+    const controller = new AbortController();
+    const limitedAfterLeaving: RateLimitClient = {
+      async recordSubmission() {
+        controller.abort();
+        return { allowed: false, retryAt: new Date(), count: 21 };
+      },
+    };
+    const { client } = fakeProvider();
+
+    await expect(runWith(controller.signal, limitedAfterLeaving, client)).rejects.toThrow(/abort/i);
+  });
+
+  it('makes no provider call at all for a caller who has left', async () => {
+    const { client, seen } = fakeProvider();
+
+    await expect(runWith(aborted(), allowAll, client)).rejects.toThrow(/abort/i);
+    expect(seen).toHaveLength(0);
+  });
+});
+
+/** First call is T; every call after is T + 89.96s, leaving 40ms of the 90s budget. */
+function stepClock(): () => number {
+  const start = Date.now();
+  let first = true;
+  return () => {
+    if (first) {
+      first = false;
+      return start;
+    }
+    return start + 90_000 - 40;
+  };
+}
+
+describe('the preflight is bounded by the submission deadline (FR-039)', () => {
+  it('fails rather than waiting forever on a stalled rate-limit query', async () => {
+    // An unbounded await here held the participant's audio for as long as Postgres stalled,
+    // and a query that never settled meant the submission never stopped at 90s.
+    const stalled: RateLimitClient = {
+      recordSubmission: () => new Promise(() => {}),
+    };
+    const { client, seen } = fakeProvider();
+
+    const outcome = await reviewContribution(
+      {
+        kind: 'question',
+        audio: AUDIO,
+        mimeType: MIME,
+        questionText: null,
+        participantId: '11111111-1111-4111-8111-111111111111',
+        signal: new AbortController().signal,
+      },
+      // A stateful clock: the first read sets the deadline, every later read is 89.96s further
+      // on, leaving 40ms of budget. A constant offset cannot do this — the deadline is derived
+      // from the same clock, so shifting it shifts both ends and the remaining budget is
+      // unchanged. That was my first attempt and it waited the full 90 seconds.
+      { genai: client, rateLimit: stalled, now: stepClock() },
+    );
+
+    expect(outcome).toEqual({ status: 'failed', cause: 'deadline' });
+    expect(seen).toHaveLength(0);
+  });
+});
