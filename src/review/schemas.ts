@@ -42,16 +42,30 @@ export const contentResultSchema = z
     // Nullable, never optional: the model must state that it found no reliable direction
     // rather than omitting the field, so a missing key stays a schema failure.
     //
-    // Capped because this is the ONLY model-generated string that leaves the module — it
-    // rides ReviewOutcome into 003 and 004. displayText and reasonDetail are both bounded
-    // for the same reason reasonDetail gives: an unbounded field is somewhere a model can
-    // put the transcript it was told not to repeat. This one would carry it downstream.
-    emotion: z.string().max(40).nullable(),
+    // Blank normalizes to null rather than parsing as a value. The contract reserves null for
+    // "no direction was detected", so accepting '' or '   ' would make an absence
+    // indistinguishable from a malformed response for every consumer downstream.
+    //
+    // Capped like displayText, and for the reason `detail` gives on the judgment calls: an
+    // unbounded model-generated field is somewhere a transcript can be hidden. emotion is the
+    // one that would carry it out of the module, riding ReviewOutcome into 003 and 004.
+    emotion: z
+      .string()
+      .max(40)
+      .nullable()
+      .transform((emotion) => {
+        const trimmed = emotion?.trim();
+        return trimmed ? trimmed : null;
+      }),
     contentReason: contentReasonSchema.nullable(),
   })
   // The 1-character floor belongs only to text that will actually be published. That is the
   // bound `questions.display_text` enforces, and it only ever sees permitted transcripts.
-  .refine((result) => !result.canPublish || result.displayText.length >= 1, {
+  //
+  // Trimmed, because the database counts whitespace as characters: `displayText: '   '` clears
+  // both a `length >= 1` refine and the CHECK constraint, and publishes a visually empty
+  // question or answer that no later layer is positioned to catch.
+  .refine((result) => !result.canPublish || result.displayText.trim().length >= 1, {
     message: 'a publishable result must carry non-empty displayText',
     path: ['displayText'],
   })
@@ -80,14 +94,14 @@ export const contentResultSchema = z
  */
 export const crisisResultSchema = z.object({
   inTrouble: z.boolean(),
-  // Which named category fired, or "none". Truncated rather than rejected, for the reason
-  // every operator string here is: discarding a crisis verdict over a long log line would
-  // turn the one refusal that must never be missed into a processing failure.
+  // Which named category fired, or "none". Truncated rather than rejected, and an explicit
+  // null accepted the same way an omitted key is, for the reason every operator string here
+  // shares: discarding a crisis detection over a non-gating log line would turn the one
+  // refusal that must never be missed into a processing failure.
   signal: z
     .string()
-    .optional()
-    .default('')
-    .transform((signal) => signal.slice(0, 200)),
+    .nullish()
+    .transform((signal) => (signal ?? '').slice(0, 200)),
 });
 
 /**
@@ -104,13 +118,13 @@ export const crisisResultSchema = z.object({
  */
 export const verdictResultSchema = z.object({
   canPublish: z.boolean(),
-  // Truncated, never rejected. It renders nowhere and decides nothing (FR-027), so failing
-  // the parse over its length would discard a real refusal.
+  // Truncated, never rejected, and null treated as omitted. It renders nowhere and decides
+  // nothing (FR-027), so failing the parse over its length or its absence would discard a
+  // real refusal.
   detail: z
     .string()
-    .optional()
-    .default('')
-    .transform((detail) => detail.slice(0, 500)),
+    .nullish()
+    .transform((detail) => (detail ?? '').slice(0, 500)),
 });
 
 export type ContentResult = z.infer<typeof contentResultSchema>;

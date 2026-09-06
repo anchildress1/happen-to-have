@@ -68,6 +68,38 @@ describe('contentResultSchema', () => {
     expect(contentResultSchema.safeParse(tooLong).success).toBe(false);
   });
 
+  it('rejects a missing sourceLanguage key — nullable is not optional', () => {
+    // Nullable-but-required. If `.optional()` is ever introduced here, an omitted language
+    // silently becomes undefined on a publishable result and reaches questions.source_language.
+    const { sourceLanguage: _dropped, ...withoutLanguage } = VALID_CONTENT;
+
+    expect(contentResultSchema.safeParse(withoutLanguage).success).toBe(false);
+  });
+
+  it('rejects a whitespace-only displayText on a publishable result', () => {
+    // The database counts whitespace as characters, so a bare `length >= 1` check passes this
+    // and publishes a visually empty question or answer. Nothing downstream is positioned to
+    // catch it.
+    const blank = { ...VALID_CONTENT, displayText: '   \n  ' };
+
+    expect(contentResultSchema.safeParse(blank).success).toBe(false);
+  });
+
+  it('normalizes a blank emotion to null rather than accepting it as a direction', () => {
+    // The contract reserves null for "no direction detected". Accepting '' would make an
+    // absence indistinguishable from malformed output for 003 and 004.
+    const parsed = contentResultSchema.safeParse({ ...VALID_CONTENT, emotion: '   ' });
+
+    expect(parsed.success).toBe(true);
+    expect(parsed.success && parsed.data.emotion).toBeNull();
+  });
+
+  it('trims a detected emotion rather than carrying the padding downstream', () => {
+    const parsed = contentResultSchema.safeParse({ ...VALID_CONTENT, emotion: '  wistful ' });
+
+    expect(parsed.success && parsed.data.emotion).toBe('wistful');
+  });
+
   it('rejects a whitespace-only sourceLanguage on a publishable result', () => {
     // Untested until review: removing the trim/min left every test green, and an empty
     // language then survives review and dies against questionRowSchema in 003 — after the
@@ -157,6 +189,16 @@ describe('crisisResultSchema', () => {
     );
   });
 
+  it('keeps a detection whose signal is explicitly null', () => {
+    // A non-gating operator note. Rejecting the response over it would convert the one
+    // detection that must never be missed into retries and a processing failure.
+    const parsed = crisisResultSchema.safeParse({ inTrouble: true, signal: null });
+
+    expect(parsed.success).toBe(true);
+    expect(parsed.success && parsed.data.inTrouble).toBe(true);
+    expect(parsed.success && parsed.data.signal).toBe('');
+  });
+
   it('keeps a detection whose signal is missing entirely', () => {
     // `signal` is a log line. Discarding the one verdict that must never be missed because
     // the model omitted an operator note would be a fault manufactured out of nothing.
@@ -202,6 +244,14 @@ describe('verdictResultSchema — illegal and relevance', () => {
 
   it('rejects a non-boolean canPublish rather than coercing it', () => {
     expect(verdictResultSchema.safeParse({ canPublish: 'yes', detail: '' }).success).toBe(false);
+  });
+
+  it('keeps a refusal whose detail is explicitly null', () => {
+    const parsed = verdictResultSchema.safeParse({ canPublish: false, detail: null });
+
+    expect(parsed.success).toBe(true);
+    expect(parsed.success && parsed.data.canPublish).toBe(false);
+    expect(parsed.success && parsed.data.detail).toBe('');
   });
 
   it('keeps a refusal whose detail is missing entirely', () => {

@@ -46,7 +46,9 @@ export interface ContentPayload {
   sourceLanguage: string | null;
   /**
    * Broad direction, `null` when none is reliably detectable. Null rather than an empty
-   * string on purpose: the spec requires recording *no* direction, and `''` is a value.
+   * string on purpose: the spec requires recording *no* direction, and `''` is a value. A
+   * blank or whitespace-only response from the model normalizes to `null` here, so absence
+   * cannot arrive looking like a detected direction.
    */
   emotion: string | null;
   /** Populated when `canPublish` is false; `null` otherwise. */
@@ -65,7 +67,11 @@ export interface ContentPayload {
 export interface CrisisPayload {
   /** `true` means crisis detected. */
   inTrouble: boolean;
-  /** Which named signal category fired, or `"none"`. For operators — MUST NOT be rendered. */
+  /**
+   * Which named signal category fired. `"none"` when the model says so, `""` when it omitted
+   * or nulled the field — both mean the same thing to a reader and neither gates anything.
+   * For operators only; MUST NOT be rendered.
+   */
   signal: string;
 }
 
@@ -78,7 +84,10 @@ export interface CrisisPayload {
  */
 export interface VerdictPayload {
   canPublish: boolean;
-  /** One clause, for operators. MUST NOT be rendered — FR-027 fixes every visible string. */
+  /**
+   * One clause, for operators, `""` when omitted or nulled. MUST NOT be rendered — FR-027
+   * fixes every visible string.
+   */
   detail: string;
 }
 
