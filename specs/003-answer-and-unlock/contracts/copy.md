@@ -35,7 +35,7 @@ claim something that did not happen.
 | Stop | `Stop` |
 | Re-record | `Record again` |
 | Submit | `Share this answer` |
-| Timer | `<elapsed>s of 60s` |
+| Timer | `<elapsed>s of 60s` — `copy.review.recording.timer(elapsed, limit)` |
 | Reached the ceiling | `That's the minute. Share it, or record again.` |
 
 **The ceiling line says what happened and offers both ways forward.** FR-007: a recording that

@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { listEligibleQuestions } from '../../src/db/queries/questions.js';
+import { insertPublishedAnswers } from '../helpers/answers.js';
 import { createTestDb, type TestDb } from '../helpers/pglite.js';
 
 /**
@@ -60,11 +61,7 @@ async function createQuestionAt(id: string, createdAt: string): Promise<string> 
 }
 
 async function publishAnswers(questionId: string, forParticipantIds: string[]): Promise<void> {
-  await db.query(
-    `INSERT INTO answers (question_id, participant_id, display_text, duration_seconds, submission_id)
-     SELECT $1, unnest($2::uuid[]), $3, 9, gen_random_uuid()`,
-    [questionId, forParticipantIds, 'One thing at a time.'],
-  );
+  await insertPublishedAnswers(db, questionId, forParticipantIds);
 }
 
 const SELECTIONS = 100;

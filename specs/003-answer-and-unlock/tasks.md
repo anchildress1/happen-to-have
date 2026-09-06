@@ -32,7 +32,7 @@ quickstart.md lists as unproven — which is the honest state, not a formality.
 
 - [x] T001 Add `display_text`, `source_language`, nullable `emotion` to `answers` in `migrations/1788700000000_answer-text.sql`, bounded to match `questions.display_text` (#25)
 - [x] T002 Add `duration_seconds smallint CHECK BETWEEN 1 AND 60` and `submission_id uuid UNIQUE` in `migrations/1788710000000_answer-duration-idempotency.sql` — FR-013, FR-015 (#25)
-- [ ] T003 Consolidate the answer-row fixture used by `tests/integration/{empty-pool,exclusions,selection-bias}.test.ts` into `tests/helpers/answers.ts`. **Two NOT NULL columns have now broken all three files in turn**, each with a different insert shape; a third will do it again
+- [x] T003 Consolidate the answer-row fixture used by `tests/integration/{empty-pool,exclusions,selection-bias}.test.ts` into `tests/helpers/answers.ts`. **Two NOT NULL columns have now broken all three files in turn**, each with a different insert shape; a third will do it again
 
 ---
 
@@ -44,7 +44,7 @@ there is nothing to act on.
 - [x] T004 Build 002's review engine — prompts, gate, `reviewContribution()` in `src/review/` (#24)
 - [x] T005 Create `src/db/queries/answers.ts` with `PUBLISH_ANSWER_SQL` — eligibility, insert and ask grant in one statement ([research D2](research.md)) (#25)
 - [x] T006 Add `getQuestionText()` to `src/db/queries/questions.ts` so the server reads the question rather than trusting the client — FR-018 (#25)
-- [ ] T007 Add `readAskEligibility(participantId)` to `src/db/queries/answers.ts` returning `can_ask`, for FR-024/FR-025 and 004's gate. Server-authoritative; the client's view is advisory only
+- [x] T007 Add `readAskEligibility(participantId)` to `src/db/queries/answers.ts` returning `can_ask`, for FR-024/FR-025 and 004's gate. Server-authoritative; the client's view is advisory only
 
 ---
 
@@ -62,7 +62,7 @@ confirm it publishes and the participant is told an ask is available.
 - [x] T010 [P] [US1] Integration-test that a seeded question (NULL author) is answerable — `IS DISTINCT FROM`, not `<>` ([research D2](research.md)) (#25)
 - [x] T011 [P] [US1] Integration-test both duplicate guards on the statement itself; removing either alone leaves every behavioural test green (#25)
 - [x] T012 [P] [US1] Integration-test idempotency: `findBySubmission` resolves a retried upload, refuses another participant's id, and a reused id cannot insert twice — SC-007 (#25)
-- [ ] T013 [P] [US1] Integration-test SC-004: ask eligibility is false while a submission is in flight and no grant exists before the decision — FR-022
+- [x] T013 [P] [US1] Integration-test SC-004: ask eligibility is false while a submission is in flight and no grant exists before the decision — FR-022
 - [x] T014 [P] [US1] E2E in `tests/e2e/answer.spec.ts`: record → checking → published, asserting `Your answer counts. Ask one.` verbatim — FR-020
 
 ### Implementation for User Story 1
@@ -108,8 +108,8 @@ flow directly. Confirm it is refused, then confirm it opens once review passes.
 
 ### Tests for User Story 3
 
-- [ ] T029 [P] [US3] Integration-test that no ask is granted at any point before `status === 'publish'` — FR-022, SC-004
-- [ ] T030 [P] [US3] Integration-test concurrent unlock: two passing answers to different questions submitted together leave exactly one unspent ask — SC-005, spec assumption
+- [x] T029 [P] [US3] Integration-test that no ask is granted at any point before `status === 'publish'` — FR-022, SC-004
+- [x] T030 [P] [US3] Integration-test concurrent unlock: two passing answers to different questions submitted together leave exactly one unspent ask — SC-005, spec assumption
 - [x] T031 [P] [US3] E2E: the checking state blocks, offers no action, and is announced via `aria-live` — FR-012, 002 FR-029
 
 ### Implementation for User Story 3
@@ -146,11 +146,11 @@ confirm each produces a clear state with a way forward.
 
 - [x] T042 [P] Retry at `/answer/record?questionId=<same>` from every Withheld including crisis — FR-027a, plan divergence D-2
 - [x] T043 [P] Rename the route's query parameter to `questionId`, matching 001's `QuestionCard` — plan divergence D-6
-- [ ] T044 [P] Sweep `tests/unit/copy.test.ts`'s forbidden vocabulary over the new recording and published strings; the sweep already covers every string in the file, so this is a verification, not a change
-- [ ] T045 [P] Confirm `/answer/record` is usable at phone and desktop widths with visible focus and 44px targets — FR-031, matching 001's a11y suite
+- [x] T044 [P] Sweep `tests/unit/copy.test.ts`'s forbidden vocabulary over the new recording and published strings; the sweep already covers every string in the file, so this is a verification, not a change
+- [x] T045 [P] Confirm `/answer/record` is usable at phone and desktop widths with visible focus and 44px targets — FR-031, matching 001's a11y suite
 - [ ] T046 **ASHLEY PRESENCE NEEDED** — Run the full flow on a current iPhone Safari and Android Chrome with a real microphone — SC-009. **Every recording so far has been a faked media stream; no real microphone has recorded into this app**
 - [ ] T047 Re-measure review latency at the 60-second ceiling — SC-001 is dominated by it, and 002 measured only 12–16 s clips (002 T080)
-- [ ] T048 Delete the answer-row fixture duplication T003 consolidates, and confirm a third NOT NULL column breaks nothing
+- [x] T048 Delete the answer-row fixture duplication T003 consolidates, and confirm a third NOT NULL column breaks nothing
 
 ---
 
@@ -188,7 +188,7 @@ rule and everything else either protects it or spends it.
 
 ### What is actually left
 
-Of 48 tasks, **34 are complete**. The remainder is three groups:
+Of 48 tasks, **42 are complete**. The remainder is three groups:
 
 1. ~~**E2E coverage**~~ — done, and done properly the second time. `answer.spec.ts` (15 tests)
    plus `answer-denied.spec.ts`, across 5 viewports. The suite navigates from `/answer` through
@@ -200,7 +200,19 @@ Of 48 tasks, **34 are complete**. The remainder is three groups:
    microphone has been used, and the latency figure is inherited from short clips. T028 and
    T046 are marked **ASHLEY PRESENCE NEEDED**: they need real devices, and no amount of
    Playwright substitutes for one. T047 needs 60 s recordings, which T046 produces.
-3. **004-blocked** (T020, T034) — the ask flow does not exist yet.
+3. **004-blocked** (T020, T034) — the ask flow does not exist yet. `readAskEligibility()` is
+   built and tested (T007), so 004's route has the server-authoritative read it needs; only
+   the route itself is missing.
+
+**The six that remain:**
+
+| Task | Owner | Why it is still open |
+| - | - | - |
+| T020, T034 | me, after 004 | The `/ask` route does not exist. T020's link 404s today. |
+| T028 | **Ashley** | Needs a 60 s recording in each real browser. No fake device produces a real bitrate. |
+| T041 | **Ashley** to verify | The handling is mine; a locked screen and a backgrounded tab are not reproducible headless. |
+| T046 | **Ashley** | The feature, on the two devices that matter, with a real microphone. Never done. |
+| T047 | me, after T046 | Needs the 60 s recordings T046 produces. |
 
 T046 is the one where being wrong is not recoverable by a later fix: it is the whole feature,
 on the only devices that matter, and it has never been done.

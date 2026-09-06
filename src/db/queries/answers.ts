@@ -134,3 +134,29 @@ export async function publishAnswer(
   }
   return { published: true, answerId: row.answer_id, askGranted: row.ask_granted };
 }
+
+/**
+ * Whether this participant currently holds an unspent ask (FR-024, FR-025).
+ *
+ * The server's answer, and the only one that counts. 004 gates its route on this rather than
+ * on anything the client sends: FR-024 makes client-supplied eligibility advisory, and FR-025
+ * requires refusing a direct request that bypasses the interface entirely.
+ *
+ * Returns false for an unknown participant rather than throwing. A stale session cookie is a
+ * caller with no ask, not an error to render.
+ */
+export async function readAskEligibility(
+  participantIdValue: string,
+  client: SqlClient = db,
+): Promise<boolean> {
+  const parsed = z.uuid().safeParse(participantIdValue);
+  if (!parsed.success) {
+    return false;
+  }
+
+  const { rows } = await client.query<{ can_ask: boolean }>(
+    'SELECT can_ask FROM participants WHERE id = $1',
+    [parsed.data],
+  );
+  return rows[0]?.can_ask ?? false;
+}
