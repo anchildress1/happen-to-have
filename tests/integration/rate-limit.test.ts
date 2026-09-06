@@ -305,7 +305,9 @@ describe('submission rate limit — configuration (FR-048)', () => {
     // into three seconds — effectively no limit — from an env var that reads as correct.
     expect(rateLimitConfig({ HTH_RATE_LIMIT_WINDOW_SECONDS: '3_600' }).windowSeconds).toBe(3_600);
     expect(rateLimitConfig({ HTH_RATE_LIMIT_MAX: '1e9' }).max).toBe(1_000_000_000);
-    expect(rateLimitConfig({ HTH_RATE_LIMIT_MAX: '20abc' }).max).toBe(20);
+    // '50abc', not '20abc'. parseInt('20abc') is 20 and so is the fallback, so that case
+    // asserted the same number whichever behaviour was in force and could never have failed.
+    expect(rateLimitConfig({ HTH_RATE_LIMIT_MAX: '50abc' }).max).toBe(20);
     expect(rateLimitConfig({ HTH_RATE_LIMIT_MAX: '2.5' }).max).toBe(20);
   });
 
