@@ -56,22 +56,16 @@ can distinguish them, which is why the field exists rather than being inferred a
 | `unintelligible` | `We couldn't make out the recording. Try recording again.` |
 | `unpublishable` | `That recording can't be shared here. Try recording again.` |
 
-A rejection that arrives without a `contentReason` — a schema-valid model response that omitted it
-— falls back to `unpublishable`, which is true of all three.
-
-**When content processing refused but returned no `contentReason`**, the judgment call's
-`audioQuality` selects instead (FR-008h): `silent` → the first row, `unintelligible` → the second,
-`clear` → the third. This changes the message only.
+**A content refusal always carries a `contentReason`.** One that does not is a validation
+failure, retried as a fault under FR-008h — never rendered. No other call is consulted to guess
+the message: with one signal per call there is no second opinion on the audio to borrow, and
+borrowing one told participants the wrong thing about their own recording.
 
 **A lost content result is not this case.** Where content processing never returned at all — a
 provider block that exhausted its retries — the outcome is *processing failed*, not Withheld. Its
 copy is in the Processing failed section below, and it correctly puts the fault on this system's
 side. Rendering `That recording can't be shared here` for a provider-side block would blame the
 participant for something they did not do, which FR-040 forbids.
-
-⚠️ The `silent` and `unintelligible` values are unexercised — every fixture is a clear recording,
-so neither has ever been produced. Until they are, a refusal without a `contentReason` renders the
-third row ([quickstart.md](../quickstart.md)).
 
 FR-027 governs tone: short, non-argumentative, and never explaining, justifying, or debating the
 decision. None of these strings tells the participant what they did.

@@ -108,8 +108,10 @@ hypothetical.
 | Metaphor is not crisis | `metaphor-not-crisis` | publish |
 | Relevance does not judge safety | `tax-evasion` | `withheld/illegal`, **not** `withheld/relevance` |
 | Off-topic but harmless | `irrelevant-coherent` | `withheld/relevance` |
-| Empty candidate is a fault | faked provider returns no candidate on content, judgment permits | retries, then `failed` — never `withheld`, and never the participant-blaming content copy |
-| A block plus a refusal still withholds | content returns no candidate, judgment refuses `illegal` | `withheld/illegal` via fail-fast, not `failed` |
+| Empty candidate is a fault | faked provider returns no candidate on content, every judgment permits | retries, then `failed` — never `withheld`, and never the participant-blaming content copy |
+| A block plus a refusal still withholds | content returns no candidate, the illegal call refuses | `withheld/illegal` via fail-fast, not `failed` |
+| Crisis outranks illegal in copy | crisis and illegal both refuse | `withheld/crisis` — the resources page, not the illegal copy |
+| A question makes no relevance call | `kind: 'question'` with a faked client | exactly three calls dispatched, none of them relevance (FR-003) |
 
 The `tax-evasion` row is the one people get wrong. Both outcomes withhold, so the test must
 assert the **reason**, not just the rejection — otherwise FR-008g's bleed passes silently and the
@@ -142,52 +144,60 @@ A model now exists. The provider bills **32 tokens per second of audio**, so a 6
 ~1,920 audio tokens plus ~150 of system instruction, per call:
 
 Per call at 60 seconds: 1,920 audio tokens (32/second) plus the system instruction — ~250 for
-content processing, ~400 for the judgment call.
+content processing, ~400 for crisis, ~200 each for illegal and relevance.
 
 | Path | Calls | Input tokens | Cost |
 | - | - | - | - |
-| Answer or question, no retries | 2 | ~4,500 | ~$0.0032 |
-| Worst case (3 invocations on both calls) | 6 | ~13,500 | ~$0.0097 |
+| Answer, no retries | 4 | ~8,800 | ~$0.0048 |
+| Question, no retries | 3 | ~6,600 | ~$0.0042 |
+| Worst case (3 invocations on all four) | 12 | ~26,400 | ~$0.0144 |
+
+Two of the four calls sit on Flash at $0.75/M and two on Flash-Lite at $0.30/M, which is why the
+answer path costs more than twice the old two-call shape rather than double it.
 
 | Budget | Pass | Fail |
 | - | - | - |
-| Median answer, measured | within 20% of ~4,500 input tokens | more than 2x the model |
+| Median answer, measured | within 20% of ~8,800 input tokens | more than 2x the model |
 
-**Fail action**: the model is wrong and the retry policy or the fan-out width needs revisiting
-before 003 ships. Output tokens are not budgeted — the judgment call returns ~60 tokens and content
-processing returns at most 2,000 characters.
+**Fail action**: the model is wrong and the retry policy needs revisiting before 003 ships. **The
+fan-out width is not the lever** — narrowing it is what cost 7 of 10 crisis detections
+([research D2](research.md)). Output tokens are not budgeted: each judgment returns under 60
+tokens and content processing returns at most 2,000 characters.
 
-### 3. The crisis prompt is fitted to its own failing case
+### 3. The crisis prompt is now fitted one level up
 
-The `<examples>` block in [contracts/review.md](contracts/review.md) contains the exact recording
-that defeated the previous wording. A prompt cannot be tested by an example it was given.
+This gap was found, measured, and closed once — and closing it created the same problem again at
+a larger radius. The shipped wording caught **10 of 10 with 0 false positives** on twenty
+recordings it had never seen, but the categories in it were written *against* those twenty. They
+are a regression set now, not a generalization test.
 
 | Budget | Pass |
 | - | - |
-| Fresh understated-crisis recordings, none appearing in the prompt | **10 of 10 caught** |
-| Near-miss controls — grief, burnout, metaphor, frustration | **0 of 10 false positives** |
+| A third set of understated-crisis recordings, unseen by the current wording | **10 of 10 caught** |
+| Near-miss controls — grief, burnout, metaphor, frustration, money worry | **0 of 10 false positives** |
 
 Ten and ten because this is the one failure that causes harm outside the software, and a threshold
 below 100% on the catch side is a decision to ship a known miss.
 
-**Fail action**: do not ship the crisis path. Escalating the model tier is already known not to
-work ([research D4](research.md)), so a failure here means the wording needs another pass, not a
-bigger model.
+**Fail action**: do not ship the crisis path. The tier lever is spent — Flash already beats
+Flash-Lite 10/10 to 8/10 on this prompt, and Pro is not on the table for latency. A failure here
+means the categories need another one, not a bigger model.
 
-### 4. The audio-quality fallback is unexercised
+Also weak: `gen-crisis-who-gets-what` is labelled crisis, and making a will is ordinary advice in
+a home-buying context. Re-record or re-label it rather than counting a coin flip as a catch.
 
-`audioQuality` returned `clear` on all 16 fixtures, because all 16 are clear recordings. Its
-`silent` and `unintelligible` values have never been produced — and they are exactly what
-FR-008h leans on to pick Withheld copy when content processing is lost to a provider block.
+### 4. Fan-out latency has not been re-measured since the split
 
-| Budget | Pass |
-| - | - |
-| A silent recording | `audioQuality: 'silent'` |
-| An unintelligible recording (noise, mumbling, wrong-side-of-the-room) | `audioQuality: 'unintelligible'` |
-| The existing 16 clear fixtures | still `clear` — no false positives |
+The 2.4 s median and 3.6 s p90 above were measured on a **two-call** fan-out. Four parallel calls
+should be gated by the slowest — now content or crisis on Flash rather than a judgment on
+Flash-Lite — but "should" is not a measurement.
 
-**Fail action**: drop the fallback and render the general `That recording can't be shared here`
-variant for every content rejection. A fallback that misreports is worse than none.
+| Budget | Pass | Fail |
+| - | - | - |
+| p90 of the four-call answer fan-out, 12–16 s clips | within 20% of 3.6 s | slower than the two-call shape by more than half a second |
+
+**Fail action**: the calls are not actually running in parallel. Check the dispatch, not the
+model choice.
 
 ### 5. Rate limit values (FR-051)
 
@@ -217,7 +227,9 @@ Recorded here so nobody spends a morning re-deriving them.
 | What blocks at `BLOCK_NONE`, then? | The non-adjustable core-harm protections, which no setting disables | 16 fixtures |
 | Does Safari's `audio/mp4` work despite being undocumented? | Yes; `audio/m4a` also works for identical bytes | direct test |
 | Does a 60-second recording fit inline? | Yes — 250–530 KB against a 20 MB ceiling | measured |
-| Does raising the model tier fix the crisis miss? | No. The wording is the lever | tested on Flash |
 | Is one fully merged call viable? | No — it scores well but loses every judgment when the provider blocks | 16 fixtures |
-| Can one Flash-Lite call carry all three judgments? | Yes — 15/16 verdicts, 16/16 on naming the failing signal, zero blocks | 16 fixtures |
-| Do separate calls classify better than a merged one? | No. The claim was inherited and is not supported | 16 fixtures, both shapes |
+| Do separate calls classify better than a merged one? | **Yes, decisively, for crisis** — 3/10 merged against 10/10 dedicated on unseen cases | 20 unseen recordings |
+| Was the earlier "merging is fine" finding wrong? | Yes. Its crisis cases were the ones the prompt had been tuned on, so it could not have found the effect | 16 fixtures vs 20 unseen |
+| Does raising the model tier fix the crisis miss? | **Only once the call is dedicated** — 8/10 on Flash-Lite, 10/10 on Flash. Inside a merged call the tier changed nothing | both shapes, both tiers |
+| Does more thinking help instead? | No — HIGH on Flash-Lite scored the same 3/10 | 20 unseen recordings |
+| Does flipping the crisis question's polarity help? | No, slightly worse | 20 unseen recordings |

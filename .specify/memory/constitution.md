@@ -1,6 +1,47 @@
 <!--
 SYNC IMPACT REPORT
 ==================
+Version change: 3.0.0 → 4.0.0
+
+AMENDMENT 4.0.0 (2026-09-06) — signals do not share a call, and crisis moves up a tier.
+
+Bump rationale: MAJOR. The permission 3.0.0 granted — that the three judgments MAY share one
+call — is REMOVED. Removing a principle is MAJOR under this document's own policy.
+
+  III. Aggregate Guardrail Gate
+    - Four calls for an answer, three for a question. Content processing, crisis, illegal-or-
+      dangerous, and relevance, each on its own call.
+    - NEW: signals MUST NOT share a call.
+    - NEW: crisis runs on the content tier, not the cheap one.
+    - REMOVED: "each judging call MUST report which signal it found". With one signal per call
+      the refusing call is the reason; the field it replaced no longer has anything to add.
+    - REMOVED: the audio-quality fallback for a content refusal with no stated reason. It
+      existed only because a merged judgment call happened to be listening to the same audio,
+      and schema validation had already made it unreachable. Such a refusal is now a fault.
+    - The crisis call answers in positive polarity (`inTrouble`), inverted in code. The measured
+      wording asks whether the person is in trouble, and flipping it in the prompt scored worse.
+
+Evidence (tests/fixtures/crisis-generalization.ts, twenty unseen recordings, 2026-09-06):
+
+    merged judgment  flash-lite  shipped wording               2/10
+    merged judgment  flash       + named signal categories     3/10
+    merged judgment  flash-lite  + HIGH thinking               3/10
+    DEDICATED call   flash-lite  + named signal categories     8/10
+    DEDICATED call   flash       + named signal categories    10/10
+
+  Zero false positives in every configuration.
+
+3.0.0 removed the merge prohibition because the sixteen-fixture set showed no difference. That
+set could not show one: its crisis cases were the cases the prompt had been tuned on. Against
+recordings the prompt had never seen, merging cost five to eight detections out of ten. The
+prohibition 3.0.0 called "asserted, never measured" was right for a reason nobody had
+articulated, and the measurement that retired it was not capable of finding the effect.
+
+The 3.0.0 amendment's other conclusions stand: the provider returns no safety ratings, its
+adjustable filters ship off by default, and an empty candidate is a fault rather than a verdict.
+
+--- 3.0.0 (2026-09-05), retained below ---
+
 Version change: 2.2.0 → 3.0.0
 
 AMENDMENT 3.0.0 (2026-09-05) — the fan-out splits on the fault line, not the taxonomy.
@@ -227,13 +268,17 @@ wrong about crisis too, so that result MUST NOT remove the participant's ability
 
 - An answer qualifies only when its verified duration is at most 60 seconds and every applicable
   check has completed with validated `canPublish == true`.
-- The gate is the conjunction of independent signals, each derived from the original audio,
-  produced by **two parallel calls**:
+- The gate is the conjunction of independent signals, each derived from the original audio and
+  each produced by **its own call**:
   - **Content processing** — transcription, translation, redaction, emotion, and whether the
     recording is publishable at all.
-  - **Judgment** — crisis, illegal-or-dangerous, and, for an answer only, relevance. It also
-    reports audio quality and names the failing signal.
-  A question runs the same two calls; relevance is null rather than a third call.
+  - **Crisis** — is this person in trouble right now, and nothing else.
+  - **Illegal or dangerous** — would publishing this be unsafe or unlawful.
+  - **Relevance** — answers only; a question does not evaluate it.
+- Signals MUST NOT share a call. Measured on twenty unseen understated-crisis recordings, the
+  same model with the same wording caught 3 of 10 when crisis shared a call with two other
+  judgments and 8 of 10 when it did not. A call holding several jobs stops doing the subtle
+  one, and crisis is the subtle one.
 - The provider's own safety signal MUST NOT be treated as one of these checks. It returns no
   ratings to read, and its four adjustable filters are off by default for the models in use, so
   nothing screens a contribution unless this product screens it. The non-adjustable core-harm
@@ -245,27 +290,29 @@ wrong about crisis too, so that result MUST NOT remove the participant's ability
   was observed both blocking and returning normally.
 - No call may consume another call's transcript. Every signal MUST be derived from the original
   audio.
-- Content processing MUST remain its own call and MUST NOT be merged into the judgment call.
-  The split follows the provider's fault line, not a taxonomy: content processing reproduces the
-  recording as text and was measured returning an empty candidate on recordings the judgment call
-  handled cleanly. Separating them keeps a usable verdict when the transcript is lost — merged,
-  one block destroys every judgment and an unlawful recording renders as a processing failure.
-- The three judgments MAY share one call. Measured across the 002 fixture set, the merged
-  judgment call matched the separate calls on accuracy, blocked on nothing, and named the failing
-  signal correctly every time. The prohibition this replaces was asserted, never measured.
-- The judgment call MUST return which signal failed. A reason inferred from which boolean
-  flipped is a reconstruction; a reason the judge states is the judge's own.
+- Content processing MUST remain its own call for a second, independent reason: it reproduces
+  the recording as text and was measured returning an empty candidate on recordings the other
+  calls handled cleanly. Keeping it separate leaves a usable verdict when the transcript is lost.
+- The crisis call MUST run on the content tier rather than the cheap one. Dedicated, it caught
+  8 of 10 on the small model and 10 of 10 on the large one. Crisis is the only signal whose
+  failure causes harm outside the software, and it is the only one where the tier was measured
+  to matter.
+- The Withheld reason is the call that refused. With one signal per call there is nothing to
+  infer and no model-reported reason field to read.
 - Relevance MUST NOT substitute for the content, crisis, or illegal-content decisions.
-- Every review check MUST return `canPublish`: true means YES and false means NO, including
-  crisis and illegal checks. False means rejection, never absence of a detected hazard.
+- Every review check MUST resolve to `canPublish`: true means YES and false means NO. False
+  means rejection, never absence of a detected hazard. The crisis call is the one exception to
+  the wire format: it answers *is this person in trouble* in positive polarity, because that is
+  the wording that was measured, and the inversion MUST live in code rather than in a prompt
+  whose exact wording is load-bearing.
 - Any definitive NO MUST immediately resolve to Withheld, cancel remaining work where possible,
   and suppress further retries and late results. Publication waits for every applicable YES.
 - A YES is kept for the active submission. Only a timed-out, failed, or schema-invalid call
   retries independently, and only while no signal has rejected the submission.
-- Where content processing refuses without stating why, the judgment call's audio-quality report
-  MAY select which Withheld copy renders. It MUST NOT convert a lost content result into a
-  Withheld outcome: if content processing never returns and nothing else refused, the outcome is
-  processing failure. Blaming the participant for a provider-side block is forbidden.
+- Content processing MUST state a reason whenever it refuses. A refusal carrying none is a
+  validation fault and retries; no other call may be consulted to guess the message. If content
+  processing never returns and nothing else refused, the outcome is processing failure. Blaming
+  the participant for a provider-side block is forbidden.
 - Withheld is one outcome with a reason: crisis, illegal/dangerous, relevance, or content.
   If multiple rejections are already known at resolution, use that precedence for presentation;
   do not delay Withheld to wait for unfinished checks.
@@ -526,4 +573,4 @@ a performance or a marketing hook is the one failure that cannot be patched late
 - `AGENTS.md` and `CLAUDE.md` carry runtime development guidance and MUST NOT restate or
   contradict the principles above.
 
-**Version**: 3.0.0 | **Ratified**: 2026-09-04 | **Last Amended**: 2026-09-05
+**Version**: 4.0.0 | **Ratified**: 2026-09-04 | **Last Amended**: 2026-09-06

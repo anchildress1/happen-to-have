@@ -44,66 +44,61 @@ plan.md Complexity Tracking rather than silently skipped.
 
 ---
 
-## D2 — Two calls, split on the provider's fault line
+## D2 — One call per signal, and crisis on the content tier
 
-**Decision**: content processing on `gemini-3.8-flash`; one judgment call on
-`gemini-3.5-flash-lite` carrying crisis, illegal-or-dangerous, relevance (answers only), an
-audio-quality report, and the name of the failing signal. Two calls for an answer, two for a
-question.
+**Decision**: four parallel calls for an answer, three for a question. Content processing and
+crisis on `gemini-3.8-flash`; illegal-or-dangerous and relevance on `gemini-3.5-flash-lite`.
+Relevance is not called at all for a question.
 
-**Rationale**: measured, and it overturned the shape this plan started with.
+**Rationale**: measured twice, and the second measurement reversed the first.
 
-A **single fully merged call** was tested first, since it sends the audio once and is the obvious
-cost win. It scored 14/16 and actually *fixed* two defects the four separate prompts had — it
-caught the understated-crisis case the separate crisis prompt missed, and showed no relevance
-bleed. Classification was not the problem.
+An earlier version of this decision merged the three judgments into one Flash-Lite call. That
+looked safe: across the sixteen-fixture set the merged call matched separate calls on accuracy,
+blocked on nothing, and named the failing signal correctly every time.
 
-It failed on something else. The two recordings the provider blocks — `firearm-no-permit` and
-`drug-synthesis` — returned zero candidates, and merged that destroys **every** judgment, not
-just the transcript. Those recordings would render a processing failure inviting the participant
-to re-record, instead of `That response can't be shared here`.
+**That set could not have found the problem.** Its crisis cases were the cases the crisis prompt
+had been tuned on. Run against twenty understated recordings the prompt had never seen, with
+zero false positives throughout:
 
-Under separate calls the same two recordings resolve correctly: content processing comes back
-empty, the illegal judgment returns a clean refusal, and fail-fast renders Withheld. So the split
-earns its keep — but only between **content processing and everything else**, because content
-processing is the call that reproduces the recording as text and therefore the one the filter
-trips.
-
-A **merged judgment call** was then tested on Flash-Lite: 15/16 on the judgments, **16/16 on
-naming the failing signal**, **zero blocks** including on those two recordings, 1148 ms median.
-
-| Shape | Cost @60s | Latency | Survives a content block |
+| Shape | Model | Wording | Caught |
 | - | - | - | - |
-| Four separate calls | $0.00424 | 2398 ms | yes |
-| One fully merged call | $0.00242 | 2646 ms | **no — loses every judgment** |
-| **Content + judgment** | **$0.00328** | **~2400 ms** | **yes** |
+| Merged judgment | Flash-Lite | shipped | 2/10 |
+| Merged judgment | Flash-Lite | + named signal categories | 3/10 |
+| Merged judgment | Flash | + named signal categories | 3/10 |
+| Merged judgment | Flash-Lite | + HIGH thinking | 3/10 |
+| Merged judgment | Flash-Lite | + positive polarity | 2/10 |
+| **Dedicated** | Flash-Lite | + named signal categories | **8/10** |
+| **Dedicated** | **Flash** | + named signal categories | **10/10** |
 
-Two calls costs 23% less than four with no latency change, because the fan-out is gated by
-content processing either way — the judgment call finishes in half its time.
+Merging cost five to eight detections out of ten. Same model, same wording, same audio — the
+only variable was whether the call had other jobs. A call holding several judgments stops doing
+the subtle one, and crisis is the subtle one.
 
-**What this replaces**: FR-008a previously required every check to take its own call, on the
-grounds that "a prompt judging one thing classifies more reliably than a prompt judging two."
-That was inherited from the handoff, never measured, and the measurement does not support it. The
-real reason to split is fault isolation, which is a different claim with different boundaries —
-it justifies exactly one split, not four calls.
+The tier then carried the last two. That reverses D4's earlier conclusion, which is corrected
+there.
+
+**Illegal and relevance are separated on the same principle rather than on their own evidence.**
+Merging them would save roughly $0.0007 per contribution, and no degradation was measured on the
+six illegal fixtures — but those fixtures are not subtle in the way the crisis cases are, and the
+relevance bleed recorded in D5 is itself a cross-contamination symptom. Given what merging did to
+crisis, the asymmetry of consequences settles it.
+
+**Cost**: about $0.0048 per 60-second contribution, against $0.0033 for the two-call shape and
+$0.0042 for the original four-call one. Crisis detection that works is more expensive than the
+design chosen to be cheap. That is the correct trade under Principle III.
 
 **Alternatives considered**:
 
-- *Four separate calls* — the shape this plan opened with. 23% more expensive for accuracy that
-  measured no better, and one of its four prompts had a crisis miss the merged version did not.
-- *One fully merged call* — cheapest and fastest to write, and it loses the verdict on precisely
-  the recordings where the verdict matters most.
-- *Merging content processing into the judgment call while keeping relevance separate* — splits
-  on a taxonomy rather than the fault line, and puts the transcript in the call that must survive
-  a block.
+- *One fully merged call* — cheapest, and it loses every judgment when the provider blocks the
+  transcript, on precisely the recordings where a verdict matters most.
+- *Merged judgments on Flash-Lite* — the shape this replaces. Cheaper by $0.0015 and misses
+  five to eight crisis recordings in ten.
+- *Merged judgments on Flash* — 3/10. The tier does not rescue a call that is doing three jobs.
 
-**Cost**: this removed a NON-NEGOTIABLE prohibition from Principle III and took the constitution
-to 3.0.0. That is a real price, paid to replace an asserted rule with a measured one.
-
-**Not measured**: the audio-quality report returned `clear` on all 16 fixtures, because all 16
-are clear recordings. Its `silent` and `unintelligible` values are unexercised, and they are
-exactly the fallback FR-008h leans on. Two junk fixtures are required before that path is
-trusted — tracked in [quickstart.md](quickstart.md).
+**Cost paid**: a MAJOR constitution amendment to 4.0.0, removing the merge permission 3.0.0 had
+granted. The prohibition 3.0.0 retired as "asserted, never measured" was right for a reason
+nobody had articulated, and the measurement that retired it was structurally incapable of
+finding the effect.
 
 ---
 
@@ -152,27 +147,42 @@ negative" — they gave nothing, because nothing was on. The second presented de
 
 ---
 
-## D4 — Crisis wording is the lever, not model tier
+## D4 — Name the signals, and put crisis on the larger model
 
-**Decision**: keep crisis on `gemini-3.5-flash-lite`. Carry FR-008f's constraints in the system
-instruction: indirect and understated phrasing counts, and no explicit method, plan, or the word
-*suicide* is required.
+**Decision**: the crisis prompt enumerates the signals it is looking for, and runs on
+`gemini-3.8-flash`.
 
-**Rationale**: measured. The first crisis prompt passed *"I don't think I want to keep doing
-this"* as safe. Escalating the same prompt to `gemini-3.8-flash` **still missed it**; rewriting
-the prompt on Flash-Lite caught it while grief, burnout and metaphor controls stayed clean. The
-defect was in what the prompt asked for, and a larger model optimizes harder for the wrong
-question just as well.
+**Rationale**: an earlier version of this decision concluded that wording was the lever and the
+tier was not, on the strength of one recording. Twenty recordings say otherwise on both halves.
+
+*Wording.* Telling the model that "indirect and understated phrasing counts" is not actionable —
+it scored 2 of 10 on unseen cases. What worked was naming the categories: putting affairs in
+order, a foreshortened future, burden framed as logic or arithmetic, withdrawal from the people
+who matter, means or escape held in reserve, and exhaustion at continuing itself rather than at a
+situation. The judge reports which one fired, which also makes a miss diagnosable.
+
+*Tier.* Dedicated and correctly worded, Flash-Lite reaches 8 of 10 and Flash reaches 10 of 10.
+The earlier "the tier does not help" finding was measured with the bad wording inside a merged
+call — a configuration where nothing helped, so it could not distinguish which lever was stuck.
+
+**The controls are the part that makes this a result.** Ten near-misses — grief, burnout, a
+layoff, money worry, abandoning a novel after twelve years, ending a friendship — produced zero
+false positives in every configuration tested. A crisis check that reaches 10 of 10 by refusing
+anything sad would be unusable, and would bury the crisis page under noise until nobody read it.
 
 **Alternatives considered**:
 
-- *Raise the tier* — tested, did not work, costs latency and money on the critical path.
-- *Two crisis calls and take the union* — doubles cost to paper over a prompt that has since been
-  fixed, and gives two chances to false-positive on grief.
+- *Raise thinking level instead of the tier* — tested at HIGH on Flash-Lite, no change.
+- *Flip the question's polarity* so the model answers "is this person in trouble" rather than
+  "may this be published" — tested, slightly worse, and the inversion belongs in code anyway.
+- *Accept 8/10 on the cheap model* — a 20% miss rate on the one failure that causes harm outside
+  the software, to save $0.0016 a contribution.
 
-⚠️ **Open risk**: the corrected prompt carries its own previously-failing case as a few-shot
-example, so it is fitted to that case and no longer tested by it. Fresh understated-crisis
-recordings are required before launch. Tracked in quickstart.md, not resolved here.
+⚠️ **Still fitted, one level up.** The wording was developed against these twenty recordings, so
+they are now a regression set rather than a generalization test. The honest next step before
+launch is a third set nobody has tuned against. `gen-crisis-who-gets-what` is also the weakest
+fixture in the set: making a will is ordinary advice in a home-buying context, and it is labelled
+crisis.
 
 ---
 

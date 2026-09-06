@@ -2,7 +2,7 @@
 
 **Feature**: 002-contribution-review · **Date**: 2026-09-05
 
-The surface 003 and 004 consume, the two calls behind it, and the gate that combines them.
+The surface 003 and 004 consume, the four calls behind it, and the gate that combines them.
 Shapes are defined in [data-model.md](../data-model.md); this document defines behaviour.
 
 ---
@@ -99,9 +99,10 @@ The provider bills **32 tokens per second of audio**, independent of encoding �
 recording is ~1,920 audio tokens regardless of whether it arrives as 250 KB of Opus or 530 KB of
 AAC. Measured: a 15-second clip produced 457 prompt tokens including the system instruction.
 
-So a 60-second contribution costs roughly **2,170 input tokens on the content call and ~2,320 on
-the judgment call — ~4,500 across the two-call fan-out**, before retries. Compression choices do
-not change the bill; duration does. This is the basis for the cost budget in
+So a 60-second contribution costs roughly **2,100–2,300 input tokens per call, ~8,800 across the
+four-call fan-out** for an answer and ~6,600 for a question, before retries. Compression choices
+do not change the bill; duration does. Two of those calls sit on the content tier, which is where
+most of the cost lands. This is the basis for the cost budget in
 [quickstart.md](../quickstart.md).
 
 ### What rejection looks like
@@ -120,9 +121,10 @@ unusable, which is a content outcome, not an outage.
    check starts, nothing is left in flight and no contribution can be stranded (FR-052).
 2. **Cheap audio validation** (FR-050). Empty or implausibly short buffers resolve to
    `withheld / content` without spending a call.
-3. **Fan out** two calls in parallel on the original audio — content processing and the judgment
-   call — for answers and questions alike (FR-002, FR-003). Every submitted recording reaches
-   this point or an earlier terminal state; none is published unreviewed (FR-001).
+3. **Fan out** one call per signal in parallel on the original audio — content processing,
+   crisis, illegal-or-dangerous, and, for an answer only, relevance (FR-002, FR-003). Four calls
+   for an answer, three for a question. Every submitted recording reaches this point or an
+   earlier terminal state; none is published unreviewed (FR-001).
 4. **Aggregate** as each result lands, aborting early on the first refusal.
 5. **Release** the audio buffer on every exit path.
 
@@ -130,18 +132,28 @@ Steps 1 and 2 exist to make abuse and accidents cheap. Everything that reaches s
 
 ---
 
-## The two calls
+## The four calls
 
-Both receive the **original audio** and nothing derived from the other (FR-004, FR-005). Both are
-dispatched simultaneously ([research D13](../research.md)). Safety thresholds differ by call —
-see below.
+| Call | Model | Answers | Runs for |
+| - | - | - | - |
+| Content processing | `gemini-3.8-flash` | transcribe, translate, redact | both kinds |
+| Crisis | `gemini-3.8-flash` | is this person in trouble right now | both kinds |
+| Illegal or dangerous | `gemini-3.5-flash-lite` | is this unlawful or dangerous to publish | both kinds |
+| Relevance | `gemini-3.5-flash-lite` | does this answer engage the question | answers only |
 
-The split is on the provider's fault line, not a taxonomy: content processing reproduces the
-recording as text and is the call the filter trips; the judgment call emits booleans and has
-never been observed blocking. Merging them means one block destroys every verdict
-([research D2](../research.md)).
+Each receives the **original audio** and nothing derived from any other (FR-004, FR-005). All are
+dispatched simultaneously ([research D13](../research.md)).
 
-### Safety configuration — identical on both calls
+**One signal per call is measured, not stylistic.** On twenty understated-crisis recordings the
+prompt had never seen, the same model with the same wording caught 3 of 10 sharing a call and
+10 of 10 alone on the content tier ([research D2](../research.md)). A call holding several jobs
+stops doing the subtle one.
+
+Content processing is separated for a second, independent reason: it reproduces the recording as
+text and is the call the provider's filter trips, while the judgment calls emit booleans and have
+never been observed blocking. Merged, one block would destroy every verdict.
+
+### Safety configuration — identical on every call
 
 ```ts
 safetySettings: [
@@ -152,19 +164,20 @@ safetySettings: [
 ].map(category => ({ category, threshold: HarmBlockThreshold.BLOCK_NONE }))
 ```
 
-Set **explicitly on both calls**, not omitted. The provider documents these four adjustable
+Set **explicitly on every call**, not omitted. The provider documents these four adjustable
 filters as off by default for the models in use, so this changes nothing today — it stops the
 gate moving if that default ever changes ([research D3](../research.md)).
 
 **This does not stop every block.** The provider's non-adjustable protections against core harms
 stay active at every setting this system can send, and empty candidates were observed on two
 fixtures *at* `BLOCK_NONE`. That is not something to configure away; it is handled as a fault
-(FR-008b1) and is the reason the two calls are split at all ([research D2](../research.md)).
+(FR-008b1) and is why content processing is separated from the judgments at all
+([research D2](../research.md)).
 
 **No safety ratings are produced at any configuration.** No code may read
 `candidate.safetyRatings`; the field does not exist on this path.
 
-Both calls set `temperature: 0` and a `responseSchema`.
+Every call sets `temperature: 0` and a `responseSchema`.
 
 ### 1. Content processing — `gemini-3.8-flash`
 
@@ -176,7 +189,10 @@ Response schema:
 `{ canPublish: boolean, displayText: string, sourceLanguage: string, emotion: string | null, contentReason: 'silence' | 'unintelligible' | 'unpublishable' | null }`
 
 `contentReason` is returned whenever `canPublish` is false, and is what selects among the three
-content headings in [copy.md](copy.md). No other check can supply it.
+content headings in [copy.md](copy.md). No other call can supply it, and none tries: a refusal
+that arrives without one fails validation and is retried as a fault (FR-008h). There is no
+cross-call audio-quality fallback — the earlier one existed only because a merged judgment call
+happened to be listening, and schema validation made it unreachable in any case.
 
 System instruction, in the structure Flash prefers — role, work, negatives, output:
 
@@ -215,94 +231,156 @@ un-redactable (FR-016, US2 scenario 4). It does **not** mean off-topic or unlawf
 published. This is why the call stays on Flash and not Flash-Lite, and why any downgrade needs
 evidence rather than a latency argument (constitution, Application Stack).
 
-### 2. Judgment — `gemini-3.5-flash-lite`
+### 2. Crisis — `gemini-3.8-flash`
 
-One call, three verdicts, plus the failing signal and an audio-quality report. Receives the
-question text alongside the audio for an answer (FR-006); for a question, relevance is returned
-as `null` rather than the system making another call (FR-003). Same safety configuration as
-content processing — see above.
+One question, no other job in the call: **is this person in trouble right now.** It never
+transcribes and never repeats the recording's content. It runs for answers and questions alike.
+
+Response schema — stated in positive polarity, because that is the wording that was measured:
+
+```ts
+{ inTrouble: boolean, signal: string }
+```
+
+The gate consumes `crisisCanPublish = !inTrouble`. The inversion lives in code, not in the
+prompt: flipping the question's polarity in the prompt was tested and scored slightly worse
+([research D4](../research.md)).
+
+System instruction — verbatim, as measured at 10/10 with zero false positives:
+
+```text
+<role>You listen to one recording and answer a single question: is this person in
+trouble right now? Nothing else about the recording concerns you.</role>
+
+<what_counts>
+Almost nobody in crisis says so plainly. Judge the signal, not the vocabulary. Answer yes when
+the recording carries any of these, however calm, practical or reasonable it sounds:
+- PUTTING AFFAIRS IN ORDER: giving belongings away, deciding who gets what, arranging for
+  someone else to take a pet or a responsibility.
+- A FORESHORTENED FUTURE: plans, purchases or worries that stop at a near horizon, or a problem
+  dismissed because it will not be theirs for much longer.
+- BURDEN: their absence described as easier or better for the people around them, including
+  when framed as logic, arithmetic or plain fact.
+- WITHDRAWAL: losing the reason to answer or reach the people who matter to them.
+- MEANS OR ESCAPE HELD IN RESERVE: comfort or relief in knowing there is a way out available.
+- EXHAUSTION AT CONTINUING ITSELF, as distinct from exhaustion at a job, a workload or a
+  situation.
+A flat, matter-of-fact delivery is common in crisis. It is not evidence against it.
+</what_counts>
+
+<what_does_not_count>
+- Grief, burnout, frustration, money worry, or exhaustion at a situation.
+- Figures of speech such as "that job was killing me".
+- Giving up on a project, a job, a friendship or a habit. Ending a thing is not ending oneself.
+</what_does_not_count>
+
+<how_to_weigh>
+You are not diagnosing and you are not deciding what happens next. A person reads the outcome
+either way. Say yes when the signal is there, even if you are unsure; an unnecessary offer of
+help costs someone a moment, and a missed one costs more than this system can repair.
+</how_to_weigh>
+
+<output>JSON: inTrouble true when this person may be in trouble, false when not. signal names
+which of the categories above applied, or "none".</output>
+```
+
+**Every clause here is load-bearing and each earned its place against a measured miss.** The
+named categories replaced an abstract instruction that understated phrasing counts, which scored
+2 of 10. `<what_does_not_count>` is what holds false positives at zero across ten near-miss
+controls — grief, burnout, a layoff, money worry, abandoning a novel, ending a friendship.
+`<how_to_weigh>` sets the asymmetry deliberately: this check is allowed to be wrong in one
+direction ([research D4](../research.md)).
+
+**Measured**: 10/10 crisis, 0/10 false positives, on twenty recordings the prompt had never seen.
+On `gemini-3.5-flash-lite` the identical prompt scores 8/10, which is why FR-008a1 pins the tier.
+
+`signal` is a log field. It MUST NOT be rendered (FR-027).
+
+⚠️ The wording was developed against those twenty recordings, so they are now a regression set
+rather than a generalization test. A third unseen set is the honest pre-launch check.
+
+### 3. Illegal or dangerous — `gemini-3.5-flash-lite`
+
+One question. Runs for answers and questions alike. Never transcribes.
 
 Response schema:
 
 ```ts
-{
-  crisisCanPublish: boolean,
-  illegalCanPublish: boolean,
-  relevanceCanPublish: boolean | null,
-  audioQuality: 'clear' | 'unintelligible' | 'silent',
-  primaryReason: 'none' | 'crisis' | 'illegal' | 'relevance',
-  reasonDetail: string,
-}
+{ canPublish: boolean, detail: string }
 ```
 
-System instruction — every negative constraint from the previously separate prompts is retained,
-because each one is load-bearing and was measured that way:
-
 ```text
-<role>You judge one spoken recording on three independent questions, and report the audio
-quality. You never transcribe it and never repeat its content.</role>
+<role>You judge one spoken recording on a single question: may it be published, or is it
+unlawful or dangerous? You never transcribe it and never repeat its content.</role>
 
-<crisis>
-- crisisCanPublish is false when the speaker signals they may harm themselves, want to stop
-  living, are giving up on living, or are in immediate personal danger.
-- Indirect and understated phrasing counts. People in crisis rarely say it plainly.
-- Do NOT require an explicit method, plan, or the word suicide.
-- Do NOT return false for grief, burnout, or figures of speech such as "that job was killing me".
-Examples: "I lost my mother and can't get out from under it" -> true.
-"Everyone would have an easier time if I wasn't around anymore" -> false.
-"How do you know when it's time to stop trying? I don't think I want to keep doing this." -> false.
-</crisis>
-
-<illegal>
-- illegalCanPublish is false when the speaker instructs someone how to commit a crime, evade law
+<what_counts>
+- canPublish is false when the speaker instructs someone how to commit a crime, evade law
   enforcement, obtain a weapon unlawfully, manufacture drugs or weapons, or injure a person, or
   when the recording attacks or degrades a person or group.
 - Judge the instruction actually given, not the topic it sits near.
+</what_counts>
+
+<never>
 - Do NOT return false for lawful activity involving weapons, alcohol, money, or risk.
-Examples: "Take a hunter safety course and get your license" -> true.
-"Buy from a private seller where no background check is required" -> false.
-</illegal>
+- Do NOT return false because the recording is off-topic, sad, or badly argued. Those are other
+  calls' questions.
+</never>
 
-<relevance>
-- Only for an answer; return null for a question.
-- relevanceCanPublish is true when the answer engages the question, even briefly or badly.
-- Do NOT return false because the advice is dangerous, illegal, or offensive. That is the
-  illegal judgment's job, and confusing the two makes off-topic indistinguishable from unsafe.
-Example: Q "How do I start deer hunting?" A "Buy a gun illegally." -> true. On topic, unlawful.
-</relevance>
+<examples>
+- "Take a hunter safety course and get your license" -> true.
+- "Buy from a private seller where no background check is required" -> false.
+</examples>
 
-<audio_quality>
-- "clear" when speech is audible and intelligible.
-- "unintelligible" when there is sound but the words cannot be made out.
-- "silent" when there is no discernible speech at all.
-</audio_quality>
-
-<reason>
-- primaryReason names the single most serious failing judgment, in the order crisis, illegal,
-  relevance; "none" when all pass.
-- reasonDetail is one short clause for operators, never shown to anyone. Do NOT quote the
-  recording and do NOT include identifying details.
-</reason>
-
-<output>JSON matching the schema.</output>
+<output>JSON matching the schema. detail is one short clause for operators, never shown to
+anyone. Do NOT quote the recording and do NOT include identifying details.</output>
 ```
 
-The `Do NOT` lines are not decoration. The crisis block's **last** example — *"How do you know
-when it's time to stop trying?"* — is the case that defeated an earlier wording and that a higher
-model tier did **not** fix ([research D4](../research.md)). The relevance block's example, where
-an unlawful answer is still judged relevant, is FR-008g: without it, relevance rejected on-topic
-answers for being unlawful and selected the wrong Withheld copy.
+The compositional case is the one that matters: each sentence lawful, the sequence not. Judging
+the instruction rather than the topic is what catches it.
 
-**Measured**: 15/16 on the three verdicts, **16/16 on `primaryReason`**, zero blocked responses,
-1148 ms median — including on the two recordings that block content processing every time. The one miss was a relevance false-negative on a recording the illegal judgment
-already refused, so the outcome and the copy were both still correct.
+**Measured**: 6/6 on the illegal fixtures, zero blocked responses, in both the merged and
+dedicated shapes. Unlike crisis, no degradation was observed from merging — the split here
+follows FR-008a's rule rather than its own evidence.
 
-⚠️ `audioQuality` returned `clear` on all 16 fixtures because all 16 are clear recordings. Its
-`silent` and `unintelligible` values are **unexercised** and must not be trusted until junk
-fixtures exist — see [quickstart.md](../quickstart.md).
+### 4. Relevance — `gemini-3.5-flash-lite`, answers only
 
-**`reasonDetail` MUST NOT be rendered.** FR-027 fixes every participant-facing string. It is a log
-field.
+Receives the question text alongside the audio (FR-006). **Not dispatched at all for a
+question** (FR-003) — there is no `null` verdict to return, because there is no call.
+
+Response schema:
+
+```ts
+{ canPublish: boolean, detail: string }
+```
+
+```text
+<role>You judge one spoken answer on a single question: does it engage the question it was
+given? You never transcribe it and never repeat its content.</role>
+
+<what_counts>
+- canPublish is true when the answer engages the question, even briefly, badly, or wrongly.
+- canPublish is false only when the answer is about something else.
+</what_counts>
+
+<never>
+- Do NOT return false because the advice is dangerous, illegal, or offensive. Another call
+  decides that, and confusing the two makes off-topic indistinguishable from unsafe.
+</never>
+
+<examples>
+- Q "How do I start deer hunting?" A "Buy a gun illegally." -> true. On topic, unlawful.
+</examples>
+
+<output>JSON matching the schema. detail is one short clause for operators, never shown to
+anyone. Do NOT quote the recording and do NOT include identifying details.</output>
+```
+
+That `<never>` clause is FR-008g. Without it, relevance rejected on-topic answers for being
+unlawful, which selects the wrong Withheld copy — the participant is told they were off-topic
+when they were not.
+
+**`detail` MUST NOT be rendered**, on either judgment call. FR-027 fixes every participant-facing
+string. It is a log field.
 
 ## Faults, retries, and the deadline
 
@@ -332,21 +410,22 @@ did nothing wrong and the copy must not imply otherwise (FR-040).
 ## The gate
 
 ```text
-                    ┌──────────────────┐   ┌────────────────────────────────┐
-  original audio ──►│ content          │   │ judgment                       │
-                    │ Flash            │   │ Flash-Lite                     │
-                    │ BLOCK_NONE       │   │ BLOCK_NONE                     │
-                    │ text + publishable│  │ crisis · illegal · relevance   │
-                    └────────┬─────────┘   │ + primaryReason + audioQuality │
-                             │             └───────────────┬────────────────┘
-                             └──────────┬──────────────────┘
-                                        ▼
-                       any validated canPublish=false
-                          ──► abort the other, Withheld (reason = primaryReason)
-                       both permit, all applicable verdicts true
-                          ──► publish
-                       faults exhausted / 90s
-                          ──► processing failure
+                    ┌────────────────────────┐
+  original audio ──►│ content · Flash        │  text · canPublish · contentReason
+                    ├────────────────────────┤
+                ──► │ crisis · Flash         │  inTrouble · signal
+                    ├────────────────────────┤
+                ──► │ illegal · Flash-Lite   │  canPublish · detail
+                    ├────────────────────────┤
+                ──► │ relevance · Flash-Lite │  canPublish · detail   (answers only)
+                    └───────────┬────────────┘
+                                ▼
+                   any validated refusal
+                      ──► abort the rest, Withheld (reason = the refusing call)
+                   every dispatched call permits
+                      ──► publish
+                   faults exhausted / 90s
+                      ──► processing failure
 ```
 
 Rules, in force order:
@@ -354,22 +433,24 @@ Rules, in force order:
 1. **Fail fast.** The first validated `refuse` resolves Withheld immediately, aborts the shared
    `AbortController`, and stops further retries. Later results cannot publish anything and cannot
    change the resolved outcome (FR-007, FR-022).
-2. **Unanimity to publish.** Content processing must permit, and every applicable verdict in the
-   judgment call must be true. A missing result is not a permit (FR-019) — a lost transcript can
-   never publish, whatever the judgment call returned.
-2a. **The reason comes from the judge.** When the judgment call refuses, `withheld.reason` is its
-   `primaryReason` field, not a value reconstructed from which boolean flipped (FR-008e).
-2b. **A lost transcript is a failure, not a Withheld.** If content processing exhausts while the
-   judgment call permitted everything, the outcome is `failed` (FR-040) — nothing refused, and the
-   system does not know whether the recording was publishable. If the judgment call *refused*,
-   fail-fast already resolved Withheld on that refusal and content processing is irrelevant.
-   `audioQuality` never rescues a lost transcript; its only job is rule 2c.
-2c. **A refusal without a stated reason falls back to `audioQuality`.** Where content processing
-   refuses but returns no `contentReason`, the judgment call's `audioQuality` selects the content
-   variant (FR-008h). This changes the message, never the decision.
+2. **Unanimity to publish.** Every dispatched call must permit. A missing result is not a permit
+   (FR-019) — a lost transcript can never publish, whatever the judgments returned. Relevance is
+   not dispatched for a question, so there is nothing to wait for and nothing to default.
+2a. **The reason is the call that refused.** With one signal per call, `withheld.reason` is
+   identified by which call returned a refusal — no field to read, nothing to reconstruct
+   (FR-008e).
+2b. **A lost transcript is a failure, not a Withheld.** If content processing exhausts while every
+   judgment permitted, the outcome is `failed` (FR-040) — nothing refused, and the system does not
+   know whether the recording was publishable. If a judgment *refused*, fail-fast already resolved
+   Withheld on that refusal and content processing is irrelevant.
+2c. **A content refusal without a `contentReason` is a fault, not a Withheld.** Validation rejects
+   it and the call is retried under FR-037. No other call is consulted to fill the gap
+   (FR-008h) — guessing the message from another call's opinion of the audio is how a participant
+   gets told the wrong thing about their own recording.
 3. **Precedence is for copy only.** Among refusals *already known* at resolution, order is
-   **crisis → illegal → relevance → content**. The gate never waits for an unfinished check to
-   discover a better reason (FR-022, edge case *Multiple known rejections*).
+   **crisis → illegal → relevance → content**, computed by the gate from which calls refused. It
+   never waits for an unfinished check to discover a better reason (FR-022, edge case *Multiple
+   known rejections*).
 4. **Abort bounds latency, not cost.** The SDK's `abortSignal` is client-side only — it stops
    this system waiting, it does not stop the provider working, and usage is billed either way.
    Cancellation is therefore not a cost control and not required for correctness. A late result
@@ -397,5 +478,6 @@ waiting for a higher-precedence reason before rendering, which FR-022 forbids in
 | Grant or consume an ask | FR-042 — 003 grants, 004 consumes |
 | Record a penalty, strike, or cooldown against a participant | FR-028 |
 | Read `candidate.safetyRatings` | [research D3](../research.md) — the field does not exist |
-| Merge content processing into the judgment call | FR-008a, Principle III — it is the call the provider blocks |
-| Render `reasonDetail`, or any model-generated text, to a participant | FR-027, Principle VII |
+| Put two signals in one call | FR-008a, Principle III — measured at 3/10 versus 10/10 on crisis |
+| Run the crisis call on the cheap tier | FR-008a1 — 8/10 versus 10/10 |
+| Render `signal`, `detail`, or any model-generated text, to a participant | FR-027, Principle VII |

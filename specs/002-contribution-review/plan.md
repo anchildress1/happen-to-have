@@ -14,10 +14,10 @@ This feature has no route and no flow. It exposes `reviewContribution()` — aud
 — plus the four shared states (Checking, Withheld, processing failure, rate limited) that 003 and
 004 render. It ends at the decision. Granting an ask is 003; consuming one is 004.
 
-The technical approach: **two parallel** `@google/genai` calls on the original audio — content
-processing, and one judgment call carrying crisis, illegal-or-dangerous and relevance — each
-validated with Zod before use, aggregated by a gate that publishes only on unanimous permission
-and resolves to Withheld the instant either refuses. The audio never leaves the request — no
+The technical approach: **one `@google/genai` call per signal**, dispatched in parallel on the
+original audio — content processing, crisis, illegal-or-dangerous, and relevance for an answer —
+each validated with Zod before use, aggregated by a gate that publishes only on unanimous
+permission and resolves to Withheld the instant any of them refuses. The audio never leaves the request — no
 bucket, no object key, no address to leak ([research D1](research.md)).
 
 **The spike rewrote this plan before it was written.** The provider returns no safety ratings at
@@ -26,21 +26,26 @@ any threshold, and at its default guardrails it passed 7 of 8 recordings that mu
 free rating, and the provider's own filter is barred from counting as a check at all. Evidence:
 [spike-002-guardrails](../../docs/spike-002-guardrails.md).
 
-**The shape is split on the provider's fault line, not on a taxonomy of checks.** Content
-processing reproduces the recording as text and is the call the provider's filter trips — measured
-returning an empty candidate on two fixtures even at `BLOCK_NONE`. The judgment call emits
-booleans and has never been observed blocking. Merged into one call, a single block destroys every
-verdict and an unlawful recording renders as a processing failure; split this way, the judgment
-survives and the participant gets the right answer. Full measurement in
-[research D2](research.md).
+**One signal per call, because merging was measured and it cost lives-worth of signal.** On
+twenty understated-crisis recordings the prompt had never seen, the same model with the same
+wording caught 3 of 10 when crisis shared a call with two other judgments and 10 of 10 when it
+had a call of its own on the content tier — zero false positives throughout. A call holding
+several jobs stops doing the subtle one. Full measurement in [research D2](research.md).
 
-That measurement removed a NON-NEGOTIABLE prohibition from Principle III and took the constitution
-to **3.0.0**. The rule it replaced — every check its own call — was inherited and never tested.
+Content processing stays separate for a second, independent reason: it reproduces the recording
+as text and is the call the provider's filter trips — measured returning an empty candidate on two
+fixtures even at `BLOCK_NONE`. The judgment calls emit booleans and have never been observed
+blocking. Merged, a single block would destroy every verdict and an unlawful recording would
+render as a processing failure.
+
+That measurement took the constitution to **4.0.0**, removing the merge permission 3.0.0 had
+granted. 3.0.0's evidence could not have found the effect: its crisis cases were the ones the
+crisis prompt had been tuned on.
 
 Two decisions deserve early scrutiny. Rate limiting writes the only row this feature persists,
 which sits against Principle V ([research D7](research.md), justified in Complexity Tracking).
-And the judgment call's `audioQuality` fallback is unexercised on its `silent` and
-`unintelligible` values, because every fixture is a clear recording.
+And the crisis wording is now fitted to the twenty recordings that validated it, so they are a
+regression set rather than a generalization test.
 
 ## Technical Context
 
@@ -56,11 +61,14 @@ only — an API key in a browser bundle is a leaked key.
 | Call | Model | Safety | Returns |
 | - | - | - | - |
 | Content processing | `gemini-3.8-flash` | `BLOCK_NONE`, explicit | text, language, emotion, publishable, contentReason |
-| Judgment | `gemini-3.5-flash-lite` | `BLOCK_NONE`, explicit | crisis, illegal, relevance, primaryReason, audioQuality |
+| Crisis | `gemini-3.8-flash` | `BLOCK_NONE`, explicit | inTrouble, signal |
+| Illegal or dangerous | `gemini-3.5-flash-lite` | `BLOCK_NONE`, explicit | canPublish, detail |
+| Relevance (answers only) | `gemini-3.5-flash-lite` | `BLOCK_NONE`, explicit | canPublish, detail |
 
-Measured 2026-09-05: content ~2.4 s median, judgment ~1.15 s median. Two calls cost ~23% less than
-four at the 60-second ceiling with no latency change, since the fan-out is gated by content
-processing either way ([research D2](research.md)).
+Measured 2026-09-05: content ~2.4 s median, a Flash-Lite judgment ~1.15 s median. The fan-out is
+gated by the slowest call, which is now content or crisis on Flash, so widening from two calls to
+four costs about $0.0015 per 60-second contribution and no measurable latency
+([research D2](research.md)).
 
 **Storage**: no new storage for audio ([research D1](research.md)). One new Postgres table for
 rate-limit counters ([research D7](research.md)). Neon, schema owned by committed migrations.
@@ -118,8 +126,9 @@ after Phase 1 design; result unchanged.
 
 | Gate | Status | Note |
 | - | - | - |
-| Content processing never merged into the judgment call | **PASS** | FR-008a — it is the call the provider blocks ([research D2](research.md)). |
-| The judgment call names the failing signal | **PASS** | FR-008e — measured 16/16, not reconstructed from booleans. |
+| Every signal has its own call | **PASS** | FR-008a — merged scored 3/10 on unseen crisis cases, dedicated 10/10 ([research D2](research.md)). |
+| Crisis runs on the content tier | **PASS** | FR-008a1 — 8/10 on Flash-Lite, 10/10 on Flash, same prompt. |
+| The withheld reason is the call that refused | **PASS** | FR-008e — one signal per call leaves nothing to reconstruct. |
 | Illegal-or-dangerous is judged, never read from provider metadata | **PASS** | FR-008c as amended; the free-ratings premise was falsified. |
 | Crisis judgment exists regardless of moderation | **PASS** | FR-008d — no provider category covers self-harm, adjustable or otherwise, and every crisis fixture transcribed clean. |
 | Crisis catches understated phrasing | **PASS** | FR-008f carried into the system instruction ([research D4](research.md)). ⚠️ prompt is fitted to its own failing case — see Complexity Tracking. |
@@ -169,7 +178,9 @@ Only what 002 adds. Everything else is 001's and unchanged.
 │   │   ├── schemas.ts            # Zod parser per check result
 │   │   ├── prompts/
 │   │   │   ├── content.ts        # transcribe, translate, redact, emotion — BLOCK_NONE
-│   │   │   └── judgment.ts       # crisis + illegal + relevance + reason + audio quality
+│   │   │   ├── crisis.ts         # is this person in trouble — Flash, its own call
+│   │   │   ├── illegal.ts        # unlawful or dangerous to publish — Flash-Lite
+│   │   │   └── relevance.ts      # does the answer engage the question — Flash-Lite
 │   │   └── rateLimit.ts          # window check, env-configured values
 │   ├── db/queries/
 │   │   └── rateLimits.ts         # the one table 002 writes

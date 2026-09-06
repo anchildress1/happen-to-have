@@ -176,22 +176,23 @@ no stored copy remains.
 #### Review structure
 
 - **FR-001**: The system MUST review every submitted recording before publishing it.
-- **FR-002**: An answer review MUST perform two parallel calls on the original recording: content processing, and one judgment call carrying crisis, illegal-or-dangerous, and relevance.
-- **FR-003**: A question review MUST perform the same two parallel calls. Relevance MUST NOT be evaluated for a question; the judgment call returns it as null rather than the system making a third call.
+- **FR-002**: An answer review MUST perform four parallel calls on the original recording, one per signal: content processing, crisis, illegal-or-dangerous, and relevance.
+- **FR-003**: A question review MUST perform three parallel calls. Relevance MUST NOT be evaluated for a question, and the system MUST NOT make the call at all.
 - **FR-004**: Each check MUST receive the original recording independently.
 - **FR-005**: A check MUST NOT consume another check's transcript, text, or output.
 - **FR-006**: The relevance check MUST additionally receive the text of the question being answered.
 - **FR-007**: Publication MUST wait for every applicable check to pass; a definitive rejection MUST resolve immediately to Withheld without waiting for the other checks.
 - **FR-008**: The system MUST NOT substitute relevance alone, or any single check alone, for the full set.
-- **FR-008a**: Content processing MUST remain its own call and MUST NOT be merged into the judgment call. The split follows the provider's fault line: content processing reproduces the recording as text and was measured returning an empty candidate on recordings the judgment call handled cleanly. Merged, one block destroys every judgment and an unlawful recording renders as a processing failure instead of Withheld.
-- **FR-008a1**: The three judgments MAY share one call. Measured across the fixture set, a merged judgment call matched separate calls on accuracy, blocked on nothing, and named the failing signal correctly in every case. The prior requirement that each judgment take its own call was asserted rather than measured, and the measurement does not support it.
-- **FR-008b**: Both calls MUST set every adjustable safety category to a threshold that never blocks, and MUST set it **explicitly** rather than relying on the provider's default. The provider documents these filters as off by default, so explicit configuration changes nothing today and protects the gate from moving if that default changes. A block destroys a contribution while returning no reason and no ratings, and retry cannot recover it.
+- **FR-008a**: Every signal MUST have its own call. Measured on twenty understated-crisis recordings the prompt had never seen, the same model with the same wording caught 3 of 10 when crisis shared a call with two other judgments and 8 of 10 when it did not. A call holding several jobs stops doing the subtle one, and crisis is the subtle one.
+- **FR-008a2**: Content processing MUST stay separate for a second, independent reason: it reproduces the recording as text and was measured returning an empty candidate on recordings the other calls handled cleanly. Keeping it apart leaves a usable verdict when the transcript is lost — merged, one block would destroy every judgment and an unlawful recording would render as a processing failure instead of Withheld.
+- **FR-008a1**: The crisis call MUST run on the content-processing tier rather than the cheap one. Dedicated, it caught 8 of 10 on the small model and 10 of 10 on the large one. Crisis is the only signal whose failure causes harm outside the software, and the only one where the tier was measured to matter.
+- **FR-008b**: Every call MUST set every adjustable safety category to a threshold that never blocks, and MUST set it **explicitly** rather than relying on the provider's default. The provider documents these filters as off by default, so explicit configuration changes nothing today and protects the gate from moving if that default changes. A block destroys a contribution while returning no reason and no ratings, and retry cannot recover it.
 - **FR-008b1**: A response with no candidate MUST be treated as a provider fault and retried independently under FR-038, never read as a verdict and never resolved from the other call's result. This is permanent, not configurable: the provider's non-adjustable protections against core harms stay active at every setting this system can send, and empty candidates were observed at a never-block threshold. The absence of a candidate carries no reason, so reading a decision from it manufactures a verdict from silence. A call that never returns therefore cannot permit publication — FR-019 still requires every applicable signal to pass.
-- **FR-008c**: The illegal-or-dangerous decision MUST be produced by the judgment call as its own field, never read from provider metadata. The spike settled this twice over: the provider returns **no safety ratings at all** on this path, at every configuration tested; and its adjustable filters are off by default, so nothing screens a recording for legality unless this product does it. Evidence: [spike-002-guardrails](../../docs/spike-002-guardrails.md).
-- **FR-008d**: A crisis judgment MUST exist as its own field with its own instructions. No provider category covers self-harm or crisis — not among the adjustable filters, which are off by default in any case, and not among the non-adjustable core-harm protections. Content moderation also answers a different question — *is this content harmful to distribute* — than crisis, which asks *is this person in trouble*. Every crisis recording in the test set, including one naming a method and a written letter, was transcribed and returned clean.
-- **FR-008e**: The judgment call MUST name which signal rejected the contribution rather than leaving it inferred from which boolean flipped. A reason reconstructed from booleans is a guess about the judge's reasoning; a reason the judge states is the judge's own. The transcript of a withheld contribution is never published, so this is the only thing left that selects the correct reason text.
-- **FR-008h**: The judgment call MUST report the recording's audio quality — audible, unintelligible, or silent. Its only use is selecting among the content Withheld variants when content processing **refused but did not say why**. It MUST NOT authorise publication, and it MUST NOT convert a lost content result into a Withheld outcome: where content processing never returns, the outcome is processing failure under FR-040, because the system does not know whether the recording was publishable and the participant did nothing wrong.
-- **FR-008f**: The crisis check MUST treat indirect and understated phrasing as a crisis signal, and MUST NOT require an explicit method, plan, or the word *suicide*. A check that waits for a declaration misses the people it exists for: the spike's first crisis prompt passed "I don't think I want to keep doing this" as safe, and raising the model tier did not fix it. It MUST NOT reject grief, burnout, or figures of speech such as *that job was killing me*.
+- **FR-008c**: The illegal-or-dangerous decision MUST be produced by its own call, never read from provider metadata. The spike settled this twice over: the provider returns **no safety ratings at all** on this path, at every configuration tested; and its adjustable filters are off by default, so nothing screens a recording for legality unless this product does it. Evidence: [spike-002-guardrails](../../docs/spike-002-guardrails.md).
+- **FR-008d**: A crisis judgment MUST exist as its own call with its own instructions. No provider category covers self-harm or crisis — not among the adjustable filters, which are off by default in any case, and not among the non-adjustable core-harm protections. Content moderation also answers a different question — *is this content harmful to distribute* — than crisis, which asks *is this person in trouble*. Every crisis recording in the test set, including one naming a method and a written letter, was transcribed and returned clean.
+- **FR-008e**: The withheld reason MUST be the signal whose own call refused. With one signal per call there is nothing to infer — the refusing call *is* the reason, and no model-reported reason field is needed or permitted. The transcript of a withheld contribution is never published, so the refusing call is the only thing that selects the reason text.
+- **FR-008h**: Content processing MUST state a reason whenever it refuses, and a refusal carrying no reason MUST be treated as a validation fault under FR-037 and retried, never rendered as a Withheld with a guessed message. No other call reports audio quality: the earlier cross-call fallback existed only because a merged judgment call happened to be listening, and validation already made it unreachable. A lost content result is a processing failure under FR-040, not a Withheld — the system does not know whether the recording was publishable and the participant did nothing wrong.
+- **FR-008f**: The crisis check MUST name the signals it is looking for rather than instructing the model that understated phrasing counts. Measured, the abstract instruction was not actionable: it scored 2 of 10 on unseen recordings. The signals are putting affairs in order, a foreshortened future, burden framed as logic or arithmetic, withdrawal from the people who matter, means or escape held in reserve, and exhaustion at continuing itself as distinct from exhaustion at a situation. It MUST NOT require an explicit method, plan, or the word *suicide*, and MUST NOT reject grief, burnout, money worry, figures of speech such as *that job was killing me*, or giving up on a project, a job or a friendship.
 - **FR-008g**: The relevance check MUST judge only whether the answer addresses the question, and MUST NOT reject an answer for being unlawful, dangerous, or offensive. In the spike, relevance rejected on-topic answers purely because their content was unsafe, which destroys the system's ability to tell an off-topic contribution from an unsafe one and so selects the wrong Withheld reason under FR-008e.
 
 #### Content processing
@@ -304,10 +305,14 @@ without moderation-flagged content, relevance, and benign controls. Full method 
 3. **Does the crisis check catch what moderation misses?** **Yes, and moderation misses nearly
    all of it.** At the provider's default guardrails, 7 of 8 must-not-publish recordings came
    back with clean transcribed text, including every crisis case. The dedicated check caught
-   them. It needed FR-008f's wording to catch understated phrasing; a higher model tier did not.
-4. **Latency of the real fan-out.** Median 2.4s, p90 3.6s, measured on 12–16 second clips.
-   Comfortably inside SC-001, but **not yet proven at the 60-second ceiling**, which carries
-   roughly four times the audio.
+   them. It needed FR-008f's named signal categories, a call of its own, and the content tier:
+   measured on twenty unseen recordings, the same wording caught 3 of 10 merged and 10 of 10
+   dedicated on `gemini-3.8-flash`, with zero false positives on ten near-miss controls.
+4. **Latency of the real fan-out.** Median 2.4s, p90 3.6s, measured on 12–16 second clips of a
+   two-call fan-out. Comfortably inside SC-001, but **not yet proven at the 60-second ceiling**,
+   which carries roughly four times the audio, nor re-measured since the split to four parallel
+   calls. Parallel calls should not add latency beyond the slowest, which is now crisis on the
+   content tier rather than a judgment on the cheap one.
 
 ---
 
@@ -318,8 +323,10 @@ without moderation-flagged content, relevance, and benign controls. Full method 
 - **Boolean meaning**: each check returns `canPublish`; true is YES and false is NO, including the crisis and illegal checks. A negative permission result is definitive; a provider fault is not a negative permission result.
 - **Crisis content authorship**: routing text and resource links are written and verified by a person before launch, and are static.
 - **Rate limit values**: specific numbers come from testing a complete cycle, not from another product. They are configurable without a code change.
-- **Checks stay separate**: each check is its own parallel thread. Combining two judgments into
-  one prompt anchors the second on the first, and the fan-out is already narrow enough without it.
+- **Checks stay separate**: each signal is its own call, and this is measured rather than
+  asserted. Merging the three judgments into one prompt cost five to eight crisis detections in
+  ten, on identical audio and identical wording. A call holding several jobs stops doing the
+  subtle one.
 - **Illegal-or-dangerous is a build item**: settled by the spike. The provider returns no
   dangerous-content rating to read, and its default guardrails passed 7 of 8 must-not-publish
   recordings, so the dedicated call is the only screening that exists. This reverses the earlier

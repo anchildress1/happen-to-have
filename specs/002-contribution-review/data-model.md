@@ -36,7 +36,7 @@ The spec's Key Entity, realised as a request-scoped object.
 
 | Field | Type | Notes |
 | - | - | - |
-| `kind` | `'answer' \| 'question'` | the fan-out is two calls either way; this decides only whether `relevanceCanPublish` is evaluated or null |
+| `kind` | `'answer' \| 'question'` | decides the fan-out width: four calls for an answer, three for a question, which omits relevance entirely (FR-003) |
 | `audio` | `Uint8Array` | the original recording; never copied outside the request |
 | `mimeType` | `string` | as recorded by the browser |
 | `questionText` | `string \| null` | required for `answer`, `null` for `question` (FR-006) |
@@ -50,9 +50,9 @@ Every check returns the same envelope, so the gate treats them uniformly (Princi
 
 | Field | Type | Notes |
 | - | - | - |
-| `call` | `'content' \| 'judgment'` | which of the two parallel calls produced it |
+| `call` | `'content' \| 'crisis' \| 'illegal' \| 'relevance'` | which parallel call produced it, and — when it refuses — the withheld reason itself (FR-008e) |
 | `outcome` | `'permit' \| 'refuse' \| 'fault'` | `refuse` is a validated `canPublish: false`; `fault` is a timeout, empty candidate, or parse failure |
-| `payload` | `ContentPayload \| JudgmentPayload \| null` | shaped by which call returned it |
+| `payload` | `ContentPayload \| CrisisPayload \| VerdictPayload \| null` | shaped by which call returned it |
 | `attempts` | `number` | 1–3 (FR-039) |
 
 **`fault` and `refuse` are different states and must not collapse.** A `fault` retries; a `refuse`
@@ -81,31 +81,39 @@ headings** for content rejections — silence, unintelligible, and everything el
 applies, so it returns it. Without this field the three headings are unreachable and
 `WithheldPage` has nothing to branch on.
 
-### `JudgmentPayload`
+### `CrisisPayload`
 
-Produced by the judgment call. Three verdicts, plus the two fields that exist because a
-reconstruction is not the same as a statement.
+Produced only by the crisis call, which answers one question and nothing else.
 
 | Field | Type | Notes |
 | - | - | - |
-| `crisisCanPublish` | `boolean` | `false` means crisis detected (FR-008d); crisis publishes nowhere and appears in no other participant's view (FR-031) |
-| `illegalCanPublish` | `boolean` | `false` means unsafe or unlawful to publish (FR-008c) |
-| `relevanceCanPublish` | `boolean \| null` | `null` for a question; relevance does not apply (FR-003) |
-| `primaryReason` | `'none' \| 'crisis' \| 'illegal' \| 'relevance'` | the failing signal, named by the judge (FR-008e) |
-| `reasonDetail` | `string` | one clause, for operators only — **never rendered** |
-| `audioQuality` | `'clear' \| 'unintelligible' \| 'silent'` | selects content copy when the transcript is lost (FR-008h) |
+| `inTrouble` | `boolean` | `true` means crisis detected (FR-008d); crisis publishes nowhere and appears in no other participant's view (FR-031) |
+| `signal` | `string` | which named category fired, or `"none"` — for operators only, **never rendered** |
 
-`primaryReason` exists because inferring the reason from which boolean flipped is a
-reconstruction of the judge's reasoning. Measured 16/16 correct across the fixture set, so the
-reconstruction is unnecessary.
+**The polarity is inverted here and only here.** Every other call answers *may this be
+published*; this one answers *is this person in trouble*. That is the wording that was measured,
+and flipping it in the prompt scored worse ([research D4](research.md)). The gate consumes
+`crisisCanPublish = !inTrouble`, so the inversion lives in one line of code rather than in a
+prompt whose exact wording is load-bearing.
 
-`reasonDetail` MUST NOT reach the interface. FR-027 fixes every participant-facing string, and
-model-generated text on the Withheld page would break both that and Principle VII. It exists for
-logs.
+### `VerdictPayload`
 
-`audioQuality` is the fallback for a lost transcript. Content processing is the call the provider
-blocks; when it does, this is the only remaining signal that can choose between *We couldn't hear
-anything* and *We couldn't make out the recording*. It never authorises publication.
+Produced by the illegal-or-dangerous call and the relevance call, which ask different questions
+with the same shape.
+
+| Field | Type | Notes |
+| - | - | - |
+| `canPublish` | `boolean` | for illegal: `false` means unsafe or unlawful to publish (FR-008c). For relevance: `false` means the answer is about something else (FR-008g) |
+| `detail` | `string` | one clause, for operators only — **never rendered** |
+
+`signal` and `detail` MUST NOT reach the interface. FR-027 fixes every participant-facing string,
+and model-generated text on the Withheld page would break both that and Principle VII. They exist
+for logs.
+
+**There is no `primaryReason` and no `audioQuality`.** Both existed only because three judgments
+shared a call. With one signal per call, the refusing call *is* the reason (FR-008e), and a
+content refusal that arrives without a `contentReason` fails validation and is retried rather
+than dressed up with another call's opinion of the audio (FR-008h).
 
 ### `ReviewOutcome`
 
