@@ -1,6 +1,25 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
+ * The SDK constructor is stubbed so construction can be counted. Everything else is the real
+ * module — the harm enums below are the genuine values, not stand-ins.
+ */
+const sdk = vi.hoisted(() => ({ constructions: 0 }));
+
+vi.mock('@google/genai', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@google/genai')>();
+  return {
+    ...actual,
+    GoogleGenAI: class {
+      models = { generateContent: async () => ({ candidates: [], text: undefined }) };
+      constructor() {
+        sdk.constructions++;
+      }
+    },
+  };
+});
+
+/**
  * FR-008b. Three properties of the provider client that are easy to lose in a later refactor
  * and expensive to lose quietly.
  *
@@ -21,6 +40,7 @@ const REAL_KEY = process.env.GEMINI_API_KEY;
 
 beforeEach(() => {
   vi.resetModules();
+  sdk.constructions = 0;
   process.env.GEMINI_API_KEY = 'test-key-not-a-real-credential';
 });
 
@@ -96,15 +116,18 @@ describe('review client — credential handling', () => {
     await expect(import('../../src/review/client.js')).resolves.toBeDefined();
   });
 
-  it('memoizes the SDK rather than rebuilding it per call', async () => {
-    // Constructed twice, so the guard has an observable effect. The earlier version of this
-    // test warmed the singleton by actually CALLING generateContent — which issued a real
-    // outbound HTTPS request with a fake key and passed only because the request failed.
-    // `rejects.toThrow()` with no matcher accepted `fetch failed` on an offline runner just
-    // as happily, making it the one test here whose result depended on the network.
+  it('constructs the SDK once across many clients and many calls', async () => {
+    // Counts real constructions. Two earlier versions did not: one warmed the singleton with
+    // a live outbound HTTPS request, and its replacement only asserted that the factory
+    // returns distinct wrapper objects — which stays true if the SDK is rebuilt per call.
     const { makeGenAiClient } = await import('../../src/review/client.js');
+    const params = { model: 'gemini-3.5-flash-lite', contents: 'x' };
 
-    expect(makeGenAiClient()).not.toBe(makeGenAiClient());
+    await makeGenAiClient().generateContent(params);
+    await makeGenAiClient().generateContent(params);
+    await makeGenAiClient().generateContent(params);
+
+    expect(sdk.constructions).toBe(1);
   });
 
   it('still names the variable when the key disappears after a module reset', async () => {
