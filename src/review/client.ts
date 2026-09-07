@@ -33,9 +33,28 @@ import {
  * (FR-008a1). It is the only signal where the tier was measured to matter, and the only one
  * whose failure causes harm outside the software.
  *
- * Illegal and relevance stay on Flash-Lite: narrow judgments, measured 6/6 and unaffected by
- * tier. They are separate keys rather than one shared `judgment` because they are separate
- * calls — merging signals cost 7 of 10 crisis detections (FR-008a).
+ * Illegal stays on Flash-Lite on its own evidence: 6/6 on the illegal fixtures, in both the
+ * merged and dedicated shapes. Relevance stays there on a weaker record — an explicit negative
+ * constraint fixed 3 of the 4 cases where it leaked safety judgment, and one residual remains
+ * (FR-008g). Neither has ever been run at two tiers. Crisis is the only signal with a cross-tier
+ * measurement, so leaving these two on the cheap tier is an assumption carried forward, not a
+ * result. Downgrading either further, or reading their placement as proven, needs a run first.
+ *
+ * They are separate keys because they are separate calls in the shipped fan-out, not because
+ * separate calls classify better — they do not. Controlled on two independent sets, one of
+ * which (`tests/fixtures/crisis-third-set.ts`) neither prompt had seen, a merged judgment call
+ * and dedicated calls are indistinguishable at the content tier: 10 of 10 with zero false
+ * positives either way, once both carry the same crisis weighing clause (FR-008a, FR-008a3).
+ * The split is worth five to eight detections on the CHEAP tier alone, and crisis is forbidden
+ * to run there (FR-008a1).
+ *
+ * An earlier revision of this comment credited the split with 7 of 10 crisis detections. That
+ * number compared a dedicated call on **Flash** (10 of 10) against a merged one on **Flash-Lite**
+ * (3 of 10), so what it mostly measured was the tier. Constitution 4.0.0 had already cut the
+ * split's value at the shipped tier to a single detection; 5.0.0 attributed that last one to the
+ * weighing clause the merged prompt lacked. The clause accounts for the residual — the tier
+ * accounts for the rest. Four calls ship anyway — built, measured, and they degrade better if
+ * the tier is ever forced down — for $0.0015 more per contribution. An implementation choice.
  */
 export const REVIEW_MODELS = {
   content: 'gemini-3.8-flash',
@@ -45,9 +64,10 @@ export const REVIEW_MODELS = {
 } as const;
 
 /**
- * Intended for every call, explicitly (FR-008b). Nothing consumes it yet — the gate that
- * issues the calls is not built — so this is the shape the wiring must use, not a description
- * of wiring that exists.
+ * Sent on every call, explicitly (FR-008b). All four prompt builders spread it into
+ * `safetySettings`: `src/review/prompts/content.ts`, `src/review/prompts/crisis.ts`, and
+ * `src/review/prompts/illegal.ts`, whose `verdictCall` factory produces both the illegal and
+ * relevance calls.
  *
  * The provider ships these four adjustable filters **off by default** for the models above,
  * so this changes nothing today. It is written rather than inherited because a documented
