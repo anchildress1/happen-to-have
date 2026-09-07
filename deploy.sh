@@ -50,14 +50,33 @@ done
 # Bound straight from Secret Manager, never --set-env-vars: a literal there is visible in
 # the service description and in deploy logs, and DATABASE_URL carries a password.
 SECRETS="SESSION_SECRET=${SESSION_SECRET_ID}:latest,DATABASE_URL=${DATABASE_URL_ID}:latest"
+BOUND_SECRET_IDS=("${SESSION_SECRET_ID}" "${DATABASE_URL_ID}")
 # Gemini belongs to 002/003. Bind it when it exists so those slices need no deploy change,
 # but never block a deploy that does not need it.
 if secret_exists "${GEMINI_API_KEY_ID}"; then
   SECRETS="${SECRETS},GEMINI_API_KEY=${GEMINI_API_KEY_ID}:latest"
+  BOUND_SECRET_IDS+=("${GEMINI_API_KEY_ID}")
 fi
 
 gcloud services enable artifactregistry.googleapis.com run.googleapis.com \
-  cloudbuild.googleapis.com --project "${PROJECT_ID}" --quiet
+  cloudbuild.googleapis.com secretmanager.googleapis.com --project "${PROJECT_ID}" --quiet
+
+# Creating a secret grants nobody the right to read it, so a first deploy fails at revision
+# creation with a permission error naming a service account the operator never chose. Cloud
+# Run defaults to the Compute Engine default SA; override RUNTIME_SA when the service runs
+# as a dedicated identity.
+PROJECT_NUMBER="$(gcloud projects describe "${PROJECT_ID}" --format 'value(projectNumber)')"
+RUNTIME_SA="${RUNTIME_SA:-${PROJECT_NUMBER}-compute@developer.gserviceaccount.com}"
+
+# Bound per secret rather than project-wide: this service reads three secrets, and a
+# project-level accessor role would hand it every other secret in the project as well.
+# add-iam-policy-binding is idempotent, so re-granting an existing binding is a no-op.
+for ID in "${BOUND_SECRET_IDS[@]}"; do
+  gcloud secrets add-iam-policy-binding "${ID}" \
+    --member "serviceAccount:${RUNTIME_SA}" \
+    --role roles/secretmanager.secretAccessor \
+    --project "${PROJECT_ID}" --condition None --quiet >/dev/null
+done
 
 gcloud artifacts repositories describe "${REPOSITORY}" --location "${REGION}" \
   --project "${PROJECT_ID}" --quiet >/dev/null 2>&1 ||
