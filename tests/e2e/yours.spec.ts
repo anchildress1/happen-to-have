@@ -98,7 +98,17 @@ interface SeededHistory {
  * `UNIQUE (participant_id, question_id)` is why the responders are minted here rather than
  * reused: N responses to one question require N distinct participants, and that constraint is
  * what guarantees it.
+ *
+ * **Every seeded question id is recorded for cleanup, and that is not tidiness.** A published
+ * question is eligible for every other participant by definition, so these rows join the
+ * selection pool that `skip.spec.ts` traverses — and its T056 asserts the pool WRAPS within
+ * twenty presses, which a pool grown past twenty by another spec file silently makes false.
+ * `ask.spec.ts` needs no cleanup because it stubs `/api/ask` and creates no questions; this
+ * file creates real ones, so the pattern does not carry over.
  */
+/** Question ids seeded by the running test, torn down in `afterEach`. */
+const seededQuestionIds: string[] = [];
+
 async function seedHistory(participantId: string, responseCount = 3): Promise<SeededHistory> {
   const nonce = crypto.randomUUID().slice(0, 8);
   const questionText = `How do you tell somebody no without burning the bridge? (${nonce})`;
@@ -128,6 +138,7 @@ async function seedHistory(participantId: string, responseCount = 3): Promise<Se
          FROM unnest($2::uuid[], $3::text[]) AS z(responder, text)`,
       [question.rows[0].id, responders.rows.map((row) => row.id), responseTexts],
     );
+    seededQuestionIds.push(question.rows[0].id);
 
     // The other half of the screen: an answer of theirs to somebody else's question. A distinct
     // asker, because a participant may not answer their own question.
@@ -145,6 +156,7 @@ async function seedHistory(participantId: string, responseCount = 3): Promise<Se
        VALUES ($1, $2, $3, 11, gen_random_uuid())`,
       [answered.rows[0].id, participantId, answerText],
     );
+    seededQuestionIds.push(answered.rows[0].id);
   });
 
   return { questionText, responseTexts, answerText, answeredQuestionText };
@@ -196,6 +208,28 @@ async function openYoursWithHistory(page: Page, responseCount = 3): Promise<Seed
 function responseItems(page: Page): Locator {
   return page.locator('li[class*="__response"]');
 }
+
+/**
+ * Removes every question this file published, and the answers hanging off them.
+ *
+ * Without this the pool grows by two questions per test, and `skip.spec.ts` T056 — which
+ * asserts a small pool wraps within twenty presses — starts failing three viewports at a time
+ * with no obvious connection to the file that caused it. Answers go first; the foreign key
+ * insists.
+ *
+ * Participants are deliberately left alone. They are the cheap half, `scripts/sweep-participants.ts`
+ * exists for them, and a participant with no questions is invisible to every query in the app.
+ */
+test.afterEach(async () => {
+  if (seededQuestionIds.length === 0) {
+    return;
+  }
+  const ids = seededQuestionIds.splice(0, seededQuestionIds.length);
+  await withPool(async (pool) => {
+    await pool.query('DELETE FROM answers WHERE question_id = ANY($1::uuid[])', [ids]);
+    await pool.query('DELETE FROM questions WHERE id = ANY($1::uuid[])', [ids]);
+  });
+});
 
 test.describe('T070 — a seeded history reaches the screen, and only its owner', () => {
   test('the history belongs to the session that published it (FR-002)', async ({
@@ -428,11 +462,56 @@ test.describe('T075 — an unavailable producer degrades without a retry (FR-034
     }
     await expect(page.getByText(seeded.answerText)).toBeVisible();
 
-    // And it degrades only where it was pressed — the siblings keep their working control.
+    // And it degrades only where it was pressed. Every response still carries a `Listen` button
+    // — the degraded one stays mounted so a keyboard user does not lose focus — so the thing that
+    // distinguishes them is `disabled`, not presence. Counting buttons alone would pass even if
+    // the 503 had disabled every response on the screen, which is exactly what FR-032 forbids.
     await expect(page.getByText(copy.yours.playback.unavailable)).toHaveCount(1);
-    await expect(page.getByRole('button', { name: copy.yours.playback.listen })).toHaveCount(
-      seeded.responseTexts.length - 1,
-    );
+    const listenButtons = page.getByRole('button', { name: copy.yours.playback.listen });
+    await expect(listenButtons).toHaveCount(seeded.responseTexts.length);
+    await expect(target.getByRole('button')).toBeDisabled();
+    for (let i = 1; i < seeded.responseTexts.length; i++) {
+      await expect(items.nth(i).getByRole('button')).toBeEnabled();
+    }
+  });
+});
+
+/**
+ * T079 — the unspent-ask call to action.
+ *
+ * `Yours` is where a participant lands after publishing, and an ask they have not spent is the
+ * one thing on the screen they can act on. Before this, the only route to it was remembering
+ * that `/ask` exists.
+ *
+ * Both halves are asserted, and the absent half is the one that matters: eligibility is the
+ * server's answer (Principle II) and `/ask` re-reads it independently, so an action rendered
+ * without an ask would advertise something the server refuses. A test that only checked the
+ * present case would pass against a link rendered unconditionally.
+ */
+test.describe('T079 — Yours offers the ask only when there is one to spend', () => {
+  test('renders Ask a question for a participant holding an unspent ask', async ({ page }) => {
+    await page.goto('/answer');
+    const participantId = await participantIdOf(page);
+    await grantAsk(participantId);
+
+    await page.goto('/yours');
+
+    const ask = page.getByRole('link', { name: copy.ask.unlocked.action, exact: true });
+    await expect(ask).toBeVisible();
+    await expect(ask).toHaveAttribute('href', '/ask');
+  });
+
+  test('renders no such action for a participant with no ask', async ({ page }) => {
+    await page.goto('/answer');
+    // Identity minted, ask deliberately NOT granted.
+    await participantIdOf(page);
+
+    await page.goto('/yours');
+
+    await expect(page.getByRole('heading', { name: copy.yours.answers.heading })).toBeVisible();
+    await expect(
+      page.getByRole('link', { name: copy.ask.unlocked.action, exact: true }),
+    ).toHaveCount(0);
   });
 });
 
@@ -515,16 +594,19 @@ test.describe('T077 — no ranking or feedback control exists anywhere (SC-008)'
     expect(inventory.filter((entry) => FORBIDDEN_ROLES.includes(entry.role))).toEqual([]);
     expect(inventory.filter((entry) => FORBIDDEN_CONTROL_WORD.test(entry.label))).toEqual([]);
 
-    // The positive form of the same claim, and the stronger one: an exhaustive inventory. Three
-    // `Listen` buttons and the header's `Yours` link are the whole interactive surface, so any
-    // control added here fails this whether or not its label was on the word list.
+    // The positive form of the same claim, and the stronger one: an exhaustive inventory. Any
+    // control added to this screen fails this whether or not its label was on the word list.
     const buttonLabels = inventory
       .filter((entry) => entry.tag === 'button')
       .map((entry) => entry.label);
     expect(buttonLabels).toEqual(seeded.responseTexts.map(() => copy.yours.playback.listen));
 
+    // Both header links. The product name became a link home — it is the only element on every
+    // screen that reads as "home", and a wordmark that looks like a title but does nothing is a
+    // dead end on a phone. This session holds no unspent ask, so the `Ask a question` action is
+    // absent; `T079` below pins both halves of that.
     const linkLabels = inventory.filter((entry) => entry.tag === 'a').map((entry) => entry.label);
-    expect(linkLabels).toEqual([copy.nav.yours]);
+    expect(linkLabels).toEqual([copy.product.name, copy.nav.yours]);
 
     // Attributes a control announces itself through. `class` is excluded on purpose — CSS-module
     // names carry a random hash, and matching one would fail on a build rather than on a feature.
