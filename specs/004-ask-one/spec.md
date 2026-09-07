@@ -4,7 +4,8 @@
 
 **Created**: 2026-09-04
 
-**Last revised**: 2026-09-06 — hole-finding pass against shipped 001–003.
+**Last revised**: 2026-09-06 — hole-finding pass against shipped 001–003, then a review pass
+that named the closure stale-queue window and what the duration check does not measure.
 
 **Status**: Draft
 
@@ -27,7 +28,9 @@ the questions this spec publishes and honors the closure rule defined here.
 
 **Owns the whole of `/ask`.** 003 shipped a published-answer action pointing at `/ask` and no
 route behind it; every state at that URL — unlocked, recording, checking, published, withheld,
-failed, rate limited, and refused-for-no-ask — is this feature's to build.
+failed, and rate limited — is this feature's to build. The no-ask case is not one of those
+states: a participant holding no ask is refused server-side and sent to the answer flow, so
+`/ask` never renders anything for them (FR-003).
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -133,6 +136,7 @@ Separately, leave a question unanswered and confirm it never expires.
 7. **Given** a question with withheld answers, **When** routing is evaluated, **Then** withheld answers do not count toward closure.
 8. **Given** two participants submitting the third and fourth qualifying answers at nearly the same moment, **When** both resolve, **Then** both answers publish and are visible to the asker, and the question is closed for future routing.
 9. **Given** every open question has closed, **When** a participant requests one to answer, **Then** the empty state is shown rather than a closed question.
+10. **Given** a participant whose queue was fetched before a question's third answer published, **When** they skip to that question and their answer passes review, **Then** the answer publishes and is readable by the asker; closure is not re-checked at publication.
 
 ---
 
@@ -220,7 +224,7 @@ Separately, leave a question unanswered and confirm it never expires.
 - **SC-004**: One hundred percent of failed, deadline-expired, abandoned, and rate-limited question submissions leave the participant's ask unspent.
 - **SC-005**: An ask is consumed exactly once per published question, with zero double-consumption under duplicate or concurrent submission.
 - **SC-006**: A question published by one participant becomes selectable by another within five seconds of publication.
-- **SC-007**: Question recording stops automatically at sixty seconds in every tested browser, and one hundred percent of submissions declaring a longer duration are refused by the server before any review call is made.
+- **SC-007**: Question recording stops automatically at sixty seconds in every tested browser, and one hundred percent of submissions whose **declared** duration exceeds sixty seconds are refused by the server before any review call is made. What is measured is the declared value; see the duration assumption below for what that leaves uncovered.
 - **SC-008**: A question stops being routed at exactly three published answers, and never earlier, across the closure test set — including a seeded question.
 - **SC-009**: Zero unanswered questions become unreachable or ineligible through the passage of time.
 - **SC-010**: A closed question and every one of its answers remain retrievable in one hundred percent of cases; closure changes routing and nothing else.
@@ -230,10 +234,30 @@ Separately, leave a question unanswered and confirm it never expires.
 ## Assumptions
 
 - **Shared recording behavior**: the question recorder behaves the same as the answer recorder — same ceiling, same timer, same permission and interruption handling. It is expected to reuse that behavior rather than reimplement it.
+- **Duration is a declared bound, not a measurement**: the sixty-second refusal (FR-006a) reads
+  the duration the submission declares. Nothing decodes the audio to confirm the two agree, so a
+  crafted request that attaches longer audio while declaring sixty seconds passes the check and
+  reaches paid review. This is deliberately identical to how 003 already treats answers — its
+  [research D3](../003-answer-and-unlock/research.md) settled on "two honest bounds, not a
+  correlation": the declared duration is bounded to 1–60, the audio is bounded by 002's 1 KB
+  floor and 5 MB ceiling, and nothing compares one against the other. D3 considered and rejected
+  a byte-length cross-check as unimplementable without a measured bytes-per-second figure that
+  does not exist. The byte ceiling caps what an over-long recording can cost; it does not verify
+  its length.
 - **Grammar**: the product does not require a question to be grammatically interrogative. Whatever the participant said is published as readable text.
 - **Closure count**: three published answers, per the handoff. This is a routing rule only; it does not lock, archive, or hide anything.
 - **Closure is derived**: the routing query counts published answers. The `status` column 001 created for this purpose is not used and should be dropped rather than left asserting a state nothing maintains. Chosen over a stored transition because a stored one denormalizes a count that is already relational, has to be written from inside 003's shipped publication statement, and can disagree with the answers it describes.
 - **Concurrent closure**: a fourth answer landing simultaneously with the third publishes normally. With closure derived there is nothing to race — the fourth answer's eligibility was evaluated when it was still the third or fourth in line, and no state has to be reconciled afterward.
+- **Closure has a stale-queue window**: 001 ships the whole eligible queue to the browser in one
+  selection response and skipping walks it tab-local, refetching only when the participant wraps
+  past its end or reloads. A queue fetched before a question's third answer published still
+  contains that question, so a participant can skip to it and publish an answer to a question
+  that has already closed — a fourth, or a fifth, for as long as stale queues are in flight. Not
+  harmless, and not a race that resolves itself: the only bound is 003's rule of one answer per
+  participant per question, which limits each participant to one such answer. Accepted
+  rather than closed. A re-check at publication would put a closure read inside the publish path,
+  which is exactly the write-side state FR-023a forbids, and FR-027 already commits to letting a
+  fourth answer publish. Making the limit explicit is the fix; hiding it is not.
 - **Ask durability**: an unspent ask persists for the life of the participant's session. Session reset loses it, per the accepted identity limitation.
 - **Rate limiting**: the submission limit specified in [002](../002-contribution-review/spec.md) covers question submissions on the same counter as answers. A limited submission spends no review work and consumes no ask.
 - **Emotion**: content processing returns an emotional direction for every contribution. A published question does not store or display one; nothing in the product reads it for a question.
