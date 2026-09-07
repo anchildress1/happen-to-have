@@ -15,6 +15,18 @@ const CHANNELS = 1;
 
 const HEADER_BYTES = 44;
 
+/** Every size field in the header — sample rate, byte rate, both lengths — is a `uint32`. */
+const MAX_UINT32 = 0xffff_ffff;
+
+/**
+ * Largest payload whose RIFF size field (`36 + length`) still fits its `uint32`.
+ *
+ * Anything past it makes `writeUInt32LE` throw a `RangeError`, and WAV conversion happens outside
+ * the caller's provider-call `try` — so the exception would escape instead of becoming the
+ * retryable fault the contract documents.
+ */
+export const MAX_PCM_BYTES = MAX_UINT32 - (HEADER_BYTES - 8);
+
 /** What a valid `audio/L16` mime type yielded. */
 export interface ParsedAudioMime {
   sampleRate: number;
@@ -54,10 +66,29 @@ export function parseAudioMimeType(mimeType: string | undefined): ParsedAudioMim
     return null;
   }
 
-  const sampleRate = Number.parseInt(rateParam.slice('rate='.length), 10);
-  // A non-positive or unparseable rate would produce a header claiming something impossible, and
-  // divide-by-zero byte rates downstream.
-  if (!Number.isInteger(sampleRate) || sampleRate <= 0) {
+  const rateValue = rateParam.slice('rate='.length);
+  // Digits and nothing else. `Number.parseInt` reads `rate=24000Hz` as 24000 and `rate=0x5DC0` as
+  // 0, so a partially-numeric value would sail through as a plausible-looking rate. Strictness
+  // matters here specifically because the audio is cached permanently on the first Listen: a wrong
+  // rate is not a transient error to be retried, it is stored, and every later playback is wrong.
+  if (!/^\d+$/.test(rateValue)) {
+    return null;
+  }
+
+  const sampleRate = Number.parseInt(rateValue, 10);
+  // A rate of zero would produce a header claiming something impossible and divide-by-zero byte
+  // rates downstream.
+  if (sampleRate === 0) {
+    return null;
+  }
+
+  // The header stores the sample rate and the derived byte rate in `uint32` fields.
+  // `Buffer.writeUInt32LE` throws a `RangeError` for anything wider, and `pcmToWav` runs outside
+  // the caller's provider-call `try` — so a malformed `rate=2147483648` (byte rate 4294967296)
+  // would escape as an exception and bypass the fault contract entirely. Returning null makes it
+  // the documented, retryable `bad-mime` fault instead.
+  const byteRate = (sampleRate * CHANNELS * BITS_PER_SAMPLE) / 8;
+  if (sampleRate > MAX_UINT32 || byteRate > MAX_UINT32) {
     return null;
   }
 

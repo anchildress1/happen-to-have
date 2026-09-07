@@ -125,6 +125,35 @@ describe('producePlayback — faults (T038)', () => {
     ).resolves.toMatchObject({ ok: false, fault: 'bad-mime' });
   });
 
+  it('returns bad-mime, and does not throw, for a rate too wide for the WAV header', async () => {
+    // `rate=2147483648` derives a byte rate of 4294967296, which `Buffer.writeUInt32LE` refuses
+    // with a RangeError. WAV conversion runs outside the provider-call `try`, so an unvalidated
+    // rate would escape this function as an exception rather than the retryable fault the route
+    // is written to answer.
+    const { client } = fakeProvider(() =>
+      audioPart(PCM.toString('base64'), 'audio/L16;codec=pcm;rate=2147483648'),
+    );
+
+    const outcome = await producePlayback(
+      { answerId: 'fault-oversized-rate', text: 'x' },
+      { genai: client },
+    );
+
+    expect(outcome).toMatchObject({ ok: false, fault: 'bad-mime' });
+  });
+
+  it('returns bad-mime for a rate carrying trailing non-digits', async () => {
+    // `rate=24000Hz` parses as 24000 under `parseInt`. The bytes would be cached under a rate
+    // nobody validated, permanently, because the audio column is write-once.
+    const { client } = fakeProvider(() =>
+      audioPart(PCM.toString('base64'), 'audio/L16;codec=pcm;rate=24000Hz'),
+    );
+
+    await expect(
+      producePlayback({ answerId: 'fault-trailing-garbage', text: 'x' }, { genai: client }),
+    ).resolves.toMatchObject({ ok: false, fault: 'bad-mime' });
+  });
+
   it('returns empty-payload for a body that decodes to zero bytes', async () => {
     // A 44-byte header wrapping nothing is a valid WAV that plays silence, and the cache is
     // write-once — that silence would be this response's audio forever.

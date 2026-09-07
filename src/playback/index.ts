@@ -2,9 +2,9 @@ import 'server-only';
 
 import { Modality } from '@google/genai';
 import type { GenAiClient } from '../review/client';
-import { PLAYBACK_MODEL, playbackClient } from './client';
+import { PLAYBACK_MODEL, PlaybackUnavailableError, playbackClient } from './client';
 import { VOICE_ID } from './voice';
-import { parseAudioMimeType, pcmToWav } from './wav';
+import { MAX_PCM_BYTES, parseAudioMimeType, pcmToWav } from './wav';
 
 /**
  * Producing generated playback from published text (FR-023 – FR-028).
@@ -28,7 +28,13 @@ import { parseAudioMimeType, pcmToWav } from './wav';
  * non-adjustable protections can return an empty response, and reading a decision out of silence
  * would be manufacturing one.
  */
-export type PlaybackFault = 'no-candidate' | 'no-audio' | 'bad-mime' | 'empty-payload' | 'network';
+export type PlaybackFault =
+  | 'no-candidate'
+  | 'no-audio'
+  | 'bad-mime'
+  | 'empty-payload'
+  | 'oversize-payload'
+  | 'network';
 
 export type PlaybackOutcome =
   | { ok: true; wav: Buffer; voiceId: string }
@@ -47,18 +53,16 @@ export interface PlaybackDeps {
  * taps on one `Listen` arrive as two requests; without this, both call the provider and the
  * product pays twice for bytes only one of them will store.
  *
- * This is the only mutable module state in the codebase, and it is here because the two
- * deterministic alternatives are both worse (research D2). An advisory lock held across the TTS
- * call would pin connections from a pool capped at `max: 4` for the several seconds Gemini takes.
- * A pending row would be processing state in the database, which Principle V forbids in those
- * words, and a crashed producer would strand a claim nobody clears.
+ * This is the only mutable module state in the codebase. It is the *first* of two layers, and it
+ * covers the common case for free: two taps in one browser reach one instance, and this map keeps
+ * them to one provider call without touching the database at all.
  *
- * **Scope, stated honestly**: this coalesces within one Cloud Run instance. Two instances can
- * both produce before either writes — a duplicate spend of a fraction of a cent, never a
- * duplicate artifact, because `claimPlayback`'s `generated_audio IS NULL` guard means exactly one
- * set of bytes is ever stored. It is also close to unreachable: `Yours` is scoped to one
- * participant's session, so concurrent first requests for one response are one person
- * double-tapping in one browser.
+ * **It cannot see another instance**, and Cloud Run runs as many as it likes. The cross-instance
+ * half lives in `src/db/playbackLock.ts` — a cluster-wide Postgres advisory lock the route takes
+ * before producing. An earlier revision shipped this map alone and documented duplicate
+ * cross-instance production as an accepted window; review was right that FR-028 and SC-005 say
+ * *exactly one production*, not *exactly one stored artifact*, so the window was closed rather
+ * than described.
  */
 const inFlight = new Map<string, Promise<PlaybackOutcome>>();
 
@@ -111,7 +115,7 @@ async function produce(text: string, deps: PlaybackDeps): Promise<PlaybackOutcom
     // A missing key is not a production fault — it is the absence of the capability, and the
     // route renders it as a permanently degraded control rather than a retry. Rethrown so that
     // question reaches the code that answers it.
-    if (cause instanceof Error && cause.name === 'PlaybackUnavailableError') {
+    if (cause instanceof PlaybackUnavailableError) {
       throw cause;
     }
     return { ok: false, fault: 'network', cause };
@@ -148,9 +152,15 @@ async function produce(text: string, deps: PlaybackDeps): Promise<PlaybackOutcom
     return { ok: false, fault: 'empty-payload' };
   }
 
+  // The RIFF and data size fields are `uint32`. A payload past that bound would make `pcmToWav`
+  // throw a `RangeError` out here, where nothing catches it, instead of answering with a fault.
+  if (pcm.length > MAX_PCM_BYTES) {
+    return { ok: false, fault: 'oversize-payload' };
+  }
+
   return { ok: true, wav: pcmToWav(pcm, parsed.sampleRate), voiceId };
 }
 
 export { PLAYBACK_MODEL, PlaybackUnavailableError, isPlaybackConfigured } from './client';
-export { PLAYBACK_CONTENT_TYPE } from './wav';
+export { MAX_PCM_BYTES, PLAYBACK_CONTENT_TYPE } from './wav';
 export { VOICE_ID } from './voice';

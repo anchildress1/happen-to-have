@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { parseAudioMimeType, PLAYBACK_CONTENT_TYPE, pcmToWav } from '../../src/playback/wav.js';
+import {
+  MAX_PCM_BYTES,
+  parseAudioMimeType,
+  PLAYBACK_CONTENT_TYPE,
+  pcmToWav,
+} from '../../src/playback/wav.js';
 
 /**
  * T035 and T036, FR-023. The container the browser is handed, and the one number that
@@ -114,6 +119,43 @@ describe('parseAudioMimeType — the rate is read, never assumed (T036)', () => 
     // impossibility. Both are faults rather than numbers to clamp.
     expect(parseAudioMimeType('audio/L16;codec=pcm;rate=0')).toBeNull();
     expect(parseAudioMimeType('audio/L16;codec=pcm;rate=-24000')).toBeNull();
+  });
+
+  it('rejects a rate that is only partly a number', () => {
+    // `Number.parseInt` reads all of these as a number and drops the rest: 24000 from `24000Hz`,
+    // 0 from `0x5DC0`. Cached audio is written once, so a rate accepted here on a guess is wrong
+    // for every playback that response will ever have.
+    expect(parseAudioMimeType('audio/L16;codec=pcm;rate=24000Hz')).toBeNull();
+    expect(parseAudioMimeType('audio/L16;codec=pcm;rate=0x5DC0')).toBeNull();
+    expect(parseAudioMimeType('audio/L16;codec=pcm;rate=24e3')).toBeNull();
+  });
+
+  it('rejects a signed or space-padded rate rather than coercing it', () => {
+    // Deliberate: the digits-only rule has no exception for a leading `+` or an inner space, and
+    // a provider that starts sending either is a provider whose output nobody has validated.
+    expect(parseAudioMimeType('audio/L16;codec=pcm;rate=+24000')).toBeNull();
+    expect(parseAudioMimeType('audio/L16;codec=pcm;rate= 24000')).toBeNull();
+  });
+
+  it('rejects a rate whose header fields would not fit a uint32', () => {
+    // 2147483648 fits a uint32 on its own; its byte rate, 4294967296, does not. `writeUInt32LE`
+    // would throw a RangeError from `pcmToWav` — which runs outside the caller's provider-call
+    // `try` — so the exception would escape instead of becoming a retryable `bad-mime` fault.
+    expect(parseAudioMimeType('audio/L16;codec=pcm;rate=2147483648')).toBeNull();
+    // The rate field itself overflows here.
+    expect(parseAudioMimeType('audio/L16;codec=pcm;rate=4294967296')).toBeNull();
+    // The largest rate whose byte rate still fits, kept as the boundary this guard sits on.
+    expect(parseAudioMimeType('audio/L16;codec=pcm;rate=2147483647')).toEqual({
+      sampleRate: 2147483647,
+    });
+  });
+});
+
+describe('MAX_PCM_BYTES — the payload bound the RIFF size field imposes', () => {
+  it('is the largest length that still leaves 36 header bytes inside a uint32', () => {
+    // `36 + pcm.length` is written with writeUInt32LE; one byte more is a RangeError thrown
+    // where no caller is catching.
+    expect(MAX_PCM_BYTES).toBe(0xffff_ffff - 36);
   });
 });
 
