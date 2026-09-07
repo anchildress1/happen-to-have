@@ -1,17 +1,24 @@
 <!--
 SYNC IMPACT REPORT
 ==================
-Version change: 5.0.1 → 5.0.2
+Version change: 5.0.1 → 5.1.0
 
-AMENDMENT 5.0.2 (2026-09-07) — TODO(TTS_VOICE_ID) is resolved. The voice is `Sulafat`.
+AMENDMENT 5.1.0 (2026-09-07) — TODO(TTS_VOICE_ID) is resolved. The voice is `Sulafat`.
 
-Bump rationale: PATCH. No principle is added, removed, or narrowed, and no obligation changes.
-The rule "One TTS voice is used consistently for all generated playback" has stood since
-ratification; it simply named no voice. This fills the blank it declared.
+Bump rationale: MINOR, corrected from an initial PATCH. Naming the voice is on its own a
+clarification — the rule "One TTS voice is used consistently for all generated playback" has
+stood since ratification and simply named no voice. But this amendment also requires that voice
+to be pinned at exactly one export in application code, and that is an obligation no earlier
+revision imposed. This document defines MINOR as guidance being materially expanded and PATCH as
+carrying no change in obligation, so a new MUST cannot be a PATCH however small it is.
+
+Caught in review of the amendment PR. Worth recording rather than quietly renumbering: the
+version is what a consumer reads to decide whether their implementation still complies, and a
+new mandate hidden behind a patch bump is exactly the reading that fails them.
 
   Application Stack
-    - The TTS voice bullet now names `Sulafat` and requires it be pinned at exactly one export
-      in application code.
+    - The TTS voice bullet now names `Sulafat` and NEWLY REQUIRES it be pinned at exactly one
+      export in application code. This is the new obligation that makes the bump MINOR.
     - TODO(TTS_VOICE_ID) is removed from both places it appeared: the bullet itself and the
       Deferred TODOs list at the top of this file. A resolved TODO left in one of two places is
       how 5.0.1 happened.
@@ -23,10 +30,20 @@ feature that needs it.
 
 Why `Sulafat`: the choice was made against a real constraint rather than taste. Principle VII
 forbids generating, imitating, or marketing an Appalachian dialect, which removes the axis the
-origin story would otherwise suggest. What remains is register, and a stranger's advice read
-back to the person who asked for it wants warmth that does not tip into cheerfulness (`Achird`,
-Friendly), consolation (`Vindemiatrix`, Gentle), or inertness (`Schedar`, Even). Full comparison
-in specs/005-yours-and-playback/research.md, decision D4.
+origin story would otherwise suggest. What remains is register: a stranger's advice, read back to
+the person who asked for it. The full comparison, kept here rather than pointed at, because a
+governance document must not depend on a feature folder that will be archived while this rule is
+still in force:
+
+    VOICE           PROVIDER LABEL   VERDICT
+    Sulafat         Warm             CHOSEN. Warm without being folksy; reads advice as advice.
+    Achird          Friendly         Friendly tips toward upbeat, wrong over a hard answer.
+    Vindemiatrix    Gentle           Gentle reads as consoling. The response may be blunt;
+                                     the voice must not soften it.
+    Schedar         Even             Correct and inert. Removes the human quality playback
+                                     exists to return.
+    Kore            Firm             The 002 spike's instrument, and firm is the wrong
+                                     register for received advice.
 
 Not evidence, and not claimed as such: unlike the crisis-tier pin in Principle III, this rests
 on no measurement. There is nothing here to measure — no test set can score a voice against
@@ -357,7 +374,7 @@ Deferred TODOs:
   TODO(DISPLAY_LANGUAGE_POLICY): MVP display/translation language unresolved; English is
     the working assumption.
 
-RESOLVED 2026-09-07: TTS_VOICE_ID is `Sulafat`. See amendment 5.0.2 below.
+RESOLVED 2026-09-07: TTS_VOICE_ID is `Sulafat`. See amendment 5.1.0 at the top of this file.
 -->
 
 # Happen to Have? Constitution
@@ -733,4 +750,4 @@ a performance or a marketing hook is the one failure that cannot be patched late
 - `AGENTS.md` and `CLAUDE.md` carry runtime development guidance and MUST NOT restate or
   contradict the principles above.
 
-**Version**: 5.0.2 | **Ratified**: 2026-09-04 | **Last Amended**: 2026-09-07
+**Version**: 5.1.0 | **Ratified**: 2026-09-04 | **Last Amended**: 2026-09-07
