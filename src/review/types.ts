@@ -11,9 +11,12 @@
  */
 
 /**
- * One call per signal (FR-008a). Not a taxonomy — a measurement: the same crisis prompt on
- * the same audio caught 3 of 10 unseen recordings sharing a call with two other judgments
- * and 10 of 10 alone. A call holding several jobs stops doing the subtle one.
+ * One call per signal in the fan-out 002 ships — an implementation choice, not a rule. FR-008a
+ * permits signals to share a call: controlled at the content tier, merged and dedicated both
+ * reach 10 of 10 with zero false positives. This comment used to cite 3 of 10 merged against
+ * 10 of 10 alone as proof the split was load-bearing. Those two runs were on different tiers —
+ * Flash-Lite merged against Flash dedicated — so the gap is the tier (FR-008a1), with the
+ * weighing clause (FR-008a3) taking the residual.
  *
  * `relevance` is dispatched for answers only. For a question it is absent from the fan-out
  * entirely rather than present with a null verdict (FR-003), so there is no absent-versus-
@@ -58,9 +61,11 @@ export interface ContentPayload {
 /**
  * Produced by the crisis call (FR-008d), which does nothing else.
  *
- * Positive polarity, and only here. Every other call answers *may this be published*; this
- * one answers *is this person in trouble*, because that is the wording that was measured at
- * 10/10 — flipping it inside the prompt scored worse. The gate consumes
+ * Positive polarity, and only here. Every other call answers *may this be published*; this one
+ * answers *is this person in trouble*, because that is the wording that was measured at 10/10 —
+ * not because polarity was shown to matter. It was not: the two forms scored 3 of 10 and 2 of 10
+ * on Flash-Lite, inside the band its runs already span (research D4). Changing a measured
+ * artefact without re-measuring is the risk being avoided. The gate consumes
  * `crisisCanPublish = !inTrouble`, so the inversion is one line of code rather than an edit
  * to a prompt whose exact wording is the load-bearing part.
  */

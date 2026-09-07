@@ -87,10 +87,12 @@ export const contentResultSchema = z
  * Crisis (FR-008d, FR-008a1). Its own call, on the content tier, and the only schema here
  * stated in POSITIVE polarity — `inTrouble`, not `canPublish`.
  *
- * That is not an inconsistency to tidy up. The wording that scores 10/10 asks the model
- * whether the person is in trouble; asking it whether the recording may be published scored
- * worse (research D4). The prompt's exact wording is the measured artefact, so the inversion
- * lives in the gate: `crisisCanPublish = !inTrouble`.
+ * That is not an inconsistency to tidy up. The wording that scores 10/10 asks the model whether
+ * the person is in trouble, and that is the reason to keep it — not that the polarity itself
+ * does any work. Flipped, the two forms scored 3 of 10 and 2 of 10 on Flash-Lite, inside the
+ * band its runs already span; research D4 records that as no effect either way. The prompt's
+ * exact wording is the measured artefact, so the inversion lives in the gate:
+ * `crisisCanPublish = !inTrouble`.
  */
 export const crisisResultSchema = z.object({
   inTrouble: z.boolean(),
@@ -109,8 +111,9 @@ export const crisisResultSchema = z.object({
  * questions in the same shape — a boolean and one operator clause.
  *
  * Shared because the shape is identical, not because the calls are. They carry different
- * prompts on different concerns, and merging them into one call is what FR-008a forbids.
- * There is no `primaryReason` here: with one signal per call, the call that refused IS the
+ * prompts on different concerns, and keeping them in separate calls is the implementation
+ * choice FR-008a leaves open — merging them is permitted, not forbidden. There is no
+ * `primaryReason` here: while each call carries one signal, the call that refused IS the
  * reason (FR-008e), so there is nothing left to state or to cross-check.
  *
  * `detail` is capped because it is an operator log line, not prose. An unbounded string is
