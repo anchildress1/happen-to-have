@@ -29,7 +29,7 @@ closure can ship without `/ask`, and `/ask` can ship without closure.
 
 ## Phase 1: Setup
 
-- [ ] T001 Add `duration_seconds smallint NULL CHECK (duration_seconds IS NULL OR BETWEEN 1 AND 60)` and `submission_id uuid NULL UNIQUE` to `questions` in `migrations/1788720000000_question-publication.sql` — FR-006a, FR-014a. **Both nullable, with no backfill and no default-then-drop dance**: seeded questions have no recording attempt and no duration, and `UNIQUE` permits many NULLs ([data-model.md](data-model.md))
+- [ ] T001 Add `duration_seconds smallint NULL CHECK (duration_seconds IS NULL OR duration_seconds BETWEEN 1 AND 60)` and `submission_id uuid NULL UNIQUE` to `questions` in `migrations/1788720000000_question-publication.sql` — FR-006a, FR-014a. **Both nullable, with no backfill and no default-then-drop dance**: seeded questions have no recording attempt and no duration, and `UNIQUE` permits many NULLs ([data-model.md](data-model.md))
 - [ ] T002 [P] Create `tests/helpers/questions.ts` with a question-row fixture, mirroring `tests/helpers/answers.ts`. Three integration files build their own question insert today; T001 adds two columns and 005 will add more, and 003's T003 exists because exactly this broke three files in turn
 
 ---
@@ -64,7 +64,7 @@ pool for a second participant, and confirm the first can no longer ask.
 ### Implementation for User Story 1
 
 - [ ] T011 [US1] Create `app/ask/page.tsx` as a server component that reads `readAskEligibility()` and renders the unlocked state for a holder — FR-001, FR-004a. `dynamic = 'force-dynamic'`, matching 001's selection route: a cached gate would serve one participant's eligibility to another
-- [ ] T012 [US1] Create `app/ask/AskQuestion.tsx` — unlocked → recording → checking → outcome, on one route — FR-005, FR-006, FR-007, FR-012. Reuse `useRecorder` unchanged; **do not fork the recorder** (FR-010a), which is what satisfies the three recording requirements without restating them. Mint a fresh `submissionId` inside `startRecording`, not per page load
+- [ ] T012 [US1] Create `app/ask/AskQuestion.tsx` — unlocked → recording → checking → outcome, on one route — FR-005, FR-006, FR-007, FR-012. Reuse `useRecorder` unchanged; **do not fork the recorder** (FR-010a), which is what satisfies the three recording requirements without restating them. Mint a fresh `submissionId` inside `startRecording`, not per page load. That rotation is also what puts a re-record **outside** the replay path: a new recording is a new submission, and T024 covers a repeated request only
 - [ ] T013 [US1] Create `app/api/ask/route.ts` per [contracts/ask-api.md](contracts/ask-api.md), in the contract's order: session → shape → idempotency → eligibility → bounds → review → publish — FR-011, FR-013, FR-016. Call `reviewContribution({ kind: 'question', questionText: null })` — three calls, relevance absent (002 FR-003). 002's `rejectAudio` is what refuses an empty recording before a provider call, so pass the blob through it rather than adding a second size check — FR-008a
 - [ ] T014 [US1] Add the published-question state to `ContributionOutcome.tsx` — FR-015a, FR-020. Primary `Find me a question` → `/answer`, ghost `Yours` → `/yours`. **The design contract has no screen for this**; [contracts/copy.md](contracts/copy.md) is the only reference
 
@@ -106,7 +106,7 @@ recording works.
 ### Tests for User Story 3
 
 - [ ] T023 [P] [US3] Integration-test in `tests/integration/question-publish.test.ts` each non-publishing outcome in turn — `withheld` (each reason), `failed` (`exhausted` and `deadline`), `rate_limited`, and an aborted request — asserting `can_ask` still true and zero rows after each — SC-004, FR-017, FR-018
-- [ ] T024 [P] [US3] Integration-test the replay in `tests/integration/question-publish.test.ts`: publish, then re-POST the same `submissionId`; assert `published` and still exactly one row — FR-014a. This is the case that would otherwise leave a participant refused while their question collects answers they never saw
+- [ ] T024 [P] [US3] Integration-test the replay in `tests/integration/question-publish.test.ts`: publish, then re-POST the same `submissionId`; assert `published` and still exactly one row — FR-014a. **One recording sent twice**, which is the whole of what the id covers: `recorder.discard()` runs in the submit `finally`, so a participant whose response was lost has no blob to resubmit and records again under a new id. That path is T025's `spent`, not this one
 - [ ] T025 [P] [US3] Integration-test the spent race in `tests/integration/question-publish.test.ts`: publish, then POST a **different** `submissionId`; assert `{ status: 'spent' }`, never `failed` — [research D6](research.md)
 - [ ] T026 [P] [US3] Integration-test in `tests/integration/question-publish.test.ts` that a same-id race replays the winner rather than reporting `spent` to the loser — the route re-reads `findQuestionBySubmission` after a failed insert, mirroring 003's route
 - [ ] T027 [P] [US3] E2E in `tests/e2e/ask.spec.ts`: a withheld question offers `Record another question`, which lands on `/ask` with a fresh recorder and the ask intact — FR-021. Assert the recorder is empty, not merely that the link exists
@@ -149,6 +149,8 @@ ask flow. Build it first if `/ask` is blocked.
 - [ ] T038 [US4] Remove `status` from `questionRowSchema` and delete `questionStatusSchema` in `src/schema/rows.ts`; drop the enum assertions from `tests/unit/rows.test.ts`
 - [ ] T039 [US4] In `listEligibleQuestions`, replace `WHERE q.status = 'open'` with `HAVING COUNT(a.id) < 3` — FR-023, [research D3](research.md). `COUNT(a.id)`, never `COUNT(*)` and never `COUNT(DISTINCT a.participant_id)`: the LEFT JOIN makes a zero-answer question count 1 under `COUNT(*)` so nothing ever closes, and the DISTINCT form is a slower way to compute the same number while implying `UNIQUE (participant_id, question_id)` might not hold (FR-024)
 - [ ] T040 [US4] Rewrite the `status: 'closed'` helpers in `tests/integration/empty-pool.test.ts` and `tests/integration/exclusions.test.ts` to close a question by inserting three answers. They currently assert a mechanism no production code uses; after this they close a question the only way the product can
+- [ ] T040a [US4] Drop `status` from `UPSERT_QUESTION_SQL` in `seed/seed.ts` — the column list, the `'open'` literal in `VALUES`, and `status = EXCLUDED.status` in the `ON CONFLICT` clause. **Not cleanup — this is what keeps `make seed` working.** T037 breaks the seeder, and the seeder is half of the branch-database recovery the next section prescribes
+- [ ] T040b [P] [US4] Drop `status` from the question inserts in `tests/integration/skip-writes-nothing.test.ts` (line 38) and `tests/integration/selection-bias.test.ts` (lines 44 and 55). Unlike T040 these assert nothing about closure — they name a column that stopped existing, and they fail on that alone
 
 ---
 
@@ -184,11 +186,28 @@ ask flow. Build it first if `/ask` is blocked.
 ### The two migrations are not interchangeable
 
 T001 adds; T037 removes. T001 is a prerequisite for publishing a question at all. T037 breaks
-`listEligibleQuestions` the moment it lands, so T038 and T039 must ship in the same commit —
-the query filters on a column that no longer exists.
+**every remaining reader of `questions.status`** the moment it lands, so **T037 through T040b
+ship in one commit**.
 
-Nothing is deployed anywhere, so a branch database that disagrees is rebuilt with
-`make db-up && make migrate && make seed` rather than repaired.
+An earlier draft of this paragraph named T038 and T039 and stopped, which was wrong by three
+files. The full set, each verified by grep against the branch:
+
+| File | What names `status` |
+| - | - |
+| `src/schema/rows.ts` | `questionRowSchema` field, `questionStatusSchema` (T038) |
+| `tests/unit/rows.test.ts` | lines 43 and 114 (T038) |
+| `src/db/queries/questions.ts` | `WHERE q.status = 'open'` (T039) |
+| `tests/integration/empty-pool.test.ts`, `exclusions.test.ts` | `status: 'closed'` helpers (T040) |
+| `seed/seed.ts` | lines 48, 49 and 53 (T040a) |
+| `tests/integration/skip-writes-nothing.test.ts` | line 38 (T040b) |
+| `tests/integration/selection-bias.test.ts` | lines 44 and 55 (T040b) |
+
+**The prescribed recovery is one of the casualties.** Nothing is deployed anywhere, so a branch
+database that disagrees is rebuilt rather than repaired — with `make db-up && make migrate &&
+make seed`. After T037 and before T040a that command fails at `make seed`, on the very migration
+it was meant to recover from, because `UPSERT_QUESTION_SQL` still inserts a column the migration
+dropped. Land T040a in the same commit and the recovery keeps working; split it out and the
+escape hatch is broken exactly when it is needed.
 
 ### Parallel example — the US2 gate suite
 

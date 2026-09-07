@@ -41,8 +41,10 @@ enforces it again under a row lock.
    request is indistinguishable from an unusable recording *from the participant's side*, and
    both mean record again.
 3. **Idempotency.** A `submissionId` already on a question row returns `published` without
-   re-reviewing. This is the retried-upload case, and here it is the difference between a
-   participant seeing what their ask bought and losing both ([research D2](../research.md)).
+   re-reviewing. **This is the retried-*request* case and only that** — one recording sent more
+   than once, whether by a duplicate submit, a retried upload, or the loser of a same-id race.
+   A re-record mints a new id and never reaches this branch; that participant lands on `spent`
+   at step 8, which is the honest outcome for them ([research D2](../research.md)).
 4. **Eligibility, read.** `readAskEligibility(participantId)` — 003's `src/db/queries/answers.ts`
    export, built for this. False → `spent`, before any provider call.
 5. **Cheap bounds.** Size ceiling and the declared duration (1–60), before any provider call.

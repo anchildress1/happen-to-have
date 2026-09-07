@@ -55,18 +55,39 @@ deliberately does *not* copy.
 
 ## D2 — A lost response on a question is worse than on an answer
 
-**Decision**: `questions.submission_id uuid NOT NULL UNIQUE`, checked before review, replayed
-when it already exists. Same mechanism as 003's [D4](../003-answer-and-unlock/research.md).
+**Decision**: `questions.submission_id uuid NULL UNIQUE`, checked before review, replayed when
+it already exists. Same mechanism as 003's [D4](../003-answer-and-unlock/research.md).
+
+**Nullable, and not negotiable.** Seeded questions were never recorded by anyone, so they have
+no submission attempt and no id to carry. `UNIQUE` permits many NULLs, which is what lets the
+six seeded rows hold none while participant-authored ones stay unique against each other —
+argued in full in [data-model.md](data-model.md). An earlier draft of this line said `NOT NULL`,
+which no other artifact ever agreed with and the seed data cannot satisfy.
 
 **Rationale**: 003 built this because a lost response left a participant told they had already
 answered a question whose outcome they never saw. The question-side failure is strictly worse.
+The question publishes, the response is lost, and every later attempt hits D1's guard, finds
+`can_ask = false` and is refused — so the participant is told they cannot ask, while their
+question sits in the pool collecting answers they were never shown. **They lost the ask and
+never saw what it bought.**
 
-The sequence: the question publishes, the response is lost, the participant re-records. Their
-ask is now spent. Without a submission id the retry hits D1's guard, finds `can_ask = false`,
-and is refused — so they are told they cannot ask, while their question is sitting in the pool
-collecting answers they were never shown. **They lost the ask and never saw what it bought.**
+**What the id covers, exactly: one recording submitted more than once.** A duplicated request,
+a retried upload, two requests racing on the same id. All three carry the same `submissionId`,
+so the second finds the row the first wrote and replays `published` instead of paying for a
+second review and then refusing on a spent ask.
 
-With the id, the retry finds its own row and replays `published`.
+**What it does not cover: a re-record.** `RecordAnswer` calls `recorder.discard()` in the
+`finally` of every submit — Principle IV, and `AskQuestion` copies it — so the blob is gone the
+moment the fetch settles, successfully or not. A participant whose response was lost has nothing
+left to resubmit. They record again, `startRecording` mints a fresh id, and that is a genuinely
+new submission by design (the rotation below). The replay path cannot fire for it, and stating
+otherwise would describe a recovery nobody built.
+
+**The re-record case belongs to D6, not to this one.** A new id plus a spent ask means no row
+and no matching submission, so the endpoint returns `spent` and the page says *A question from
+you is already out there.* — which is true, and the only honest thing available to say. The
+submission id makes a repeated **request** safe; `spent` makes a repeated **recording**
+truthful. Two mechanisms, two cases, neither substituting for the other.
 
 **Uniqueness is across the table, not per participant**, for the same reason as 003: the id
 names one recording attempt, and reusing another's would be claiming their submission.
@@ -78,8 +99,8 @@ id inside `startRecording`, copying `RecordAnswer` exactly.
 
 **Alternatives considered**:
 
-- *The ask guard alone* — it makes double-publication impossible and the lost-response case
-  unrecoverable. Those are different properties.
+- *The ask guard alone* — it makes double-publication impossible and leaves a repeated request
+  refused rather than replayed. Those are different properties.
 - *An idempotency-key table with a TTL* — the general solution, plus a table and a sweep, for
   something one unique column on a row that already exists provides.
 

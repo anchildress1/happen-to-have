@@ -71,7 +71,7 @@ Checked against constitution **v5.0.1**. Re-checked after Phase 1 design; result
 | Ask survives every non-publishing outcome | **PASS** | Review returns before anything is written, exactly as 003's route does. |
 | Closure adds no write path | **PASS** | One `HAVING` clause in 001's selection query. No trigger, no job, no counter ([research D3](research.md)). |
 | Duration re-checked server-side | **PASS** | FR-006a. Route rejects a declared duration outside 1–60 before review; the column carries the CHECK. |
-| Idempotent across a lost response | **PASS** | `submission_id UNIQUE` on `questions`, replayed before review ([research D2](research.md)). |
+| Idempotent across a repeated request | **PASS** | `submission_id UNIQUE` on `questions`, replayed before review. One recording sent twice, which is what the id covers; a re-record mints a new id and gets `spent` instead ([research D2](research.md), [D6](research.md)). |
 | `/ask` unreachable without an ask | **PASS** | Server component redirects; the endpoint refuses independently (FR-002, FR-004). |
 
 ## Decisions this plan makes
@@ -81,7 +81,7 @@ Six, each with the alternative it beat. Full reasoning in [research.md](research
 | # | Decision |
 | - | - |
 | D1 | Consume-then-insert in one statement. Reversing the order lets two requests both insert. |
-| D2 | `submission_id` on `questions`, same shape as 003. A lost response here strands a *spent* ask, which is worse than the answer-side case. |
+| D2 | `submission_id uuid NULL UNIQUE` on `questions`, same shape as 003. A lost response here strands a *spent* ask, which is worse than the answer-side case — and the id recovers the repeated-request half of it, never the re-record half. |
 | D3 | Closure is a `HAVING COUNT(a.id) < 3` in the selection query. `questions.status` and its enum are dropped rather than left asserting a state nothing maintains. |
 | D4 | The endpoint is `POST /api/ask`, not `/api/question` — 001 already owns that path for *selection*, and a submit endpoint sharing it would be two opposite operations under one name. |
 | D5 | `AnswerOutcome.tsx` is generalized to a kind-parameterized outcome view rather than copied. It already carries both flows' copy; only the destinations differ. |

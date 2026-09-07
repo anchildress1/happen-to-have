@@ -41,6 +41,11 @@ make e2e            # Playwright against a disposable Neon branch
 database that disagrees is rebuilt with `make db-up && make migrate && make seed` rather than
 repaired.
 
+**That rebuild only works if T040a landed with T037.** The `status` drop breaks `seed/seed.ts`,
+which still names the column in `UPSERT_QUESTION_SQL` — so a half-applied US4 leaves the
+recovery command failing at `make seed`, on the migration it was supposed to recover from. If
+`make seed` errors on an unknown `status` column, the fix is T040a, not the database.
+
 ---
 
 ## Proving the success criteria
@@ -59,7 +64,7 @@ repaired.
 | **SC-011** publication is never silent | publish through the UI, assert the confirmation renders | e2e |
 | **SC-012** no row for a non-publication | after each non-publishing outcome, `SELECT count(*) FROM questions` is unchanged | integration |
 | **FR-003** the gate | visit `/ask` with no ask; assert the redirect to `/answer` | e2e |
-| **FR-014a** replay | publish, then re-POST the same `submissionId`; assert `published` and still one row | integration |
+| **FR-014a** replay | publish, then re-POST the same `submissionId`; assert `published` and still one row. One recording sent twice — a re-record carries a new id and lands on `spent` | integration |
 | **research D6** spent | publish, then POST a *different* `submissionId`; assert `spent`, not `failed` | integration |
 
 **SC-002 is tested by calling the query directly, not through the route.** Testing it through

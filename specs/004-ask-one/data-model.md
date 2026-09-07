@@ -44,11 +44,23 @@ The application-side removals travel with it:
 | `src/db/queries/questions.ts` | `WHERE q.status = 'open'` becomes `HAVING COUNT(a.id) < 3` |
 | `tests/unit/rows.test.ts` | the enum assertions go with the enum |
 | `tests/integration/empty-pool.test.ts`, `exclusions.test.ts` | helpers take `status: 'closed'` to fake a closed question; they insert three answers instead, which is what closed now means |
+| `seed/seed.ts` | `UPSERT_QUESTION_SQL` names `status` in its column list, its `VALUES`, and its `ON CONFLICT` SET |
+| `tests/integration/skip-writes-nothing.test.ts` | the shared two-question fixture inserts `status` |
+| `tests/integration/selection-bias.test.ts` | both question fixtures insert `status` |
 
-Those two test helpers are the reason this is a migration and not a delete. They currently
-prove that closed questions are excluded by setting a flag no production code sets — a test
-asserting a mechanism rather than a behaviour. After the change they close a question the only
-way the product can.
+The list is the whole set, verified by grep on the branch rather than remembered — an earlier
+draft of this table stopped after the first four rows and missed three files that would have
+failed on the next `make test`.
+
+`seed/seed.ts` is the one that fails twice. It is not just another reader: the seeder is half of
+`make db-up && make migrate && make seed`, the branch-database rebuild this document opens by
+prescribing. Dropped column, unchanged seeder, and the escape hatch fails on the migration it
+exists to recover from — so the seeder change ships in the same commit as the migration.
+
+The `empty-pool` and `exclusions` helpers are the reason this is a migration and not a delete.
+They currently prove that closed questions are excluded by setting a flag no production code
+sets — a test asserting a mechanism rather than a behaviour. After the change they close a
+question the only way the product can.
 
 ### What is added
 
@@ -82,7 +94,7 @@ reusing another's would be claiming their submission.
 | Constraint | Rule | Why in the schema |
 | - | - | - |
 | `CHECK (char_length(display_text) BETWEEN 1 AND 2000)` | 001 | matches 002's content schema cap, so an over-long transcript fails validation as a retryable fault rather than dying here *after* the ask has been consumed |
-| `CHECK (duration_seconds IS NULL OR … BETWEEN 1 AND 60)` | 004 | FR-006a, enforced where a crafted request cannot skip it |
+| `CHECK (duration_seconds IS NULL OR duration_seconds BETWEEN 1 AND 60)` | 004 | FR-006a, enforced where a crafted request cannot skip it |
 | `UNIQUE (submission_id)` | 004 | makes a retried upload idempotent rather than merely non-corrupting |
 
 ### What is deliberately not here
