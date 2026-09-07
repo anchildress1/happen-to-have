@@ -1,14 +1,14 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { copy } from '@/copy';
 import { AppHeader } from '@/ui/AppHeader';
 import { Button } from '@/ui/Button';
 import { type ContributionOutcome, ContributionOutcomeView } from '@/ui/ContributionOutcome';
 import { Screen } from '@/ui/Screen';
 import { RecorderPanel } from '@/ui/RecorderPanel';
-import { canRecord, useRecorder } from '@/ui/useRecorder';
+import { useRecorder } from '@/ui/useRecorder';
 import { Watermark } from '@/ui/Watermark';
 
 /**
@@ -26,15 +26,6 @@ export function AskQuestion() {
   const [started, setStarted] = useState(false);
   const [checking, setChecking] = useState(false);
   const [outcome, setOutcome] = useState<ContributionOutcome | null>(null);
-
-  /**
-   * Capability is UNKNOWN until the browser answers. `canRecord()` reads `navigator`, which
-   * does not exist during the server render, so calling it at render time makes the server
-   * emit the unsupported page and the client emit the controls — a hydration mismatch that
-   * flashes "This browser can't record audio" at every supported browser on the way in.
-   */
-  const [supported, setSupported] = useState<boolean | null>(null);
-  useEffect(() => setSupported(canRecord()), []);
 
   /**
    * One id per recording ATTEMPT, rotated when a new recording starts.
@@ -120,29 +111,6 @@ export function AskQuestion() {
         <p>{copy.ask.unlocked.helper}</p>
         <Button onClick={() => setStarted(true)}>{copy.ask.unlocked.action}</Button>
         <Link href="/answer">{copy.ask.unlocked.ghost}</Link>
-      </Screen>
-    );
-  }
-
-  // Unknown on the server and on the first client render; nothing is drawn until the browser
-  // has answered, which keeps the markup identical on both sides.
-  if (supported === null) {
-    return (
-      <Screen header={<AppHeader />}>
-        <Watermark />
-        <h1>{copy.ask.recording.heading}</h1>
-      </Screen>
-    );
-  }
-
-  if (!supported || recorder.state === 'unsupported') {
-    // Rendered instead of the control, never after pressing it. `recorder.state` is checked
-    // too: MediaRecorder can exist and still throw on construction.
-    return (
-      <Screen header={<AppHeader />}>
-        <Watermark />
-        <h1>{copy.review.recording.unsupported.heading}</h1>
-        <p>{copy.review.recording.unsupported.helper}</p>
       </Screen>
     );
   }

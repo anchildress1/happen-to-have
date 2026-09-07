@@ -1,8 +1,9 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import { copy } from '@/copy';
 import { Button } from '@/ui/Button';
-import { MAX_SECONDS, type useRecorder } from '@/ui/useRecorder';
+import { canRecord, MAX_SECONDS, type useRecorder } from '@/ui/useRecorder';
 
 /**
  * The recording controls, shared by the answer flow and the ask flow.
@@ -32,6 +33,36 @@ export function RecorderPanel({
   onStart: () => void;
   onSubmit: (blob: Blob) => void;
 }) {
+  /**
+   * Capability is UNKNOWN until the browser answers. `canRecord()` reads `navigator`, which
+   * does not exist during the server render, so calling it at render time makes the server
+   * emit the unsupported message and the client emit the controls — a hydration mismatch that
+   * flashes "This browser can't record audio" at every supported browser on the way in.
+   *
+   * Held here rather than in each caller because it is a fact about the recorder, and both
+   * flows were carrying identical copies of the same three-state branch.
+   */
+  const [supported, setSupported] = useState<boolean | null>(null);
+  useEffect(() => setSupported(canRecord()), []);
+
+  // Nothing is drawn until the browser has answered, which keeps the markup identical on the
+  // server and on the first client render.
+  if (supported === null) {
+    return null;
+  }
+
+  // Rendered INSTEAD of the control, never after pressing it (FR-029). `recorder.state` is
+  // checked too: MediaRecorder can exist and still throw on construction, and that state was
+  // once produced and never consumed, leaving a dead Start button and no explanation.
+  if (!supported || recorder.state === 'unsupported') {
+    return (
+      <>
+        <h2>{copy.review.recording.unsupported.heading}</h2>
+        <p>{copy.review.recording.unsupported.helper}</p>
+      </>
+    );
+  }
+
   return (
     <>
       {/* Three causes, three next actions. Sharing one message here told someone our
