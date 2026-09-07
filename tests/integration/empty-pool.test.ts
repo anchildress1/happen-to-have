@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { listEligibleQuestions, toSelectionPayload } from '../../src/db/queries/questions';
-import { insertPublishedAnswer } from '../helpers/answers.js';
+import { closeQuestion, insertPublishedAnswer } from '../helpers/answers.js';
 import { createTestDb, type TestDb } from '../helpers/pglite.js';
 
 /**
@@ -37,15 +37,12 @@ async function createParticipant(): Promise<string> {
   return rows[0].id;
 }
 
-async function createQuestion(options: {
-  authorId: string | null;
-  status?: 'open' | 'closed';
-}): Promise<string> {
+async function createQuestion(options: { authorId: string | null }): Promise<string> {
   const { rows } = await db.query<{ id: string }>(
-    `INSERT INTO questions (participant_id, display_text, status)
-     VALUES ($1, $2, $3)
+    `INSERT INTO questions (participant_id, display_text)
+     VALUES ($1, $2)
      RETURNING id`,
-    [options.authorId, `empty-pool.test.ts fixture ${randomUUID()}`, options.status ?? 'open'],
+    [options.authorId, `empty-pool.test.ts fixture ${randomUUID()}`],
   );
   return rows[0].id;
 }
@@ -95,8 +92,10 @@ describe('empty pool (FR-029, T073): zero eligible questions is not an error', (
 
   it('empties the pool when every question is closed', async () => {
     const participantId = await createParticipant();
-    const closedQuestionAId = await createQuestion({ authorId: null, status: 'closed' });
-    const closedQuestionBId = await createQuestion({ authorId: null, status: 'closed' });
+    const closedQuestionAId = await createQuestion({ authorId: null });
+    const closedQuestionBId = await createQuestion({ authorId: null });
+    await closeQuestion(db, closedQuestionAId);
+    await closeQuestion(db, closedQuestionBId);
 
     const eligible = await listEligibleQuestions(participantId, db);
 
@@ -112,7 +111,8 @@ describe('empty pool (FR-029, T073): zero eligible questions is not an error', (
     const ownQuestionId = await createQuestion({ authorId: participantId });
     const answeredQuestionId = await createQuestion({ authorId: null });
     await publishAnswer(answeredQuestionId, participantId);
-    const closedQuestionId = await createQuestion({ authorId: null, status: 'closed' });
+    const closedQuestionId = await createQuestion({ authorId: null });
+    await closeQuestion(db, closedQuestionId);
 
     const eligible = await listEligibleQuestions(participantId, db);
 

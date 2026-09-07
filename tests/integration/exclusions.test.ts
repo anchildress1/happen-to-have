@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { listEligibleQuestions } from '../../src/db/queries/questions.js';
-import { insertPublishedAnswer } from '../helpers/answers.js';
+import { closeQuestion, insertPublishedAnswer } from '../helpers/answers.js';
 import { createTestDb, type TestDb } from '../helpers/pglite.js';
 
 /**
@@ -33,15 +33,12 @@ async function createParticipant(): Promise<string> {
   return rows[0].id;
 }
 
-async function createQuestion(options: {
-  authorId: string | null;
-  status?: 'open' | 'closed';
-}): Promise<string> {
+async function createQuestion(options: { authorId: string | null }): Promise<string> {
   const { rows } = await db.query<{ id: string }>(
-    `INSERT INTO questions (participant_id, display_text, status)
-     VALUES ($1, $2, $3)
+    `INSERT INTO questions (participant_id, display_text)
+     VALUES ($1, $2)
      RETURNING id`,
-    [options.authorId, `exclusions.test.ts fixture ${randomUUID()}`, options.status ?? 'open'],
+    [options.authorId, `exclusions.test.ts fixture ${randomUUID()}`],
   );
   return rows[0].id;
 }
@@ -102,10 +99,11 @@ describe('question selection exclusions (real Postgres SQL via PGlite)', () => {
     expect(idsOf(eligible)).toContain(questionId);
   });
 
-  it('never selects a question with status closed', async () => {
+  it('never selects a question closed by three published answers', async () => {
     const participantId = await createParticipant();
-    const closedQuestionId = await createQuestion({ authorId: null, status: 'closed' });
-    const openQuestionId = await createQuestion({ authorId: null, status: 'open' });
+    const closedQuestionId = await createQuestion({ authorId: null });
+    const openQuestionId = await createQuestion({ authorId: null });
+    await closeQuestion(db, closedQuestionId);
 
     const eligible = await listEligibleQuestions(participantId, db);
 

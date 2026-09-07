@@ -35,8 +35,8 @@ beforeAll(async () => {
   questionAId = randomUUID();
   questionBId = randomUUID();
   await db.query(
-    `INSERT INTO questions (id, participant_id, display_text, status)
-     VALUES ($1, NULL, $2, 'open'), ($3, NULL, $4, 'open')`,
+    `INSERT INTO questions (id, participant_id, display_text)
+     VALUES ($1, NULL, $2), ($3, NULL, $4)`,
     [
       questionAId,
       '[skip-writes-nothing test] question A',

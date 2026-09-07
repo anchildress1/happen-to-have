@@ -1,13 +1,13 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import Link from 'next/link';
 import { copy } from '@/copy';
 import { AppHeader } from '@/ui/AppHeader';
-import { Button } from '@/ui/Button';
-import { type AnswerOutcome, AnswerOutcomeView } from '@/ui/AnswerOutcome';
+import { type ContributionOutcome, ContributionOutcomeView } from '@/ui/ContributionOutcome';
 import { Screen } from '@/ui/Screen';
-import { canRecord, MAX_SECONDS, useRecorder } from '@/ui/useRecorder';
+import { RecorderPanel } from '@/ui/RecorderPanel';
+import { useRecorder } from '@/ui/useRecorder';
 import { Watermark } from '@/ui/Watermark';
 
 /**
@@ -27,18 +27,7 @@ export function RecordAnswer({
 }) {
   const recorder = useRecorder();
   const [checking, setChecking] = useState(false);
-  const [outcome, setOutcome] = useState<AnswerOutcome | null>(null);
-
-  /**
-   * Capability is UNKNOWN until the browser tells us (FR-029).
-   *
-   * `canRecord()` reads `navigator`, which does not exist during the server render, so calling
-   * it at render time made the server emit the unsupported page and the client emit the
-   * controls — a deterministic hydration mismatch that flashes "This browser can't record
-   * audio" at every supported browser on the way in.
-   */
-  const [supported, setSupported] = useState<boolean | null>(null);
-  useEffect(() => setSupported(canRecord()), []);
+  const [outcome, setOutcome] = useState<ContributionOutcome | null>(null);
 
   /**
    * One id per recording ATTEMPT, rotated when a new recording starts (FR-015, SC-007).
@@ -66,7 +55,7 @@ export function RecordAnswer({
 
     try {
       const response = await fetch('/api/answer', { method: 'POST', body });
-      setOutcome((await response.json()) as AnswerOutcome);
+      setOutcome((await response.json()) as ContributionOutcome);
     } catch {
       // A dropped connection is not proof that publication failed (FR-014), so this must not
       // say the recording was rejected — only that we could not confirm. `failed` renders
@@ -86,8 +75,9 @@ export function RecordAnswer({
     return (
       <Screen header={<AppHeader />}>
         <Watermark />
-        <AnswerOutcomeView
+        <ContributionOutcomeView
           outcome={outcome}
+          kind="answer"
           questionId={questionId}
           onRetry={() => {
             setOutcome(null);
@@ -124,32 +114,6 @@ export function RecordAnswer({
     );
   }
 
-  // Unknown on the server and on the first client render; nothing is drawn until the browser
-  // has answered, which is what keeps the markup identical on both sides.
-  if (supported === null) {
-    return (
-      <Screen header={<AppHeader />}>
-        <Watermark />
-        {/* FR-002: the question is real content and renders on both sides, so the heading is
-            identical server and client. Only the controls wait for the capability answer. */}
-        <h1>{questionText}</h1>
-      </Screen>
-    );
-  }
-
-  if (!supported || recorder.state === 'unsupported') {
-    // FR-029: rendered instead of the control, never after pressing it. `recorder.state` is
-    // checked too — MediaRecorder can exist and still throw on construction, and that state
-    // was produced and never consumed, leaving a dead Start button and no explanation.
-    return (
-      <Screen header={<AppHeader />}>
-        <Watermark />
-        <h1>{copy.review.recording.unsupported.heading}</h1>
-        <p>{copy.review.recording.unsupported.helper}</p>
-      </Screen>
-    );
-  }
-
   return (
     <Screen header={<AppHeader />}>
       <Watermark />
@@ -158,47 +122,12 @@ export function RecordAnswer({
           a question that does not exist is a dead end, not a recording screen. */}
       <h1>{questionText}</h1>
 
-      {/* Three states, three next actions (FR-028, FR-029). Sharing one message here told
-          someone our processing failed when their browser had refused the microphone. */}
-      {recorder.state === 'denied' && (
-        <>
-          <h2>{copy.review.recording.denied.heading}</h2>
-          <p>{copy.review.recording.denied.helper}</p>
-        </>
-      )}
-      {recorder.state === 'noDevice' && (
-        <>
-          <h2>{copy.review.recording.noDevice.heading}</h2>
-          <p>{copy.review.recording.noDevice.helper}</p>
-        </>
-      )}
-
-      {recorder.state === 'recording' && (
-        <p aria-live="polite">{copy.review.recording.timer(recorder.seconds, MAX_SECONDS)}</p>
-      )}
-
-      {/* FR-007: the limit stopping a recording is not a failure, and must not read as one. */}
-      {recorder.reachedLimit && recorder.state === 'stopped' && (
-        <p>{copy.review.recording.reachedLimit}</p>
-      )}
-
-      {/* The house Button, not a raw one. Hand-rolled <button> elements rendered at 21px —
-          half the 44px touch target 001 holds every control to, on the screen a participant
-          hits first and, on a phone, one-handed. `all: unset` in the reset is why: an
-          unstyled button here has no padding at all. */}
-      {recorder.state === 'recording' ? (
-        <Button onClick={recorder.stop}>{copy.review.recording.stop}</Button>
-      ) : (
-        <Button onClick={startRecording} disabled={recorder.state === 'requesting'}>
-          {recorder.blob ? copy.review.recording.again : copy.review.recording.start}
-        </Button>
-      )}
-
-      {recorder.blob && recorder.state === 'stopped' && (
-        <Button variant="ghost" onClick={() => recorder.blob && submit(recorder.blob)}>
-          {copy.review.recording.submit}
-        </Button>
-      )}
+      <RecorderPanel
+        recorder={recorder}
+        submitLabel={copy.review.recording.submit}
+        onStart={startRecording}
+        onSubmit={submit}
+      />
     </Screen>
   );
 }

@@ -17,14 +17,11 @@ export const participantRowSchema = z.object({
 
 export type ParticipantRow = z.infer<typeof participantRowSchema>;
 
-export const questionStatusSchema = z.enum(['open', 'closed']);
-
 export const questionRowSchema = z.object({
   id: z.uuid(),
   participant_id: z.uuid().nullable(),
   display_text: z.string().min(1).max(2000),
   source_language: z.string().min(1),
-  status: questionStatusSchema,
   created_at: z.coerce.date(),
 });
 

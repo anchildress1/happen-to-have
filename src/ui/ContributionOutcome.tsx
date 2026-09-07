@@ -1,8 +1,8 @@
 import Link from 'next/link';
 import { copy } from '@/copy';
 
-/** Mirrors the route's JSON. Kept structural so an unknown status renders the failure page. */
-export type AnswerOutcome =
+/** Mirrors either route's JSON. Kept structural so an unknown status renders the failure page. */
+export type ContributionOutcome =
   | { status: 'published'; askGranted: boolean }
   // crisis is its own member so narrowing works: a single arm with a union `reason` cannot be
   // narrowed by checking `reason`, and the crisis page is the one that must not fall through.
@@ -16,7 +16,9 @@ export type AnswerOutcome =
   | { status: 'rate_limited'; retryAt: string }
   // `lost` is the dropped-connection case: FR-014 forbids describing it as proof that
   // publication failed, because it is not — the answer may well have published.
-  | { status: 'failed' | 'ineligible' | 'lost' };
+  | { status: 'failed' | 'ineligible' | 'lost' }
+  /** 004, research D6. The ask was already spent — by an earlier tab, or by nobody. */
+  | { status: 'spent' };
 
 /**
  * Every terminal state a submission can render (FR-024 – FR-027, FR-040, FR-049).
@@ -25,12 +27,20 @@ export type AnswerOutcome =
  * reaches this file. The crisis page is the one that must not be softened: FR-034 forbids
  * generated counseling or any claim that someone has been alerted.
  */
-export function AnswerOutcomeView({
+export function ContributionOutcomeView({
   outcome,
+  kind,
   questionId,
   onRetry,
 }: {
-  outcome: AnswerOutcome;
+  outcome: ContributionOutcome;
+  /**
+   * Which flow this outcome belongs to. 002 wrote the copy object with `*Answer`/`*Question`
+   * pairs for both flows and only the answer half was ever built; this is the prop that
+   * finally reads the other half.
+   */
+  kind: 'answer' | 'question';
+  /** The question being answered. Empty for the ask flow, which creates one instead. */
   questionId: string;
   /**
    * Clears the outcome so the recorder comes back.
@@ -46,7 +56,23 @@ export function AnswerOutcomeView({
   // FR-027a: every Withheld, crisis included, offers a fresh recording FOR THE SAME QUESTION.
   // Without the parameter the retry lands on an empty recorder, which is not the retry the
   // requirement guarantees.
-  const retry = `/answer/record?questionId=${encodeURIComponent(questionId)}`;
+  const isAnswer = kind === 'answer';
+  // FR-021: every question retry lands on `/ask` with a fresh recorder and the ask intact.
+  // No question id travels — there is no prior question to return to, which is the whole
+  // difference between the flows.
+  const retry = isAnswer ? `/answer/record?questionId=${encodeURIComponent(questionId)}` : '/ask';
+  const retryLabel = isAnswer
+    ? copy.review.withheld.actionAnswer
+    : copy.review.withheld.actionQuestion;
+  const withheldGhost = isAnswer
+    ? copy.review.withheld.ghostAnswer
+    : copy.review.withheld.ghostQuestion;
+  const crisisGhost = isAnswer ? copy.review.crisis.ghostAnswer : copy.review.crisis.ghostQuestion;
+  const failedHeading = isAnswer
+    ? copy.review.failed.headingAnswer
+    : copy.review.failed.headingQuestion;
+  // The ghost destination for a question is the unlocked ask state, which is the same route.
+  const ghostHref = isAnswer ? '/answer' : '/ask';
   if (outcome.status === 'withheld' && outcome.reason === 'crisis') {
     return (
       <section>
@@ -64,9 +90,9 @@ export function AnswerOutcomeView({
         {/* Alongside the resources, never behind them: the classification can be wrong
             (FR-027c), and the participant must not dismiss one to reach the other. */}
         <Link href={retry} onClick={onRetry}>
-          {copy.review.withheld.actionAnswer}
+          {retryLabel}
         </Link>
-        <Link href="/answer">{copy.review.crisis.ghostAnswer}</Link>
+        <Link href={ghostHref}>{crisisGhost}</Link>
       </section>
     );
   }
@@ -82,9 +108,9 @@ export function AnswerOutcomeView({
         <h1>{heading}</h1>
         <p>{copy.review.withheld.sub}</p>
         <Link href={retry} onClick={onRetry}>
-          {copy.review.withheld.actionAnswer}
+          {retryLabel}
         </Link>
-        <Link href="/answer">{copy.review.withheld.ghostAnswer}</Link>
+        <Link href={ghostHref}>{withheldGhost}</Link>
       </section>
     );
   }
@@ -104,6 +130,20 @@ export function AnswerOutcomeView({
   }
 
   if (outcome.status === 'published') {
+    // FR-015a. A published question has no `askGranted` to report — the ask was spent, not
+    // granted, and that is the only thing that can have happened.
+    if (!isAnswer) {
+      return (
+        <section>
+          <h1>{copy.review.publishedQuestion.heading}</h1>
+          <p>{copy.review.publishedQuestion.helper}</p>
+          {/* The loop is the product: you spent it, go earn another. */}
+          <Link href="/answer">{copy.action.findQuestion}</Link>
+          <Link href="/yours">{copy.review.publishedQuestion.ghost}</Link>
+        </section>
+      );
+    }
+
     return (
       <section>
         <h1>{copy.review.published.heading}</h1>
@@ -116,6 +156,19 @@ export function AnswerOutcomeView({
     );
   }
 
+  // research D6. Not a processing failure: nothing went wrong, and that page would tell the
+  // participant to record again — which the server will refuse, because the ask is gone.
+  if (outcome.status === 'spent') {
+    return (
+      <section>
+        <h1>{copy.review.spent.heading}</h1>
+        <p>{copy.review.spent.helper}</p>
+        <Link href="/answer">{copy.action.findQuestion}</Link>
+        <Link href="/yours">{copy.review.spent.ghost}</Link>
+      </section>
+    );
+  }
+
   // `ineligible` renders here too. It is this system's problem, not something the
   // participant did to their recording, so it must not borrow the Withheld copy.
   //
@@ -124,7 +177,7 @@ export function AnswerOutcomeView({
   // cannot make about a response we never saw. Sends them to Yours to check instead.
   return (
     <section>
-      <h1>{copy.review.failed.headingAnswer}</h1>
+      <h1>{failedHeading}</h1>
       <p>
         {outcome.status === 'lost' ? copy.review.failed.lostResponse : copy.review.failed.helper}
       </p>
@@ -136,10 +189,10 @@ export function AnswerOutcomeView({
       {outcome.status === 'lost' ? (
         <Link href="/yours">{copy.review.rateLimited.action}</Link>
       ) : outcome.status === 'ineligible' ? (
-        <Link href="/answer">{copy.review.withheld.ghostAnswer}</Link>
+        <Link href={ghostHref}>{withheldGhost}</Link>
       ) : (
         <Link href={retry} onClick={onRetry}>
-          {copy.review.withheld.actionAnswer}
+          {retryLabel}
         </Link>
       )}
     </section>

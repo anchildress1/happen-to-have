@@ -35,3 +35,30 @@ export async function insertPublishedAnswers(
     [questionId, participantIds, 'One thing at a time.'],
   );
 }
+
+/**
+ * Closes a question the only way the product can: three published answers from three distinct
+ * participants (004 FR-023).
+ *
+ * Before 004 these suites set `questions.status = 'closed'` directly, which asserted a
+ * mechanism no production code ever used — the column was written by nothing and 004 dropped
+ * it. Closure is now derived from the answer rows, so a test that wants a closed question has
+ * to create the thing that closes it.
+ *
+ * Mints its own participants rather than taking them: `UNIQUE (participant_id, question_id)`
+ * means three answers require three participants, and a caller passing the same id twice would
+ * get a constraint violation instead of a closed question.
+ */
+export async function closeQuestion(db: TestDb, questionId: string): Promise<void> {
+  const { rows } = await db.query<{ id: string }>(
+    'INSERT INTO participants DEFAULT VALUES RETURNING id',
+  );
+  const first = rows[0].id;
+  const { rows: second } = await db.query<{ id: string }>(
+    'INSERT INTO participants DEFAULT VALUES RETURNING id',
+  );
+  const { rows: third } = await db.query<{ id: string }>(
+    'INSERT INTO participants DEFAULT VALUES RETURNING id',
+  );
+  await insertPublishedAnswers(db, questionId, [first, second[0].id, third[0].id]);
+}
