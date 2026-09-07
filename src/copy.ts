@@ -209,7 +209,23 @@ export const copy = {
       /** Separate helpers because the outcomes are separate: FR-021 grants nothing to
        * someone already holding an ask, and the granted line would claim otherwise. */
       granted: "That's one question you can ask, whenever you're ready.",
-      alreadyHeld: 'Your question is still waiting for you.',
+      /**
+       * FR-021, and the sentence has to carry the rule because the heading cannot.
+       *
+       * `Your answer counts. Ask one.` is fixed verbatim by FR-020 and reads as a fresh grant
+       * in every state, including this one. So this line is the only place a participant is
+       * told that answering again did not earn a second ask.
+       *
+       * It previously read `Your question is still waiting for you.` — true, and silent on the
+       * only thing that was surprising. Someone who answered twice and could ask once read that
+       * as confirmation they held an ask, not as an explanation that the second answer earned
+       * nothing. Reworded after exactly that confusion was reported.
+       *
+       * "didn't add a second" rather than "you can only hold one": the participant is told what
+       * happened to their answer, not lectured with the rule that caused it.
+       */
+      alreadyHeld:
+        "You were already holding an ask, so this answer didn't add a second. It's still waiting, whenever you're ready.",
       action: 'Ask your question',
       ghost: 'Answer another',
     },

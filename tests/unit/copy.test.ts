@@ -150,6 +150,22 @@ describe('003 copy is pinned where the spec fixes it verbatim', () => {
     // while 002's FR-025 and FR-026 strings are pinned character-for-character here. An
     // earlier revision replaced it with "Shared. Thank you." and nothing in this file noticed.
     expect(copy.review.published.heading).toBe('Your answer counts. Ask one.');
+
+    // FR-021's two outcomes, pinned separately because they are separately wrong when swapped.
+    expect(copy.review.published.granted).toBe(
+      "That's one question you can ask, whenever you're ready.",
+    );
+    // The line that has to carry the rule, since FR-020 fixes the heading as a fresh grant in
+    // every state. It previously said only "Your question is still waiting for you." — true, and
+    // silent on the fact that this answer earned nothing, which is the part a participant who
+    // answered twice and could ask once actually needed.
+    expect(copy.review.published.alreadyHeld).toBe(
+      "You were already holding an ask, so this answer didn't add a second. It's still waiting, whenever you're ready.",
+    );
+    // The two must never be the same string: one says an ask was earned and the other says it
+    // was not, and rendering either in the other's state tells a participant the opposite of
+    // what happened.
+    expect(copy.review.published.granted).not.toBe(copy.review.published.alreadyHeld);
   });
 
   it('renders the ceiling line as something that is not a failure (FR-007)', () => {

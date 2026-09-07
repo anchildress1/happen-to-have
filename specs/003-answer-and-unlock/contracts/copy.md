@@ -13,7 +13,7 @@ processing failure and the rate limit; those are consumed verbatim and are not r
 | - | - |
 | Heading | `Your answer counts. Ask one.` |
 | Helper — no ask held before | `That's one question you can ask, whenever you're ready.` |
-| Helper — an ask was already held | `Your question is still waiting for you.` |
+| Helper — an ask was already held | `You were already holding an ask, so this answer didn't add a second. It's still waiting, whenever you're ready.` |
 | Action | `Ask your question` |
 | Ghost | `Answer another` |
 
@@ -84,3 +84,20 @@ control that lets them try again.
 No "who answers" framing, no marketplace or expert language, nothing describing the pipeline as
 an agent, bot or assistant, no generated dialect, no positioning on "safe", no therapy or feed
 framing. Constitution VII, swept by `tests/unit/copy.test.ts` over every string in the file.
+
+---
+
+## Amended by 005 — the already-held helper
+
+`Your question is still waiting for you.` was true and silent on the only surprising part. A
+participant who published two answers and could ask once read it as confirmation they held an
+ask, rather than as an explanation that the second answer earned none. That confusion was
+reported from the running app.
+
+The heading cannot carry the correction: `Your answer counts. Ask one.` is fixed verbatim by
+FR-020 and reads as a fresh grant in every state. So the helper is the only place FR-021's rule
+can reach the participant, and it now says what happened to *this* answer rather than restating
+the rule at them.
+
+The heading itself is untouched. Rewording a string an FR quotes is a spec change, not a copy
+change.
