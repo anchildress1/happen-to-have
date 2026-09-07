@@ -410,9 +410,15 @@ test.describe('T075 — an unavailable producer degrades without a retry (FR-034
 
     await expect(target.getByText(copy.yours.playback.unavailable)).toBeVisible();
 
-    // FR-034. A retry that can never succeed is worse than no retry, so this response offers no
-    // button at all — not a disabled `Listen`, not a `Try again`.
-    await expect(target.getByRole('button')).toHaveCount(0);
+    // FR-034. A retry that can never succeed is worse than no retry — so the control is
+    // disabled, and it is emphatically NOT relabelled `Try again` the way the 502 path is.
+    //
+    // It stays mounted rather than being replaced by the message, and that is an accessibility
+    // requirement rather than a styling choice: unmounting the button a keyboard user has just
+    // activated drops focus to <body> and loses their place in a list that can be dozens of tab
+    // stops long. The degraded state is carried by `disabled` and by the live region instead.
+    await expect(target.getByRole('button')).toHaveCount(1);
+    await expect(target.getByRole('button')).toBeDisabled();
     await expect(target.getByText(copy.failure.action)).toHaveCount(0);
     await expect(target.getByText(copy.yours.playback.failed)).toHaveCount(0);
 
