@@ -16,7 +16,7 @@ types.setTypeParser(20, (value: string) => Number.parseInt(value, 10));
 
 let pool: Pool | undefined;
 
-function getPool(): Pool {
+export function getPool(): Pool {
   if (pool) {
     return pool;
   }
@@ -35,6 +35,28 @@ function getPool(): Pool {
   // absorbs the rest.
   pool = new Pool({ connectionString, max: 4 });
   return pool;
+}
+
+/**
+ * A connection held for the caller's exclusive use, and released by them.
+ *
+ * Needed for exactly one thing: a session-level advisory lock, which Postgres ties to the
+ * connection that took it. Every other caller in this codebase uses `db` and must keep doing so —
+ * a pooled query has no connection affinity, so a lock taken through it could be released by a
+ * different request or never released at all.
+ */
+export interface PooledConnection extends SqlClient {
+  release(): void;
+}
+
+/** See `PooledConnection`. Callers MUST `release()` in a `finally`. */
+export async function acquireConnection(): Promise<PooledConnection> {
+  const client = await getPool().connect();
+  return {
+    query: ((sql, params) =>
+      client.query(sql, params as unknown[] | undefined)) as SqlClient['query'],
+    release: () => client.release(),
+  };
 }
 
 /**
