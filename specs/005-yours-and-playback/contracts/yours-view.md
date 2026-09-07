@@ -15,7 +15,7 @@ Column shapes are in [data-model.md](../data-model.md). The playback endpoint is
 | File | Kind | Owns |
 | - | - | - |
 | `app/yours/page.tsx` | **server** — `async`, no `'use client'` | session read, the three queries, both section renders, all three empty states |
-| `app/yours/page.module.css` | CSS module | the desktop grid, via `--content-max` |
+| `app/yours/page.module.css` | CSS module | `--content-max`, and the `1fr 1fr` desktop grid on `.sections` |
 | `app/yours/ResponseList.tsx` | **client** — `'use client'` | the `Listen` button, its per-response state, its retry |
 
 `page.tsx` requirements:
@@ -39,8 +39,9 @@ Column shapes are in [data-model.md](../data-model.md). The playback endpoint is
 ### What `ResponseList` must not do
 
 - No `fetch` for history. It receives responses as props.
-- No provider client, no audio bytes in props — see the `has_playback` boolean in
-  [data-model.md](../data-model.md).
+- No provider client and no audio bytes in props. The response rows carry text only — see
+  [data-model.md](../data-model.md), which explains why not even a "has audio" boolean travels
+  with them.
 
 ---
 
@@ -238,7 +239,7 @@ type-scale tokens. A new component matches the literal values already in use:
 | - | - | - |
 | Radius | `14px` buttons and button-shaped links; `20px` desktop panels; `12px` troughs; `4px` focus ring on inline links | `Button.module.css`, `QuestionCard.module.css`, `AppHeader.module.css` |
 | Gaps (mobile) | `12px`, `16px`, `18px`, `20px`, `22px` | `Screen.module.css` (18/22), `QuestionCard.module.css` (12/20), `page.module.css` (16) |
-| Gaps (desktop grids) | `48px` Arrival, `56px` **Yours**, `64px` Selection / Recording / Responses | design.md Layout table |
+| Gaps | `32px` between sections at mobile, **`56px` desktop grid gap**, `16px` between entries | `app/yours/page.module.css`, matching design.md's Layout table |
 | Screen padding | mobile `78px 28px 52px`; desktop `28px 56px 40px` | `Screen.module.css` |
 | Default column | `560px`, centred, via `--content-max` | `Screen.module.css` |
 | Desktop panel padding | `32px` | `QuestionCard.module.css` |
@@ -280,7 +281,7 @@ Not new work — flagged so the change is not a surprise mid-implementation.
 
 | Test | Why it moves |
 | - | - |
-| `tests/e2e/responsive.spec.ts` T085c | Asserts `/yours` uses the default 560px column and locates it by the placeholder string `Yours is on its way`. Both facts change: the placeholder text goes away, and Yours takes a bespoke `1fr 1fr` desktop grid. |
+| `tests/e2e/responsive.spec.ts` T085c | Asserts `/yours` uses the default 560px column and locates it by the placeholder string `Yours is on its way`. Both premises expire: the placeholder text goes away, and Yours widens `--content-max` to `720px`. Rewritten in this feature to assert the real column, with a lower bound so a collapse back to 560px fails. |
 | `tests/e2e/a11y.spec.ts` T083 | Its comment allows `/yours` to have zero tab stops. It will now have many, each of which must show a focus ring. |
 | `tests/e2e/design.spec.ts` header comment | Describes `/yours` as a placeholder. |
 | `tests/e2e/copy.spec.ts` | Already lists `/yours` in `ROUTES`; the new screen falls under the banned-word sweep the moment it renders anything. |
@@ -297,5 +298,12 @@ Where they disagree, **spec.md and plan.md win**.
 | Header: mobile `Back` / centred title; desktop right slot flips to `Find me a question` | The shared default `AppHeader` | plan.md's only header change is D-2: `AppHeader` reads `copy.nav.yours` instead of a hardcoded string. A contextual variant is not in this feature. |
 | Secondary text at `--ink-50` / `--ink-45` | `--ink-65` | Those tokens fail WCAG AA on `--bg` at body sizes. See [§7](#accessibility). |
 
-Retained from design.md: the `1fr 1fr` desktop grid at `56px` gap, the `Published` label in
+Retained from design.md: the `1fr 1fr` desktop grid at a `56px` gap, the `Published` label in
 `--green`, and the `n responses` count.
+
+The grid applies to a `.sections` wrapper, not to `Screen`'s `.content` — putting `display: grid`
+on `.content` would pull the page heading into a column beside the sections, and `--content-max`
+is the only property this screen may set there. Tracks are `minmax(0, 1fr)` rather than a bare
+`1fr`: a `1fr` track floors at its content's min-content width, so one unbroken 2000-character
+token would push its column past half the container and take the page into horizontal scroll,
+which FR-003 forbids at every width. Sections stack below `768px`.

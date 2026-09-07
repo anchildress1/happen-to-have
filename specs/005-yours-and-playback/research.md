@@ -50,38 +50,55 @@ then to the browser. That is one photo, once per response, ever.
 
 ---
 
-## D2 — Produce-then-claim, not a lock. One production per response, one row either way
+## D2 — A cluster-wide advisory lock, plus the `IS NULL` claim
 
-**Decision**: check the column; on a miss, coalesce concurrent requests in-process by
-contribution id, produce, then `UPDATE … WHERE generated_audio IS NULL`. A zero-row update means
-another request won — re-read and serve theirs.
+**Decision**: two layers. In-process coalescing by contribution id handles two taps on one
+instance. A Postgres advisory lock handles two instances. The `UPDATE … WHERE
+generated_audio IS NULL` guard remains underneath both as the storage guarantee.
 
 **Rationale**
 
-FR-028 and SC-005 want exactly one production for concurrent first requests. Three shapes were
-considered.
-
-An **advisory lock** held across the TTS call is deterministic and wrong: the pool caps at
-`max: 4`, so four concurrent first-`Listen`s would hold every connection for the several seconds
-Gemini takes and stall every other query in the instance.
+FR-028 and SC-005 require exactly one *production* for concurrent first requests. Three shapes
+were considered, and the first revision of this decision got it wrong.
 
 A **pending row** — claim first, produce second, losers poll — is the textbook single-flight and
-is forbidden here. Principle V: "Processing state, check results, retry counts, and storage
+is still refused. Principle V: "Processing state, check results, retry counts, and storage
 references exist only in the active request." A `playback_pending` row is processing state in the
 database, and it brings the reconciliation problem with it: a crashed producer leaves a claim
 nobody clears.
 
-What ships is the third: the in-process map makes one instance produce once, and the
-`WHERE generated_audio IS NULL` guard makes the *stored* result single no matter how many
-instances raced. The write is idempotent and there is no state to reconcile.
+An **in-process map alone** is what shipped first, with the cross-instance gap written up as an
+accepted window. Review was right to reject that framing. The map guarantees one stored
+*artifact*, because of the `IS NULL` guard — but FR-028 and SC-005 say one *production*, and two
+Cloud Run instances could both call the provider before either wrote. "Rare and cheap" is a
+reason to rank a defect low, not a reason to call the requirement met.
 
-**The accepted window, stated plainly**: two Cloud Run instances can both produce for the same
-response before either writes. Only one row results; the loser's bytes are discarded. This is a
-duplicate *spend*, not a duplicate *artifact*, and it costs a fraction of a cent. It is also
-close to unreachable in practice — `Yours` is scoped to one participant's session, so concurrent
-first requests for one response are one person double-tapping in one browser, which is one
-instance. Recorded as an accepted window rather than papered over, the way 004 recorded the
-closure window.
+What ships is a **`pg_try_advisory_lock`** taken before producing. An advisory lock is
+cluster-wide, which is exactly the scope the map lacked, and — the part that matters against
+Principle V — it is **not stored state**. It lives for the life of a session and vanishes when
+the connection drops, so the crashed-producer failure mode that sinks the pending row simply does
+not exist: kill the instance and Postgres releases the lock.
+
+**`try`, never the blocking `pg_advisory_lock`.** A loser must not sit on a pooled connection
+waiting. It returns immediately, polls the row for the winner's bytes, and serves those; on
+timeout it answers 502, which is retryable and by then almost certainly a cache hit. It never
+produces.
+
+**The cost, stated plainly**: the winner holds one pooled connection for the duration of the TTS
+call, a few seconds. That is real, and it is bounded by how rare the path is — a response can be
+produced at most once ever, only its asker can trigger it, and a question closes at three
+answers. The earlier revision rejected locking on the grounds that it would "pin every connection
+in a pool capped at `max: 4`"; that argument assumed a *blocking* lock, where every waiter also
+holds a connection. With `try` + poll, only the producer holds one.
+
+**Alternatives considered**
+
+| Alternative | Rejected because |
+| - | - |
+| In-process map alone | Guarantees one artifact, not one production. Does not meet FR-028 as written. |
+| Pending row | Processing state in the database (Principle V), and a crashed producer strands the claim. |
+| Blocking `pg_advisory_lock` | Every waiter holds a pooled connection for the whole TTS call. This is the design the pool cap actually rules out. |
+| `LISTEN`/`NOTIFY` for the wait | Needs a held connection per waiter — the cost the `try` + poll shape exists to avoid, for a wait that is a couple of seconds. |
 
 ---
 
@@ -133,10 +150,11 @@ warmth is the only affective lever left, and it has to carry without performing.
 | Kore | Firm | The spike's placeholder, and firm is the wrong register for received advice. |
 
 **Why the amendment is split out**: governance requires an amendment PR that states the changed
-principle, the rationale, and the bump. This is a PATCH — it fills a declared TODO under an
-existing rule ("One TTS voice is used consistently for all generated playback") without changing
-any obligation. Stacking it under the feature keeps the two reviewable separately and keeps the
-code's constant and the constitution's text landing together.
+principle, the rationale, and the bump. It is a **MINOR** (5.1.0), corrected from an initial
+PATCH during review: naming the voice is a clarification, but *requiring it be pinned at exactly
+one application-code export* is an obligation no earlier revision imposed, and this document
+defines any new MUST as materially expanded guidance. Stacking it under the feature keeps the two
+reviewable separately and keeps the code's constant and the constitution's text landing together.
 
 ---
 

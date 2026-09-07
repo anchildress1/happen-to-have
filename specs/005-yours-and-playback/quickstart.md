@@ -64,8 +64,8 @@ Structural, and proved two ways:
 
 1. **Integration**: publish an answer, then assert `generated_audio IS NULL` on the row while its
    `display_text` reads back intact. Publication has no audio write path to exercise.
-2. **The screen**: the render queries select `generated_audio IS NOT NULL AS has_playback` and
-   never the bytes, so the text cannot wait on audio that is not fetched.
+2. **The screen**: the render queries select nothing from the audio column at all — not the bytes
+   and not a flag derived from them — so the text cannot wait on audio it never asks for.
 
 ### SC-003 — zero audio produced for contributions nobody requested
 
@@ -95,13 +95,18 @@ Two halves, because PGlite cannot construct a real race.
 1. **In-process coalescing** (unit): fire two `producePlayback` calls for the same answer id
    without awaiting between them; assert the fake client saw one call and both callers got the
    same buffer.
-2. **The storage guard** (integration): the `UPDATE … WHERE generated_audio IS NULL` statement is
+2. **The cross-instance lock** (unit): `tests/unit/playback-lock.test.ts` asserts the loser's path
+   — it polls for the winner's bytes and never produces — and pins the SQL to
+   `pg_try_advisory_lock` with a fixed `hashtextextended($1, 0)` key. A blocking lock or a
+   per-process seed would each silently defeat the mechanism, and neither would fail any other
+   test.
+3. **The storage guard** (integration): the `UPDATE … WHERE generated_audio IS NULL` statement is
    asserted structurally — the same technique `tests/integration/question-publish.test.ts` uses
    for its consume-then-insert ordering, and for the same reason: PGlite serializes on one
    connection, so a `Promise.all` proves nothing about concurrency.
 
-**Not proved, and stated in [research D2](research.md)**: two Cloud Run instances racing. Exactly
-one row results either way; a duplicate *spend* of a fraction of a cent is possible and accepted.
+**Not proved by the suite**: two real Cloud Run instances racing, which needs two instances. The
+lock that makes it correct is exercised at the unit level; the deployed behaviour is not.
 
 ### SC-006 — zero original recordings exposed, offered, or playable
 
@@ -233,7 +238,7 @@ Stated plainly, because a quickstart that implies full coverage is worse than no
 
 | Not proved | Why | Where it is recorded |
 | - | - | - |
-| Cross-instance concurrent production | Needs two Cloud Run instances. One stored row is guaranteed regardless. | [research D2](research.md) |
+| Two real Cloud Run instances racing | Needs two instances. The advisory lock that serializes them is unit-tested; one stored row is guaranteed regardless by the `IS NULL` claim. | [research D2](research.md) |
 | The two-second SC-001 wall clock | A deployment property. The suite proves the query count; latency is measured against the deployed service. | — |
 | Real TTS output quality | Every automated run fakes the provider. Deliberate: a suite that bills money on every push is a suite people stop running. | `Makefile`'s `fixtures` target does the same for review, and is excluded from `ai-checks` for the same reason |
 | Real-device Safari and Chrome | Playwright runs Desktop Chrome at five viewports. Viewport is not a browser engine. | inherited from 001–004 |

@@ -147,8 +147,7 @@ identity has no session, so no `Yours` exists for it.
 ### 3. Responses — `listResponsesForQuestions(questionIds)`
 
 ```sql
-SELECT a.id, a.question_id, a.display_text, a.created_at,
-       (a.generated_audio IS NOT NULL) AS has_playback
+SELECT a.id, a.question_id, a.display_text, a.created_at
   FROM answers a
  WHERE a.question_id = ANY($1::uuid[])
  ORDER BY a.created_at ASC, a.id ASC
@@ -159,9 +158,12 @@ SELECT a.id, a.question_id, a.display_text, a.created_at,
 - **`ORDER BY a.created_at ASC` is chronology and carries no quality signal** (FR-018, [research
   D8](research.md)). This ordering is forbidden from becoming a ranking; the comment in the query
   says so, because no test can catch a sort key that looks defensible.
-- **`has_playback` is a boolean, never the bytes.** The screen has no use for the audio until
-  someone presses `Listen`, and selecting 3–4 MB per response into a server render to answer a
-  yes/no question would put the entire cache on the critical path SC-001 budgets at two seconds.
+- **Nothing about the audio is selected — not the bytes, and not a boolean either.** The bytes are
+  obvious: 3–4 MB per response into a server render would put the whole cache on the critical path
+  SC-001 budgets at two seconds. The boolean is the less obvious half. An earlier revision carried
+  `generated_audio IS NOT NULL AS has_playback` through this query, the row schema and a prop, and
+  no component ever read it — `Listen` is offered on every published response regardless (FR-014,
+  FR-031), and whether audio exists is decided by the route on the request.
 - Grouping into questions happens in TypeScript ([research D7](research.md)), so every row
   validates against a flat schema in `src/schema/rows.ts` rather than a JSON shape the database
   invented.
@@ -207,15 +209,16 @@ The `IS NULL` guard is the produce-once storage guarantee (FR-027, FR-028, SC-00
 rows returned means another request won the race; the caller re-reads and serves the winner's
 audio rather than overwriting it.
 
-**Why this and not a lock or a pending row** — [research D2](research.md). A pending row would be
-processing state in the database, which Principle V forbids in those words, and it strands a claim
-when a producer crashes. An advisory lock held across the TTS call would pin connections from a
-pool capped at `max: 4` for the several seconds Gemini takes.
+**This guard is the storage guarantee, not the whole of produce-once** — [research D2](research.md).
+On its own it yields one *artifact* while permitting two instances to both *call the provider*,
+which is not what FR-028 and SC-005 ask for. The cross-instance half is a `pg_try_advisory_lock`
+in `src/db/playbackLock.ts`, taken before producing; this `UPDATE` sits underneath it and stays,
+because a lock is advisory by definition and the column is what actually cannot hold two values.
 
-The accepted window: two Cloud Run instances can both *produce* before either writes. Exactly one
-row results either way. That is a duplicate spend of a fraction of a cent, and it is close to
-unreachable because `Yours` is scoped to one participant's session — concurrent first requests are
-one person double-tapping in one browser.
+**A pending row is still refused.** That would be processing state in the database, which
+Principle V forbids in those words, and it strands a claim when a producer crashes. An advisory
+lock has no such failure mode: it is session state rather than a row, and Postgres frees it when
+the connection drops.
 
 ---
 

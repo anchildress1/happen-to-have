@@ -80,6 +80,14 @@ Appended to `src/copy.ts` as the last block, after `review`.
       /** FR-032. Rendered in that one response's status region, never page-level. */
       loading: 'Getting the audio ready…',
       /**
+       * FR-032. Added after review: yours-view.md §5 requires a `playing` state and this
+       * file did not author a string for it, so the two contracts disagreed. Without a
+       * visible `playing`, that state rendered byte-identically to `idle` — enabled button,
+       * same label, empty status — and a participant part-way through sixty seconds of
+       * speech pressed Listen again and got a second voice over the first.
+       */
+      playing: 'Playing…',
+      /**
        * FR-033. Names what failed and nothing else. The response's text is on screen
        * beside it, so the string must not imply the text is gone — and it must not
        * describe how audio is made (Principle I).

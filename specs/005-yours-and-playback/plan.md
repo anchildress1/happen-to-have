@@ -64,7 +64,9 @@ pagination, per the spec's Assumptions.
 
 ## Constitution Check
 
-Checked against constitution **v5.0.1**. Re-checked after Phase 1 design; result unchanged.
+Checked against constitution **v5.1.0**, the version the bottom of this stack establishes. An
+earlier revision cited v5.0.1 — the version before the amendment this feature depends on, which
+would have left an auditor comparing the check against the wrong document.
 
 | Principle | Applies here? | Status | Evidence |
 | - | - | - | - |
@@ -83,7 +85,7 @@ Checked against constitution **v5.0.1**. Re-checked after Phase 1 design; result
 | No original recording is reachable | **PASS** | No column holds one, no route serves one, no component references one. By the time an answer row exists, the audio has been released — 003's route does that on every exit path. |
 | Text never waits on audio | **PASS** | The page renders from three SQL statements. `src/playback/` is imported by the API route and by nothing on the render path (FR-029, FR-030, SC-002). |
 | Playback unavailable ⇒ text still renders | **PASS** | The page never constructs a provider client, so a missing `GEMINI_API_KEY` cannot affect it. The route answers 503 and only `Listen` degrades ([D5](research.md), FR-034, SC-011). |
-| Exactly one production per response | **PASS with a stated window** | In-process coalescing plus `UPDATE … WHERE generated_audio IS NULL`. One stored artifact always; a cross-instance duplicate *spend* is possible and is recorded as accepted in [D2](research.md). |
+| Exactly one production per response | **PASS** | Two layers: in-process coalescing for two taps on one instance, and a cluster-wide Postgres advisory lock for two instances ([D2](research.md)). An earlier revision shipped the map alone and recorded cross-instance duplicate production as an accepted window; review was right that FR-028 and SC-005 say *exactly one production*, not *exactly one stored artifact*. The window is closed, not described. |
 | Zero production for unrequested responses | **PASS** | `generated_audio IS NULL` is the assertion itself — SC-003 is a query, not an inference. Publication writes no audio; only the route does. |
 | Scoped to the requesting participant | **PASS** | Both list queries filter on the session participant. The playback route re-authorizes independently: authored the answer, or owns the question it answers ([D5](research.md)). |
 | No ranking surface exists | **PASS** | Chronological `ORDER BY` with a comment saying it is chronology ([D8](research.md)); no score column, no sort control, no vote affordance in the component tree. |

@@ -137,27 +137,33 @@ and no signed URL to hand back. A URL would be a redirect to this same route wea
 
 ---
 
-## Produce-once, and the window that is accepted
+## Produce-once
 
-FR-028 and SC-005 require exactly one production for concurrent first requests. Two mechanisms,
-one per failure mode:
+FR-028 and SC-005 require exactly one *production* for concurrent first requests — not merely one
+stored artifact. Three mechanisms, one per failure mode:
 
 | Mechanism | Covers |
 | - | - |
-| In-process coalescing by answer id | many concurrent requests **on one instance** → one TTS call |
-| `UPDATE … WHERE generated_audio IS NULL` | many instances → **one stored artifact**, always |
+| In-process coalescing by answer id | many concurrent requests **on one instance** → one TTS call, no database round trip |
+| `pg_try_advisory_lock(hashtextextended($1, 0))` | **many instances** → one TTS call cluster-wide |
+| `UPDATE … WHERE generated_audio IS NULL` | the storage guarantee underneath both → one artifact, always |
 
-**The accepted window, stated plainly** ([D2](../research.md)): two Cloud Run instances can both
-produce for the same answer before either writes. Exactly one row results and the loser's bytes
-are discarded — a duplicate *spend* of a fraction of a cent, never a duplicate *artifact*. It is
-close to unreachable in practice, since `Yours` is scoped to one participant's session and a
-concurrent first `Listen` is one person double-tapping in one browser, on one instance.
+**The loser never produces.** It fails the lock, polls the row for the winner's bytes for up to
+15 s, and serves those. On timeout it answers `502`, which is retryable — and by then the winner
+has almost certainly stored its result, so the retry is a cache hit rather than a third call.
 
-**No pending row, ever.** Claim-first-produce-second is the textbook single-flight and is
-forbidden here: Principle V puts processing state out of the database, and a crashed producer
-would leave a claim nobody clears. **No advisory lock across the TTS call**, either — the pool
-caps at `max: 4`, so four concurrent first-`Listen`s would hold every connection for the seconds
-Gemini takes.
+**`try`, never blocking.** `pg_advisory_lock` would make every waiter hold a pooled connection for
+the whole TTS call, which is what the `max: 4` cap actually rules out. With try-and-poll only the
+producer holds one, for a path that runs at most once per response, ever.
+
+**No pending row, ever.** Claim-first-produce-second is the textbook single-flight and stays
+forbidden: Principle V puts processing state out of the database, and a crashed producer leaves a
+claim nobody clears. An advisory lock has no such failure mode — it is session state, not a row,
+and Postgres frees it when the connection drops.
+
+**An earlier revision documented cross-instance duplicate production as an accepted window.**
+Review was right that the requirement says one production, not one artifact; the window was closed
+rather than described. See [D2](../research.md).
 
 ---
 
