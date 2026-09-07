@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { copy } from '@/copy';
+import styles from './Flow.module.css';
 
 /** Mirrors either route's JSON. Kept structural so an unknown status renders the failure page. */
 export type ContributionOutcome =
@@ -84,26 +85,28 @@ export function ContributionOutcomeView({
   const ghostClear = isAnswer ? undefined : onRetry;
   if (outcome.status === 'withheld' && outcome.reason === 'crisis') {
     return (
-      <section>
-        <h1>{copy.review.crisis.heading}</h1>
-        <p>{copy.review.crisis.body}</p>
-        <ul>
+      <section className={styles.outcome}>
+        <h1 className={styles.heading}>{copy.review.crisis.heading}</h1>
+        <p className={styles.body}>{copy.review.crisis.body}</p>
+        <ul className={styles.resources}>
           {copy.review.crisis.resources.map((resource) => (
-            <li key={resource.name}>
-              <strong>{resource.name}</strong>
-              <span>{resource.qualifier}</span>
-              <span>{resource.value}</span>
+            <li className={styles.resource} key={resource.name}>
+              <strong className={styles.resourceName}>{resource.name}</strong>
+              <span className={styles.resourceQualifier}>{resource.qualifier}</span>
+              <span className={styles.resourceValue}>{resource.value}</span>
             </li>
           ))}
         </ul>
         {/* Alongside the resources, never behind them: the classification can be wrong
             (FR-027c), and the participant must not dismiss one to reach the other. */}
-        <Link href={retry} onClick={onRetry}>
-          {retryLabel}
-        </Link>
-        <Link href={ghostHref} onClick={ghostClear}>
-          {crisisGhost}
-        </Link>
+        <div className={styles.actions}>
+          <Link className={styles.primary} href={retry} onClick={onRetry}>
+            {retryLabel}
+          </Link>
+          <Link className={styles.ghost} href={ghostHref} onClick={ghostClear}>
+            {crisisGhost}
+          </Link>
+        </div>
       </section>
     );
   }
@@ -115,15 +118,17 @@ export function ContributionOutcomeView({
         : copy.review.withheld[outcome.reason];
 
     return (
-      <section>
-        <h1>{heading}</h1>
-        <p>{copy.review.withheld.sub}</p>
-        <Link href={retry} onClick={onRetry}>
-          {retryLabel}
-        </Link>
-        <Link href={ghostHref} onClick={ghostClear}>
-          {withheldGhost}
-        </Link>
+      <section className={styles.outcome}>
+        <h1 className={styles.heading}>{heading}</h1>
+        <p className={styles.body}>{copy.review.withheld.sub}</p>
+        <div className={styles.actions}>
+          <Link className={styles.primary} href={retry} onClick={onRetry}>
+            {retryLabel}
+          </Link>
+          <Link className={styles.ghost} href={ghostHref} onClick={ghostClear}>
+            {withheldGhost}
+          </Link>
+        </div>
       </section>
     );
   }
@@ -134,10 +139,14 @@ export function ContributionOutcomeView({
       minute: '2-digit',
     });
     return (
-      <section>
-        <h1>{copy.review.rateLimited.heading(time)}</h1>
-        <p>{copy.review.rateLimited.helper}</p>
-        <Link href="/yours">{copy.review.rateLimited.action}</Link>
+      <section className={styles.outcome}>
+        <h1 className={styles.heading}>{copy.review.rateLimited.heading(time)}</h1>
+        <p className={styles.body}>{copy.review.rateLimited.helper}</p>
+        <div className={styles.actions}>
+          <Link className={styles.primary} href="/yours">
+            {copy.review.rateLimited.action}
+          </Link>
+        </div>
       </section>
     );
   }
@@ -147,24 +156,36 @@ export function ContributionOutcomeView({
     // granted, and that is the only thing that can have happened.
     if (!isAnswer) {
       return (
-        <section>
-          <h1>{copy.review.publishedQuestion.heading}</h1>
-          <p>{copy.review.publishedQuestion.helper}</p>
+        <section className={styles.outcome}>
+          <h1 className={styles.heading}>{copy.review.publishedQuestion.heading}</h1>
+          <p className={styles.body}>{copy.review.publishedQuestion.helper}</p>
           {/* The loop is the product: you spent it, go earn another. */}
-          <Link href="/answer">{copy.action.findQuestion}</Link>
-          <Link href="/yours">{copy.review.publishedQuestion.ghost}</Link>
+          <div className={styles.actions}>
+            <Link className={styles.primary} href="/answer">
+              {copy.action.findQuestion}
+            </Link>
+            <Link className={styles.ghost} href="/yours">
+              {copy.review.publishedQuestion.ghost}
+            </Link>
+          </div>
         </section>
       );
     }
 
     return (
-      <section>
-        <h1>{copy.review.published.heading}</h1>
-        <p>
+      <section className={styles.outcome}>
+        <h1 className={styles.heading}>{copy.review.published.heading}</h1>
+        <p className={styles.body}>
           {outcome.askGranted ? copy.review.published.granted : copy.review.published.alreadyHeld}
         </p>
-        <Link href="/ask">{copy.review.published.action}</Link>
-        <Link href="/answer">{copy.review.published.ghost}</Link>
+        <div className={styles.actions}>
+          <Link className={styles.primary} href="/ask">
+            {copy.review.published.action}
+          </Link>
+          <Link className={styles.ghost} href="/answer">
+            {copy.review.published.ghost}
+          </Link>
+        </div>
       </section>
     );
   }
@@ -173,11 +194,17 @@ export function ContributionOutcomeView({
   // participant to record again — which the server will refuse, because the ask is gone.
   if (outcome.status === 'spent') {
     return (
-      <section>
-        <h1>{copy.review.spent.heading}</h1>
-        <p>{copy.review.spent.helper}</p>
-        <Link href="/answer">{copy.action.findQuestion}</Link>
-        <Link href="/yours">{copy.review.spent.ghost}</Link>
+      <section className={styles.outcome}>
+        <h1 className={styles.heading}>{copy.review.spent.heading}</h1>
+        <p className={styles.body}>{copy.review.spent.helper}</p>
+        <div className={styles.actions}>
+          <Link className={styles.primary} href="/answer">
+            {copy.action.findQuestion}
+          </Link>
+          <Link className={styles.ghost} href="/yours">
+            {copy.review.spent.ghost}
+          </Link>
+        </div>
       </section>
     );
   }
@@ -189,9 +216,9 @@ export function ContributionOutcomeView({
   // publication failed, and `failed.helper` says the recording was discarded — a claim we
   // cannot make about a response we never saw. Sends them to Yours to check instead.
   return (
-    <section>
-      <h1>{failedHeading}</h1>
-      <p>
+    <section className={styles.outcome}>
+      <h1 className={styles.heading}>{failedHeading}</h1>
+      <p className={styles.body}>
         {outcome.status === 'lost' ? copy.review.failed.lostResponse : copy.review.failed.helper}
       </p>
       {/* Back to selection, not to the same question. `ineligible` means a rule refused it —
@@ -199,17 +226,21 @@ export function ContributionOutcomeView({
           and the spec's deleted-question edge case says return to selection with no penalty.
           `lost` goes to Yours instead: the answer may well have published, and the one thing
           that resolves it is looking. */}
-      {outcome.status === 'lost' ? (
-        <Link href="/yours">{copy.review.rateLimited.action}</Link>
-      ) : outcome.status === 'ineligible' ? (
-        <Link href={ghostHref} onClick={ghostClear}>
-          {withheldGhost}
-        </Link>
-      ) : (
-        <Link href={retry} onClick={onRetry}>
-          {retryLabel}
-        </Link>
-      )}
+      <div className={styles.actions}>
+        {outcome.status === 'lost' ? (
+          <Link className={styles.primary} href="/yours">
+            {copy.review.rateLimited.action}
+          </Link>
+        ) : outcome.status === 'ineligible' ? (
+          <Link className={styles.primary} href={ghostHref} onClick={ghostClear}>
+            {withheldGhost}
+          </Link>
+        ) : (
+          <Link className={styles.primary} href={retry} onClick={onRetry}>
+            {retryLabel}
+          </Link>
+        )}
+      </div>
     </section>
   );
 }

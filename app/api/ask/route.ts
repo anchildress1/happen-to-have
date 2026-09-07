@@ -3,7 +3,7 @@ import { findQuestionBySubmission, publishQuestion } from '@/db/queries/question
 import { readAskEligibility } from '@/db/queries/answers';
 import { MAX_BYTES } from '@/review/audio';
 import { reviewContribution } from '@/review';
-import { readParticipantId } from '@/session/session';
+import { readExistingParticipantId } from '@/session/session';
 
 /**
  * 004's submit endpoint: audio in, one rendered outcome out.
@@ -30,7 +30,7 @@ export async function POST(request: Request): Promise<Response> {
   // FR-002a. No session, no submission — and never mint a participant here: one created now
   // would arrive with `can_ask = false` and be refused a line later, having written a row for
   // a flood. 001 owns identity.
-  const participantId = await readParticipantId(request);
+  const participantId = await readExistingParticipantId(request);
   if (!participantId) {
     return json({ status: 'failed', cause: 'no-session' }, 401);
   }

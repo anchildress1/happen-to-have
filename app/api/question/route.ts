@@ -1,5 +1,5 @@
 import { listEligibleQuestions, toSelectionPayload } from '@/db/queries/questions';
-import { getOrCreateParticipant, readParticipantId } from '@/session/session';
+import { getOrCreateParticipant } from '@/session/session';
 
 // A cached selection would serve one participant's question to another (FR-015, FR-016).
 export const dynamic = 'force-dynamic';
@@ -15,13 +15,18 @@ export async function POST(request: Request): Promise<Response> {
   const headers = new Headers();
 
   try {
-    let participantId = await readParticipantId(request);
-
-    if (!participantId) {
-      const created = await getOrCreateParticipant(request);
-      participantId = created.participantId;
-      for (const [key, value] of created.headers) headers.append(key, value);
-    }
+    // Unconditional, where an earlier revision called this only when the cookie was ABSENT.
+    // That left the third case unhandled: a cookie that decrypts cleanly to a participant row
+    // that no longer exists — swept, or belonging to a database branch this deployment no longer
+    // points at. The id looked valid, identity creation was skipped, and the first foreign-key
+    // write downstream failed as an unhandled rejection.
+    //
+    // `getOrCreateParticipant` already handles all three — absent, undecryptable, and naming a
+    // missing row — and says so in its own doc comment. Calling it always costs one indexed
+    // lookup on the common path and makes this route the thing that heals a stale cookie, which
+    // matters because it is the first request every screen makes.
+    const { participantId, headers: sessionHeaders } = await getOrCreateParticipant(request);
+    for (const [key, value] of sessionHeaders) headers.append(key, value);
 
     return json(toSelectionPayload(await listEligibleQuestions(participantId)), 200, headers);
   } catch {

@@ -181,7 +181,16 @@
   cursor: pointer;
 }
 
-.listen:hover {
+/*
+ * The hover background is withheld from a disabled control on purpose. A button that lights up
+ * under the cursor and then does nothing is worse than one that plainly reads as unavailable —
+ * it spends the participant's attention on an affordance that was never there.
+ *
+ * `[aria-disabled="true"]` is styled alongside `:disabled` because the two are interchangeable
+ * here: an unavailable control that already holds focus must keep it, and only `aria-disabled`
+ * can say "not actionable" without dropping the focused element out of the tab order.
+ */
+.listen:not(:disabled):not([aria-disabled="true"]):hover {
   background: var(--green-06);
 }
 
@@ -190,14 +199,43 @@
   outline-offset: 3px;
 }
 
-.listen:disabled {
+.listen:disabled,
+.listen[aria-disabled="true"] {
   cursor: default;
   color: var(--ink-65);
+}
+
+/*
+ * Mobile: the two sections stack. One column is the only thing that fits, and a response list
+ * that must hold ten entries at 402px has nowhere else to go.
+ */
+.sections {
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+  min-width: 0;
 }
 
 @media (min-width: 768px) {
   .pageHeading {
     font-size: 44px;
+  }
+
+  /*
+   * The `1fr 1fr` desktop grid at a 56px gap, from contracts/yours-view.md. Applied to this
+   * wrapper rather than to `Screen`'s `.content`, which would pull the page heading into a
+   * column alongside the sections.
+   *
+   * `minmax(0, 1fr)` rather than a bare `1fr`: a grid track sized `1fr` floors at its content's
+   * min-content width, so one unbroken 2000-character token in a published contribution would
+   * push its column past half the container and take the whole screen into horizontal scroll —
+   * which FR-003 forbids at every width.
+   */
+  .sections {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    align-items: start;
+    gap: 56px;
   }
 
   .section {
@@ -207,4 +245,40 @@
   .sectionHeading {
     font-size: 24px;
   }
+}
+
+/*
+ * The unspent-ask call to action. Restates `Button`'s primary rules because `Button` renders a
+ * native `<button>` only and this navigates — the same duplication `app/page.module.css` and
+ * `QuestionCard.module.css` already carry.
+ *
+ * `align-self: start` so it sizes to its text rather than stretching the full history column,
+ * which `--content-max: 720px` would otherwise make absurdly wide.
+ */
+.askAction {
+  align-self: start;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 56px;
+  padding: 0 24px;
+  border: 1px solid var(--green);
+  border-radius: 14px;
+  background: var(--green);
+  color: #fff;
+  font-family: var(--font-sans);
+  font-size: 17px;
+  font-weight: var(--weight-medium);
+  text-decoration: none;
+}
+
+.askAction:hover {
+  background: var(--green-hover);
+  border-color: var(--green-hover);
+}
+
+.askAction:focus-visible {
+  outline: 2px solid var(--green);
+  outline-offset: 3px;
 }

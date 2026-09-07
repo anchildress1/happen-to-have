@@ -84,6 +84,22 @@ export function ResponseList({ responses }: { responses: readonly ResponseRow[] 
     release(id);
     setState(id, { kind: 'loading' });
 
+    // Created and primed HERE — synchronously, inside the click handler — and not after the
+    // fetch. This is the whole fix for a bug that only appears on a real phone.
+    //
+    // Mobile Safari grants a *transient* activation window when the participant taps, and only
+    // media elements touched inside that window may play programmatically later. An uncached
+    // response spends several seconds in the TTS round trip below, by which point the window has
+    // expired: constructing the element then and calling `play()` gets `NotAllowedError`, so the
+    // very first Listen caches the audio successfully and plays nothing.
+    //
+    // `load()` on an element created during the gesture consumes the activation and unlocks this
+    // element for the later `play()`. Desktop Chromium never needed it, which is exactly why the
+    // Playwright suite could not have caught this — SC-010 names a current iPhone browser and the
+    // suite runs five Chromium viewports.
+    const audio = new Audio();
+    audio.load();
+
     let response: Response;
     try {
       response = await fetch(`/api/playback/answer/${id}`, { method: 'POST' });
@@ -106,7 +122,9 @@ export function ResponseList({ responses }: { responses: readonly ResponseRow[] 
 
     try {
       const url = URL.createObjectURL(await response.blob());
-      const audio = new Audio(url);
+      // The element primed during the gesture, now given its source. Reusing it is the point —
+      // a fresh `new Audio(url)` here would be an element the activation never touched.
+      audio.src = url;
       active.current.set(id, { audio, url });
 
       // `playing` is set from the element's own event rather than after `play()` resolves. The
@@ -133,6 +151,14 @@ export function ResponseList({ responses }: { responses: readonly ResponseRow[] 
 
       await audio.play();
     } catch {
+      // Belt and braces for the activation case above. If `play()` is still refused — a browser
+      // stricter than the priming trick handles, or an activation that expired anyway — this
+      // lands on `failed`, which offers `Try again`.
+      //
+      // That retry genuinely works rather than merely looking like it might: the audio was cached
+      // server-side by the request that just completed, so the second press returns from the
+      // `bytea` column in milliseconds and plays well inside a fresh activation window. The
+      // expensive half never repeats.
       release(id);
       setState(id, { kind: 'failed' });
     }

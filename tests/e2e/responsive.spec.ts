@@ -109,16 +109,19 @@ test.describe('/yours centres its own column (T085c)', () => {
    * specificity, so a duplicate resolves by stylesheet order, and dev and production disagreed on
    * that order once already.
    *
-   * The section heading is the locator rather than a body string: it comes from `copy` and is
-   * fixed verbatim by FR-001, so it cannot drift out from under this test the way the
-   * placeholder's prose did.
+   * The page's H1 is the locator rather than a body string: it comes from `copy` and cannot drift
+   * out from under this test the way the placeholder's prose did. It is also outside the sections'
+   * `1fr 1fr` desktop grid, so it measures the content column rather than one grid track.
    */
   test('/yours centres its widened column at desktop width', async ({ page }) => {
     await page.goto('/yours');
 
-    const heading = page.getByRole('heading', { name: copy.yours.answers.heading, exact: true });
+    // The page's own H1, not a section heading. The sections sit in a `1fr 1fr` grid at this
+    // width, so a section heading fills half the column and would measure the track rather than
+    // the container. The H1 is outside that grid and spans the full content column.
+    const heading = page.getByRole('heading', { level: 1, name: copy.nav.yours, exact: true });
     const box = await heading.boundingBox();
-    if (!box) throw new Error('missing bounding box for the Your Answers heading');
+    if (!box) throw new Error('missing bounding box for the Yours page heading');
 
     // A block-level heading fills its container exactly, so its measured width is the column's
     // real width rather than the declared max-width. 720px is `--content-max` in

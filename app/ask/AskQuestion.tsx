@@ -10,6 +10,7 @@ import { Screen } from '@/ui/Screen';
 import { RecorderPanel } from '@/ui/RecorderPanel';
 import { useRecorder } from '@/ui/useRecorder';
 import { Watermark } from '@/ui/Watermark';
+import flow from '@/ui/Flow.module.css';
 
 /**
  * Spend the ask: the unlocked state, the recorder, the checking state, the verdict.
@@ -93,9 +94,9 @@ export function AskQuestion() {
     // abandoning a submission already paid for.
     return (
       <Screen>
-        <div aria-live="polite" role="status">
-          <h1>{copy.review.checking.headingQuestion}</h1>
-          <p>{copy.review.checking.helper}</p>
+        <div aria-live="polite" className={flow.outcome} role="status">
+          <h1 className={flow.heading}>{copy.review.checking.headingQuestion}</h1>
+          <p className={flow.body}>{copy.review.checking.helper}</p>
         </div>
       </Screen>
     );
@@ -107,10 +108,18 @@ export function AskQuestion() {
     return (
       <Screen header={<AppHeader />}>
         <Watermark />
-        <h1>{copy.ask.unlocked.heading}</h1>
-        <p>{copy.ask.unlocked.helper}</p>
-        <Button onClick={() => setStarted(true)}>{copy.ask.unlocked.action}</Button>
-        <Link href="/answer">{copy.ask.unlocked.ghost}</Link>
+        <div className={flow.outcome}>
+          <h1 className={flow.heading}>{copy.ask.unlocked.heading}</h1>
+          <p className={flow.body}>{copy.ask.unlocked.helper}</p>
+          <div className={flow.actions}>
+            <Button onClick={() => setStarted(true)}>{copy.ask.unlocked.action}</Button>
+            {/* Styled as a ghost rather than left as a bare anchor: it shipped rendering the
+                browser's default purple underline directly beneath a green primary button. */}
+            <Link className={flow.ghost} href="/answer">
+              {copy.ask.unlocked.ghost}
+            </Link>
+          </div>
+        </div>
       </Screen>
     );
   }
@@ -118,8 +127,8 @@ export function AskQuestion() {
   return (
     <Screen header={<AppHeader />}>
       <Watermark />
-      <h1>{copy.ask.recording.heading}</h1>
-      <p>{copy.ask.recording.helper}</p>
+      <h1 className={flow.heading}>{copy.ask.recording.heading}</h1>
+      <p className={flow.body}>{copy.ask.recording.helper}</p>
 
       <RecorderPanel
         recorder={recorder}

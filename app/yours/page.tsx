@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { copy } from '@/copy';
-import { listPublishedAnswers } from '@/db/queries/answers';
+import Link from 'next/link';
+import { listPublishedAnswers, readAskEligibility } from '@/db/queries/answers';
 import { listPublishedQuestions, listResponsesForQuestions } from '@/db/queries/questions';
 import type { ResponseRow } from '@/schema/rows';
 import { readParticipantIdFromCookies } from '@/session/server';
@@ -42,12 +43,13 @@ export default async function YoursPage() {
   // It also must not mint a participant. `readParticipantIdFromCookies` is read-only by design,
   // because a page that created identity would hand an unauthenticated caller a row for the cost
   // of a GET. 001 owns identity creation, at `/answer`.
-  const [answers, questions] = participantId
+  const [answers, questions, canAsk] = participantId
     ? await Promise.all([
         listPublishedAnswers(participantId),
         listPublishedQuestions(participantId),
+        readAskEligibility(participantId),
       ])
-    : [[], []];
+    : [[], [], false];
 
   // The second of the two statements serving `Your Questions` (research D7). One query over the
   // whole id set, so the round-trip count does not grow with the number of questions.
@@ -70,70 +72,93 @@ export default async function YoursPage() {
       <Watermark />
       <h1 className={styles.pageHeading}>{copy.nav.yours}</h1>
 
-      <section className={styles.section} aria-labelledby="your-answers">
-        <h2 className={styles.sectionHeading} id="your-answers">
-          {copy.yours.answers.heading}
-        </h2>
+      {/*
+        An unspent ask is the one thing on this screen a participant can act on, and until now
+        the only route to it was remembering that `/ask` exists. Server-read, never inferred
+        from anything the client holds: Principle II makes eligibility the server's answer, and
+        `/ask` re-checks it independently — this link is an affordance, not the gate.
 
-        {answers.length === 0 ? (
-          <div className={styles.empty}>
-            <p className={styles.emptyHeading}>{copy.yours.answers.empty.heading}</p>
-            <p className={styles.emptyBody}>{copy.yours.answers.empty.body}</p>
-          </div>
-        ) : (
-          <ul className={styles.list}>
-            {answers.map((answer) => (
-              <li className={styles.entry} key={answer.id}>
-                {/* FR-005. Context for the answer below it, not the entry itself. */}
-                <p className={styles.questionContext}>{answer.question_text}</p>
-                {/* FR-007. The entry's primary content. */}
-                <p className={styles.body}>{answer.display_text}</p>
-                {/* FR-006. A label, not a status among several — nothing unpublished is a row. */}
-                <p className={styles.published}>{copy.yours.answers.published}</p>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+        Not a third section (FR-001 fixes two). It is an action above them, and it is absent
+        entirely when there is no ask to spend, so it never advertises something the server
+        would refuse.
+      */}
+      {canAsk ? (
+        <Link className={styles.askAction} href="/ask">
+          {copy.ask.unlocked.action}
+        </Link>
+      ) : null}
 
-      <section className={styles.section} aria-labelledby="your-questions">
-        <h2 className={styles.sectionHeading} id="your-questions">
-          {copy.yours.questions.heading}
-        </h2>
+      {/*
+        The two sections live in their own wrapper so the desktop grid can apply to them alone.
+        Putting `display: grid` on `Screen`'s `.content` would pull the page heading into a
+        column too, and `--content-max` is the only property this screen is allowed to set there.
+      */}
+      <div className={styles.sections}>
+        <section className={styles.section} aria-labelledby="your-answers">
+          <h2 className={styles.sectionHeading} id="your-answers">
+            {copy.yours.answers.heading}
+          </h2>
 
-        {questions.length === 0 ? (
-          <div className={styles.empty}>
-            <p className={styles.emptyHeading}>{copy.yours.questions.empty.heading}</p>
-            <p className={styles.emptyBody}>{copy.yours.questions.empty.body}</p>
-          </div>
-        ) : (
-          <ul className={styles.list}>
-            {questions.map((question) => {
-              const questionResponses = byQuestion.get(question.id) ?? [];
-              return (
-                <li className={styles.entry} key={question.id}>
-                  <p className={styles.body}>{question.display_text}</p>
-                  {questionResponses.length === 0 ? (
-                    // FR-016. Per question, not per screen. Siblings are unaffected, and the
-                    // count is deliberately absent — `0 responses` is a tally, and a tally reads
-                    // as a score on a screen whose job is to carry none.
-                    <p className={styles.noResponses}>{copy.yours.questions.noResponses}</p>
-                  ) : (
-                    <>
-                      {/* FR-012. The length of the list below it, which is the one count that
-                          cannot drift from what the participant sees. */}
-                      <p className={styles.count}>
-                        {copy.yours.questions.responseCount(questionResponses.length)}
-                      </p>
-                      <ResponseList responses={questionResponses} />
-                    </>
-                  )}
+          {answers.length === 0 ? (
+            <div className={styles.empty}>
+              <p className={styles.emptyHeading}>{copy.yours.answers.empty.heading}</p>
+              <p className={styles.emptyBody}>{copy.yours.answers.empty.body}</p>
+            </div>
+          ) : (
+            <ul className={styles.list}>
+              {answers.map((answer) => (
+                <li className={styles.entry} key={answer.id}>
+                  {/* FR-005. Context for the answer below it, not the entry itself. */}
+                  <p className={styles.questionContext}>{answer.question_text}</p>
+                  {/* FR-007. The entry's primary content. */}
+                  <p className={styles.body}>{answer.display_text}</p>
+                  {/* FR-006. A label, not a status among several — nothing unpublished is a row. */}
+                  <p className={styles.published}>{copy.yours.answers.published}</p>
                 </li>
-              );
-            })}
-          </ul>
-        )}
-      </section>
+              ))}
+            </ul>
+          )}
+        </section>
+
+        <section className={styles.section} aria-labelledby="your-questions">
+          <h2 className={styles.sectionHeading} id="your-questions">
+            {copy.yours.questions.heading}
+          </h2>
+
+          {questions.length === 0 ? (
+            <div className={styles.empty}>
+              <p className={styles.emptyHeading}>{copy.yours.questions.empty.heading}</p>
+              <p className={styles.emptyBody}>{copy.yours.questions.empty.body}</p>
+            </div>
+          ) : (
+            <ul className={styles.list}>
+              {questions.map((question) => {
+                const questionResponses = byQuestion.get(question.id) ?? [];
+                return (
+                  <li className={styles.entry} key={question.id}>
+                    <p className={styles.body}>{question.display_text}</p>
+                    {questionResponses.length === 0 ? (
+                      // FR-016. Per question, not per screen. Siblings are unaffected, and the
+                      // count is deliberately absent — `0 responses` is a tally, and a tally reads
+                      // as a score on a screen whose job is to carry none.
+                      <p className={styles.noResponses}>{copy.yours.questions.noResponses}</p>
+                    ) : (
+                      <>
+                        {/* FR-012. The length of the list below it, which is the one count that
+                          cannot drift from what the participant sees. */}
+                        <p className={styles.count}>
+                          {copy.yours.questions.responseCount(questionResponses.length)}
+                        </p>
+                        <ResponseList responses={questionResponses} />
+                      </>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </section>
+      </div>
     </Screen>
   );
 }
