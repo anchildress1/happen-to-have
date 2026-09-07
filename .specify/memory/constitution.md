@@ -1,6 +1,44 @@
 <!--
 SYNC IMPACT REPORT
 ==================
+Version change: 5.0.1 → 5.0.2
+
+AMENDMENT 5.0.2 (2026-09-07) — TODO(TTS_VOICE_ID) is resolved. The voice is `Sulafat`.
+
+Bump rationale: PATCH. No principle is added, removed, or narrowed, and no obligation changes.
+The rule "One TTS voice is used consistently for all generated playback" has stood since
+ratification; it simply named no voice. This fills the blank it declared.
+
+  Application Stack
+    - The TTS voice bullet now names `Sulafat` and requires it be pinned at exactly one export
+      in application code.
+    - TODO(TTS_VOICE_ID) is removed from both places it appeared: the bullet itself and the
+      Deferred TODOs list at the top of this file. A resolved TODO left in one of two places is
+      how 5.0.1 happened.
+
+Why now: 005-yours-and-playback is the first feature that generates playback, and it cannot
+ship without a voice. Governance requires that an amendment "MUST NOT be made silently inside a
+feature PR," so this lands as its own commit and its own pull request, stacked beneath the
+feature that needs it.
+
+Why `Sulafat`: the choice was made against a real constraint rather than taste. Principle VII
+forbids generating, imitating, or marketing an Appalachian dialect, which removes the axis the
+origin story would otherwise suggest. What remains is register, and a stranger's advice read
+back to the person who asked for it wants warmth that does not tip into cheerfulness (`Achird`,
+Friendly), consolation (`Vindemiatrix`, Gentle), or inertness (`Schedar`, Even). Full comparison
+in specs/005-yours-and-playback/research.md, decision D4.
+
+Not evidence, and not claimed as such: unlike the crisis-tier pin in Principle III, this rests
+on no measurement. There is nothing here to measure — no test set can score a voice against
+"sounds like a neighbor rather than a performance." It is a judgment, recorded as one, and a
+MINOR amendment can revisit it if the product disagrees once it is heard.
+
+Carried forward unchanged: `gemini-3.1-flash-tts-preview` remains the pinned TTS model and
+remains preview. Re-verified against https://ai.google.dev/gemini-api/docs/models on 2026-09-07
+alongside `gemini-3.8-flash` and `gemini-3.5-flash-lite`. No model id moves in this amendment.
+
+--- 5.0.1 (2026-09-06), retained below ---
+
 Version change: 5.0.0 → 5.0.1
 
 AMENDMENT 5.0.1 (2026-09-06) — the pinned model table is brought into line with Principle III.
@@ -316,9 +354,10 @@ Verified 2026-09-04:
   Node 24 (Krypton) Active LTS through 2026-10-20, maintenance to 2028-04-30.
 
 Deferred TODOs:
-  TODO(TTS_VOICE_ID): exact Gemini TTS voice unresolved. The model is pinned; the voice is not.
   TODO(DISPLAY_LANGUAGE_POLICY): MVP display/translation language unresolved; English is
     the working assumption.
+
+RESOLVED 2026-09-07: TTS_VOICE_ID is `Sulafat`. See amendment 5.0.2 below.
 -->
 
 # Happen to Have? Constitution
@@ -605,8 +644,17 @@ a performance or a marketing hook is the one failure that cannot be patched late
   workhorse to legacy baseline in one quarter.
 - Never use, shut down or deprecated: `gemini-2.0-flash`, `gemini-2.0-flash-lite`,
   `gemini-3.1-flash-lite-preview`, `gemini-3-pro-preview`, `imagen-4.0-generate`.
-- One TTS voice is used consistently for all generated playback.
-  TODO(TTS_VOICE_ID): voice not yet selected. The TTS *model* is pinned above; the *voice* is not.
+- One TTS voice is used consistently for all generated playback. **That voice is `Sulafat`**,
+  one of the provider's prebuilt voices, characterized by the provider as *Warm*. It MUST be
+  pinned at exactly one export in application code, so this document and the constant cannot
+  drift apart.
+  - Region is not the axis and MUST NOT become one. Principle VII forbids generating,
+    imitating, or marketing an Appalachian dialect, which rules out the choice a reader would
+    otherwise expect from the origin story. Warmth is what is left, and it has to carry the
+    exchange without performing it.
+  - `Kore` appears in `docs/spike-002-guardrails.md` and `Enceladus` in the crisis fixture
+    filenames under `tests/fixtures/audio/`. Both were spike instruments, not product choices,
+    and neither is the product voice.
   TODO(DISPLAY_LANGUAGE_POLICY): display/translation language policy not yet settled;
   English is the working assumption.
 
@@ -685,4 +733,4 @@ a performance or a marketing hook is the one failure that cannot be patched late
 - `AGENTS.md` and `CLAUDE.md` carry runtime development guidance and MUST NOT restate or
   contradict the principles above.
 
-**Version**: 5.0.1 | **Ratified**: 2026-09-04 | **Last Amended**: 2026-09-06
+**Version**: 5.0.2 | **Ratified**: 2026-09-04 | **Last Amended**: 2026-09-07
