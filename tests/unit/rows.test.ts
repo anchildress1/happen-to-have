@@ -1,10 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  answerRowSchema,
-  participantRowSchema,
-  questionRowSchema,
-  questionStatusSchema,
-} from '../../src/schema/rows.js';
+import { answerRowSchema, participantRowSchema, questionRowSchema } from '../../src/schema/rows.js';
 
 const uuid = '11111111-1111-4111-8111-111111111111';
 const otherUuid = '22222222-2222-4222-8222-222222222222';
@@ -40,7 +35,6 @@ describe('questionRowSchema', () => {
     participant_id: null,
     display_text: 'What is your favorite childhood memory?',
     source_language: 'en',
-    status: 'open',
     created_at: now,
   };
 
@@ -67,10 +61,6 @@ describe('questionRowSchema', () => {
     expect(questionRowSchema.safeParse({ ...base, display_text: 'a'.repeat(2000) }).success).toBe(
       true,
     );
-  });
-
-  it('rejects a status outside the enum', () => {
-    expect(questionRowSchema.safeParse({ ...base, status: 'pending' }).success).toBe(false);
   });
 
   it('rejects a non-uuid participant_id', () => {
@@ -106,16 +96,5 @@ describe('answerRowSchema', () => {
 
   it('rejects a non-uuid id', () => {
     expect(answerRowSchema.safeParse({ ...base, id: 'nope' }).success).toBe(false);
-  });
-});
-
-describe('questionStatusSchema', () => {
-  it('accepts open and closed', () => {
-    expect(questionStatusSchema.safeParse('open').success).toBe(true);
-    expect(questionStatusSchema.safeParse('closed').success).toBe(true);
-  });
-
-  it('rejects any other value', () => {
-    expect(questionStatusSchema.safeParse('archived').success).toBe(false);
   });
 });

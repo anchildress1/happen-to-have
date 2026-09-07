@@ -37,6 +37,27 @@ async function createParticipant(): Promise<string> {
   return rows[0].id;
 }
 
+/**
+ * Drags the participant's own row back in time.
+ *
+ * The contribution-less sweep filters on `p.created_at < now() - make_interval(days => $1)`,
+ * and at DAYS=0 that reduces to `created_at < now()`. Postgres `now()` is transaction start
+ * time, and PGlite is fast enough in-process that an insert and a following sweep can share a
+ * clock tick — making the comparison false and the sweep a no-op. Measured at roughly one
+ * failure in four full-suite runs before this existed.
+ *
+ * A test whose subject is "a participant old enough to sweep" has to say so rather than rely
+ * on statements landing in different microseconds.
+ */
+async function ageParticipant(participantId: string, seconds: number): Promise<void> {
+  await db.query(
+    `UPDATE participants
+     SET created_at = now() - ($2 || ' seconds')::interval
+     WHERE id = $1`,
+    [participantId, String(seconds)],
+  );
+}
+
 /** Drags the participant's window back in time, standing in for the clock moving forward. */
 async function ageWindow(participantId: string, seconds: number): Promise<void> {
   await db.query(
@@ -246,6 +267,7 @@ describe('sweeping closed windows', () => {
     const stale = await createParticipant();
     await makeRateLimitClient(db, limitOf(20)).recordSubmission(stale);
     await ageWindow(stale, 7_200);
+    await ageParticipant(stale, 7_200);
 
     const { rows: deleted } = await db.query<{ id: string }>(
       SWEEP_CONTRIBUTIONLESS_PARTICIPANTS_SQL,

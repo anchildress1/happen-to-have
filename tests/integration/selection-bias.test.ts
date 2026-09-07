@@ -41,8 +41,8 @@ async function createParticipants(count: number): Promise<string[]> {
 
 async function createSeededQuestion(): Promise<string> {
   const { rows } = await db.query<{ id: string }>(
-    `INSERT INTO questions (participant_id, display_text, status)
-     VALUES (NULL, $1, 'open')
+    `INSERT INTO questions (participant_id, display_text)
+     VALUES (NULL, $1)
      RETURNING id`,
     [`selection-bias.test.ts fixture ${randomUUID()}`],
   );
@@ -52,66 +52,77 @@ async function createSeededQuestion(): Promise<string> {
 /** Explicit id and created_at, so tie order is a property of the fixture, not of clock skew. */
 async function createQuestionAt(id: string, createdAt: string): Promise<string> {
   const { rows } = await db.query<{ id: string }>(
-    `INSERT INTO questions (id, participant_id, display_text, status, created_at)
-     VALUES ($1, NULL, $2, 'open', $3)
+    `INSERT INTO questions (id, participant_id, display_text, created_at)
+     VALUES ($1, NULL, $2, $3)
      RETURNING id`,
     [id, `selection-bias.test.ts tie fixture ${id}`, createdAt],
   );
   return rows[0].id;
 }
 
+/** Selection order is the assertion in every test here, so ids are compared as a list. */
+function idsOf(questions: readonly { id: string }[]): string[] {
+  return questions.map((question) => question.id);
+}
+
 async function publishAnswers(questionId: string, forParticipantIds: string[]): Promise<void> {
   await insertPublishedAnswers(db, questionId, forParticipantIds);
 }
 
-const SELECTIONS = 100;
-// Comfortably larger than SELECTIONS: even if every one of the 100 loop selections below
-// picks the low-count question, its count can never climb high enough to catch the
-// high-count question's starting total. That keeps which question "wins" determined
-// entirely by the count comparison for the whole loop — never by a created_at/id
-// tie-break — which is what makes the assertion below immune to flaking.
-const HIGH_COUNT_HEADSTART = SELECTIONS + 50;
-
+/**
+ * 004's closure rule caps a question at three published answers (FR-023), so the whole domain
+ * the fewer-answers bias can ever operate over is 0, 1 and 2. The earlier version of this
+ * suite gave one fixture a 150-answer headstart and ran a 100-selection loop that published to
+ * each winner — both of which closure now makes impossible, and the loop went red the moment
+ * closure landed.
+ *
+ * A statistical loop was the wrong shape anyway: `ORDER BY published_answers ASC, created_at
+ * ASC, id ASC` is deterministic, so a hundred samples of a deterministic ordering measure
+ * nothing a single assertion does not. What follows walks every gap the rule permits instead.
+ */
 describe('question selection bias toward fewer published answers (real Postgres SQL via PGlite)', () => {
-  it(`prefers the lower-answer-count question in a large majority of ${SELECTIONS} selections`, async () => {
-    // The high-count question is created FIRST on purpose. It therefore also wins the
-    // created_at/id tie-break, so only `published_answers ASC` can put the low-count one
-    // ahead — delete that clause and this test goes red instead of staying green.
+  it('prefers the lower-answer-count question at every gap closure permits', async () => {
+    // Created FIRST on purpose, so it also wins the created_at/id tie-break. Only
+    // `published_answers ASC` can put the low-count question ahead of it — delete that clause
+    // and this test goes red instead of staying green.
     const highCountQuestionId = await createSeededQuestion();
     const lowCountQuestionId = await createSeededQuestion();
 
-    const headstartParticipants = await createParticipants(HIGH_COUNT_HEADSTART);
-    await publishAnswers(highCountQuestionId, headstartParticipants);
+    const seeders = await createParticipants(4);
+    await publishAnswers(highCountQuestionId, seeders.slice(0, 2));
 
-    const loopParticipants = await createParticipants(SELECTIONS);
+    const reader = (await createParticipants(1))[0];
 
-    let lowCountWins = 0;
-    let highCountWins = 0;
+    // 2 versus 0.
+    let eligible = await listEligibleQuestions(reader, db);
+    expect(idsOf(eligible)).toEqual([lowCountQuestionId, highCountQuestionId]);
 
-    for (const participantId of loopParticipants) {
-      const eligible = await listEligibleQuestions(participantId, db);
-      const contenders = eligible.filter(
-        (question) => question.id === lowCountQuestionId || question.id === highCountQuestionId,
-      );
-      // Both fixtures are unauthored and unanswered by this fresh participant, so both
-      // must always be present — a missing one means an exclusion rule regressed (see
-      // exclusions.test.ts), not that the bias assertion below is meaningless.
-      expect(contenders).toHaveLength(2);
+    // 2 versus 1 — still the lower count, and still against the tie-break.
+    await publishAnswers(lowCountQuestionId, [seeders[2]]);
+    eligible = await listEligibleQuestions(reader, db);
+    expect(idsOf(eligible)).toEqual([lowCountQuestionId, highCountQuestionId]);
 
-      const winnerId = contenders[0].id;
-      if (winnerId === lowCountQuestionId) {
-        lowCountWins++;
-      } else {
-        highCountWins++;
-      }
-      await publishAnswers(winnerId, [participantId]);
-    }
+    // 2 versus 2 — the counts tie, so created_at decides and the older one leads. This is the
+    // assertion that proves the ordering above came from the count and not from insertion
+    // order.
+    await publishAnswers(lowCountQuestionId, [seeders[3]]);
+    eligible = await listEligibleQuestions(reader, db);
+    expect(idsOf(eligible)).toEqual([highCountQuestionId, lowCountQuestionId]);
+  });
 
-    expect(lowCountWins + highCountWins).toBe(SELECTIONS);
-    // Generous margin, not an exact count: the low-count question must win a clear,
-    // large majority of a 100-selection sample rather than matching one specific number.
-    expect(lowCountWins).toBeGreaterThan(highCountWins);
-    expect(lowCountWins).toBeGreaterThanOrEqual(SELECTIONS * 0.9);
+  it('drops a question from selection once it reaches three published answers (004 FR-023)', async () => {
+    const closingQuestionId = await createSeededQuestion();
+    const openQuestionId = await createSeededQuestion();
+    const answerers = await createParticipants(3);
+
+    await publishAnswers(closingQuestionId, answerers.slice(0, 2));
+    const reader = (await createParticipants(1))[0];
+    expect(idsOf(await listEligibleQuestions(reader, db))).toContain(closingQuestionId);
+
+    await publishAnswers(closingQuestionId, [answerers[2]]);
+    const after = idsOf(await listEligibleQuestions(reader, db));
+    expect(after).not.toContain(closingQuestionId);
+    expect(after).toContain(openQuestionId);
   });
 });
 
