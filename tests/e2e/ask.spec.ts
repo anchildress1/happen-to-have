@@ -72,23 +72,33 @@ async function participantIdOf(page: Page): Promise<string> {
  * So the test does what quickstart tells a developer to do by hand: flip the flag in the
  * database. It never touches the application, and no dev-only bypass route exists to help it.
  */
-let pool: Pool | undefined;
-
-function db(): Pool {
-  // One pool for the file, not one per call. A pool per `grantAsk` churned a Neon connection
-  // for every test in every viewport project, which is avoidable load and an avoidable source
-  // of flakiness.
-  pool ??= new Pool({ connectionString: process.env.DATABASE_URL });
-  return pool;
-}
-
-test.afterAll(async () => {
-  await pool?.end();
-  pool = undefined;
-});
-
+/**
+ * Grants the ask in the DATABASE, because there is no other way to grant one.
+ *
+ * **This is the shape of the feature showing through the test.** Stubbing `/api/answer` to
+ * return `askGranted: true` does not work and must not: `/ask` re-reads
+ * `participants.can_ask` on the server (FR-004), so a client that merely believes it earned
+ * an ask is redirected straight back to `/answer`. The first version of this suite stubbed
+ * the response and every test failed at the unlocked screen — which is Principle II working,
+ * not a broken test.
+ *
+ * So the test does what quickstart tells a developer to do by hand: flip the flag in the
+ * database. It never touches the application, and no dev-only bypass route exists to help it.
+ *
+ * **The pool is per call, and deliberately so.** Review first suggested hoisting it to module
+ * scope and closing it in `afterAll`, then caught why that is worse here: `fullyParallel` is
+ * on, so each test can land in its own worker, the pool is never actually shared, and its
+ * connection stays idle until every test in that worker finishes instead of closing straight
+ * away. Opening and closing around one statement holds fewer connections, which is the thing
+ * the hoist was meant to improve.
+ */
 async function grantAsk(participantId: string): Promise<void> {
-  await db().query('UPDATE participants SET can_ask = true WHERE id = $1', [participantId]);
+  const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+  try {
+    await pool.query('UPDATE participants SET can_ask = true WHERE id = $1', [participantId]);
+  } finally {
+    await pool.end();
+  }
 }
 
 /** Mints a session at `/answer`, grants its ask, and lands on the unlocked ask screen. */
