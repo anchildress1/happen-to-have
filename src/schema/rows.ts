@@ -87,6 +87,40 @@ export const responseRowSchema = z.object({
 export type ResponseRow = z.infer<typeof responseRowSchema>;
 
 /**
+ * What `authorizePlayback` reads: the text about to be voiced, and whether audio already exists.
+ *
+ * Validated rather than type-asserted like every other row, and this one earns it twice over —
+ * `display_text` is sent to a paid provider and the result is cached permanently, so a wrong
+ * shape here is billed and then stored.
+ */
+export const playbackTargetRowSchema = z.object({
+  display_text: z.string().min(1).max(2000),
+  cached: z.boolean(),
+});
+
+export type PlaybackTargetRow = z.infer<typeof playbackTargetRowSchema>;
+
+/**
+ * The cached playback bytes, or NULL when none has been produced.
+ *
+ * `Uint8Array`, not `Buffer`: the Neon driver returns `bytea` as a `Buffer` and PGlite returns a
+ * plain `Uint8Array`, and `Buffer` is a subclass — so the wider type accepts both, where the
+ * narrower would type-check against production and be a lie under test.
+ *
+ * The instance check is the point of the schema. A driver returning `bytea` in its hex *text*
+ * form (`\x52494646…`) yields a truthy string, and `new Uint8Array(<string>)` coerces to a
+ * zero-length array rather than throwing — so the route would answer `200 audio/wav` with
+ * `content-length: 0`, the client's `play()` would reject, and FR-033's retry would re-read the
+ * same row forever. Neither driver does that today; that is exactly the class of silent failure
+ * the constitution's validate-every-row rule exists to make loud.
+ */
+export const playbackAudioRowSchema = z.object({
+  generated_audio: z.instanceof(Uint8Array).nullable(),
+});
+
+export type PlaybackAudioRow = z.infer<typeof playbackAudioRowSchema>;
+
+/**
  * The one row 002 writes (data-model.md). Parsed at the boundary like every other, so a
  * driver returning an unexpected shape fails loudly instead of silently disabling the limit.
  *
