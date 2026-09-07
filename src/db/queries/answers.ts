@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { type AnswerHistoryRow, answerHistoryRowSchema } from '../../schema/rows';
 import { db, type SqlClient } from '../client';
 
 /**
@@ -133,6 +134,146 @@ export async function publishAnswer(
     return { published: false, reason: 'ineligible' };
   }
   return { published: true, answerId: row.answer_id, askGranted: row.ask_granted };
+}
+
+/**
+ * 005 FR-004 – FR-007. Every answer this participant published, with the question it addressed.
+ *
+ * No status predicate, because none is possible: only published answers are rows at all, and the
+ * row's existence IS publication (001's schema comment, still true). FR-008 forbids pending,
+ * withheld, failed and abandoned attempts from appearing here, and they cannot — there is nothing
+ * to filter out.
+ *
+ * `generated_audio` is not selected. FR-014 puts Listen on responses, not on one's own answers,
+ * and pulling 3-4 MB per row into a render that shows text would be spending the whole cache to
+ * display nothing.
+ *
+ * Newest first. This is the participant's own history, where recency is the useful order and no
+ * ranking question arises — nobody ranks their own contributions against each other. The
+ * chronological rule that FR-018 cares about governs *responses*, not this list.
+ */
+export async function listPublishedAnswers(
+  participantIdValue: string,
+  client: SqlClient = db,
+): Promise<AnswerHistoryRow[]> {
+  const parsed = z.uuid().safeParse(participantIdValue);
+  if (!parsed.success) {
+    // A stale or tampered cookie is a participant with no history, not an error to render.
+    return [];
+  }
+
+  const { rows } = await client.query<Record<string, unknown>>(
+    `SELECT a.id, a.display_text, a.created_at, q.display_text AS question_text
+       FROM answers a
+       JOIN questions q ON q.id = a.question_id
+      WHERE a.participant_id = $1
+      ORDER BY a.created_at DESC, a.id DESC`,
+    [parsed.data],
+  );
+  return rows.map((row) => answerHistoryRowSchema.parse(row));
+}
+
+/** What `authorizePlayback` found: the text to voice, and whether audio already exists. */
+export interface PlaybackTarget {
+  displayText: string;
+  cached: boolean;
+}
+
+/**
+ * 005 FR-002, FR-031. The answer's text, if this participant is allowed to hear it.
+ *
+ * One predicate covers both ways an answer belongs to the requester: they wrote it, or they asked
+ * the question it answers. Those are the only two, because `Yours` shows nothing else
+ * (research D5).
+ *
+ * **Null means "not found" and the caller MUST render it as 404, never 403.** A distinct
+ * forbidden status confirms the row exists, which hands anyone enumerating uuids a status-code
+ * oracle over other people's answers.
+ *
+ * **`display_text` comes from this row and never from the request body.** A client-supplied text
+ * would let anyone have arbitrary text voiced in the product's voice at the product's expense.
+ */
+export async function authorizePlayback(
+  answerIdValue: string,
+  participantIdValue: string,
+  client: SqlClient = db,
+): Promise<PlaybackTarget | null> {
+  const answer = z.uuid().safeParse(answerIdValue);
+  const participant = z.uuid().safeParse(participantIdValue);
+  if (!answer.success || !participant.success) {
+    return null;
+  }
+
+  const { rows } = await client.query<{ display_text: string; cached: boolean }>(
+    `SELECT a.display_text, (a.generated_audio IS NOT NULL) AS cached
+       FROM answers a
+       JOIN questions q ON q.id = a.question_id
+      WHERE a.id = $1
+        AND (a.participant_id = $2 OR q.participant_id = $2)`,
+    [answer.data, participant.data],
+  );
+
+  const row = rows[0];
+  return row ? { displayText: row.display_text, cached: row.cached } : null;
+}
+
+/**
+ * 005 FR-027. The cached playback for an answer, or null when none has been produced.
+ *
+ * Unauthorized on purpose — callers reach this only after `authorizePlayback` has returned a row,
+ * and duplicating the join here would mean two places to get the ownership rule wrong.
+ */
+export async function readPlayback(
+  answerIdValue: string,
+  client: SqlClient = db,
+): Promise<Uint8Array | null> {
+  const parsed = z.uuid().safeParse(answerIdValue);
+  if (!parsed.success) {
+    return null;
+  }
+
+  const { rows } = await client.query<{ generated_audio: Uint8Array | null }>(
+    'SELECT generated_audio FROM answers WHERE id = $1',
+    [parsed.data],
+  );
+  return rows[0]?.generated_audio ?? null;
+}
+
+/**
+ * 005 FR-027, FR-028, SC-004, SC-005. The produce-once storage guarantee.
+ *
+ * `generated_audio IS NULL` is the whole of it. Zero rows back means another request produced
+ * first; the caller re-reads and serves the winner's audio rather than overwriting it, so the
+ * bytes a participant hears never change between one Listen and the next.
+ *
+ * **Why a guard and not a lock** (research D2). An advisory lock held across the TTS call would
+ * pin connections from a pool capped at `max: 4` for the several seconds Gemini takes — four
+ * concurrent first Listens would stall every other query in the instance. A claim-then-produce
+ * pending row is worse: it is processing state in the database, which Principle V forbids in
+ * those words, and a crashed producer leaves a claim nobody clears.
+ *
+ * Exported as a constant so a test can assert the guard is present. PGlite serializes on one
+ * connection and cannot construct the real race, so the structural assertion is the proof —
+ * the technique `question-publish.test.ts` established for its consume-then-insert ordering.
+ */
+export const CLAIM_PLAYBACK_SQL = `
+  UPDATE answers
+     SET generated_audio = $2, audio_voice_id = $3
+   WHERE id = $1
+     AND generated_audio IS NULL
+  RETURNING id
+`;
+
+/** True when this call stored the audio; false when another request had already stored some. */
+export async function claimPlayback(
+  answerIdValue: string,
+  audio: Buffer,
+  voiceId: string,
+  client: SqlClient = db,
+): Promise<boolean> {
+  const parsed = z.uuid().parse(answerIdValue);
+  const { rows } = await client.query<{ id: string }>(CLAIM_PLAYBACK_SQL, [parsed, audio, voiceId]);
+  return rows.length > 0;
 }
 
 /**

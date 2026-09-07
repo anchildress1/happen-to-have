@@ -1,4 +1,10 @@
 import { z } from 'zod';
+import {
+  type QuestionHistoryRow,
+  questionHistoryRowSchema,
+  type ResponseRow,
+  responseRowSchema,
+} from '../../schema/rows';
 import { db, type SqlClient } from '../client';
 
 export interface EligibleQuestion {
@@ -170,6 +176,84 @@ export async function findQuestionBySubmission(
     participant.data,
   ]);
   return rows[0] ? { questionId: rows[0].id } : null;
+}
+
+/**
+ * 005 FR-010, FR-011. Every question this participant published.
+ *
+ * **`= $1`, deliberately, where `listEligibleQuestions` above needs `IS DISTINCT FROM`.** That is
+ * not an inconsistency: the selection query must *include* seeded rows, whose `participant_id` is
+ * NULL, and a plain inequality would silently drop every one of them. This query must *exclude*
+ * them, and no participant id is ever NULL, so equality is both correct and the honest expression
+ * of "questions belonging to this person".
+ *
+ * That equality is also the whole of the spec's seeded-question edge case: a seed identity has no
+ * session, so no `Yours` exists for it, and the answers given to a seeded question are visible
+ * only to the participants who gave them.
+ *
+ * Nothing filters on closure. FR-015 requires a closed question and all of its answers to stay
+ * fully visible to its asker, and since 004 closure is derived at selection time and stored
+ * nowhere — so there is no state here to accidentally respect.
+ */
+export async function listPublishedQuestions(
+  participantIdValue: string,
+  client: SqlClient = db,
+): Promise<QuestionHistoryRow[]> {
+  const parsed = z.uuid().safeParse(participantIdValue);
+  if (!parsed.success) {
+    return [];
+  }
+
+  const { rows } = await client.query<Record<string, unknown>>(
+    `SELECT q.id, q.display_text, q.created_at
+       FROM questions q
+      WHERE q.participant_id = $1
+      ORDER BY q.created_at DESC, q.id DESC`,
+    [parsed.data],
+  );
+  return rows.map((row) => questionHistoryRowSchema.parse(row));
+}
+
+/**
+ * 005 FR-013, FR-014. Every published response to the given questions.
+ *
+ * **`= ANY($1::uuid[])` over the whole id set, not one query per question.** Two statements serve
+ * the entire screen and the count does not grow with the number of questions.
+ *
+ * **`ORDER BY a.created_at ASC` is chronology and carries no quality signal.** FR-018 forbids
+ * ordering by any quality signal; FR-019 and FR-020 forbid every control that would imply one.
+ * Chronological order is the only ordering that asserts nothing about which response is better.
+ * This comment is the guardrail, because no test can catch a sort key that is defensible on its
+ * face — `ORDER BY length(display_text) DESC` would look like a layout decision and would be a
+ * ranking.
+ *
+ * **`has_playback` is a boolean, never the bytes.** The screen has no use for the audio until
+ * somebody presses Listen, and selecting 3-4 MB per response to answer a yes/no question would
+ * put the whole cache on the critical path SC-001 budgets at two seconds.
+ *
+ * Grouping onto questions happens in TypeScript (research D7). `json_agg` would save one round
+ * trip and cost a schema for a shape the database invented, where these flat rows validate
+ * against `responseRowSchema`.
+ */
+export async function listResponsesForQuestions(
+  questionIds: readonly string[],
+  client: SqlClient = db,
+): Promise<ResponseRow[]> {
+  const parsed = z.array(z.uuid()).safeParse(questionIds);
+  if (!parsed.success || parsed.data.length === 0) {
+    // No questions means no responses, and an empty `= ANY('{}')` is a pointless round trip.
+    return [];
+  }
+
+  const { rows } = await client.query<Record<string, unknown>>(
+    `SELECT a.id, a.question_id, a.display_text, a.created_at,
+            (a.generated_audio IS NOT NULL) AS has_playback
+       FROM answers a
+      WHERE a.question_id = ANY($1::uuid[])
+      ORDER BY a.created_at ASC, a.id ASC`,
+    [parsed.data],
+  );
+  return rows.map((row) => responseRowSchema.parse(row));
 }
 
 export type PublishQuestionResult =
