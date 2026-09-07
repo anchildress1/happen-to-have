@@ -68,9 +68,14 @@ export type QuestionHistoryRow = z.infer<typeof questionHistoryRowSchema>;
 /**
  * One response to one of the participant's questions (005 FR-013, FR-014).
  *
- * `has_playback` is a boolean and never the audio. The screen has no use for the bytes until
- * somebody presses Listen, and selecting 3-4 MB per response into a server render to answer a
- * yes/no question would put the entire cache on the critical path SC-001 budgets at two seconds.
+ * **No audio field of any kind, not even a boolean.** An earlier revision selected
+ * `generated_audio IS NOT NULL AS has_playback`, and nothing ever read it: `Listen` is offered on
+ * every published response regardless (FR-014, FR-031), and whether audio already exists is the
+ * route's business, answered on the request. A field carried through a query, a schema and a prop
+ * to be read by nobody is what Principle VI means by "it might be useful later".
+ *
+ * The audio bytes themselves are emphatically not here either. Selecting 3-4 MB per response into
+ * a server render would put the whole cache on the critical path SC-001 budgets at two seconds.
  *
  * There is deliberately no score, rank, vote or rating field. FR-018 forbids ordering by any
  * quality signal and FR-019/FR-020 forbid every control that would imply one — so the schema
@@ -81,7 +86,6 @@ export const responseRowSchema = z.object({
   question_id: z.uuid(),
   display_text: z.string().min(1).max(2000),
   created_at: z.coerce.date(),
-  has_playback: z.boolean(),
 });
 
 export type ResponseRow = z.infer<typeof responseRowSchema>;

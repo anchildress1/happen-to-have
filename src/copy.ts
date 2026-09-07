@@ -359,6 +359,15 @@ export const copy = {
       /** FR-032. Rendered in that one response's status region, never page-level. */
       loading: 'Getting the audio ready…',
       /**
+       * FR-032. The state `contracts/yours-view.md` §5 requires and `contracts/copy.md` did not
+       * author — the two contracts disagreed, and this resolves it in §5's favour.
+       *
+       * Without a visible `playing`, that state rendered byte-identically to `idle`: enabled
+       * button, same label, empty status. A participant part-way through sixty seconds of speech
+       * saw an idle control, pressed it again, and got a second voice over the first.
+       */
+      playing: 'Playing…',
+      /**
        * FR-033. Names what failed and nothing else. The response's text is on screen beside
        * it, so this must not imply the text is gone — and it must not describe how the audio
        * is made, which would name the machine and break Principle I.

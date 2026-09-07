@@ -26,27 +26,62 @@ type PlaybackState =
   /** 503. Playback does not exist in this deployment; a retry never can (FR-034). */
   | { kind: 'unavailable' };
 
+/** One response's live audio, held so a second press can stop the first rather than talk over it. */
+interface ActivePlayback {
+  audio: HTMLAudioElement;
+  url: string;
+}
+
 export function ResponseList({ responses }: { responses: readonly ResponseRow[] }) {
   const [states, setStates] = useState<Record<string, PlaybackState>>({});
 
-  // Object URLs are leaked memory until revoked, and a participant who plays every response in a
-  // long history would accumulate one per play. Held in a ref rather than state because revoking
-  // them is cleanup, never a render input.
-  const objectUrls = useRef<string[]>([]);
-  useEffect(
-    () => () => {
-      for (const url of objectUrls.current) {
+  // Keyed by answer id, so stopping one response's audio cannot touch another's (FR-032).
+  //
+  // A ref rather than state: this is resource ownership, never a render input. Object URLs are
+  // pinned memory until revoked, and at 3-4 MB per response a participant who plays a
+  // ten-response question twice would hold ~80 MB — which is what SC-010's "current iPhone
+  // browser" does not survive. So each is revoked the moment its audio settles, and the unmount
+  // sweep below is only the backstop for the one still playing when they navigate away.
+  const active = useRef<Map<string, ActivePlayback>>(new Map());
+
+  useEffect(() => {
+    const playing = active.current;
+    return () => {
+      for (const { audio, url } of playing.values()) {
+        audio.pause();
         URL.revokeObjectURL(url);
       }
-      objectUrls.current = [];
-    },
-    [],
-  );
+      playing.clear();
+    };
+  }, []);
 
   const setState = (id: string, state: PlaybackState) =>
     setStates((current) => ({ ...current, [id]: state }));
 
-  async function play(id: string) {
+  /** Stops and releases whatever this response was playing. Safe to call when nothing is. */
+  function release(id: string) {
+    const current = active.current.get(id);
+    if (!current) {
+      return;
+    }
+    current.audio.pause();
+    URL.revokeObjectURL(current.url);
+    active.current.delete(id);
+  }
+
+  async function play(id: string, state: PlaybackState) {
+    // A press while the request is already in flight is a double-tap, not a new intent. Without
+    // this the control would issue a second fetch — and the button stays enabled during loading
+    // deliberately, because disabling the element the keyboard is focused on drops focus to
+    // <body> and loses the participant's place in a list that can be dozens of stops long.
+    if (state.kind === 'loading' || state.kind === 'unavailable') {
+      return;
+    }
+
+    // Pressing Listen again mid-playback restarts this response rather than layering a second
+    // copy over the first. Sixty seconds of speech is long enough that the second press is
+    // ordinary, and two overlapping voices is the one outcome nobody wants.
+    release(id);
     setState(id, { kind: 'loading' });
 
     let response: Response;
@@ -70,16 +105,35 @@ export function ResponseList({ responses }: { responses: readonly ResponseRow[] 
     }
 
     try {
-      const blob = await response.blob();
-      const url = URL.createObjectURL(blob);
-      objectUrls.current.push(url);
-
+      const url = URL.createObjectURL(await response.blob());
       const audio = new Audio(url);
-      audio.addEventListener('ended', () => setState(id, { kind: 'idle' }), { once: true });
-      audio.addEventListener('error', () => setState(id, { kind: 'failed' }), { once: true });
+      active.current.set(id, { audio, url });
+
+      // `playing` is set from the element's own event rather than after `play()` resolves. The
+      // promise resolves when playback *begins*, so a very short clip can end first — and the
+      // late `setState('playing')` would then overwrite the `ended` handler's `idle` and strand
+      // the control claiming to play silence.
+      audio.addEventListener('playing', () => setState(id, { kind: 'playing' }), { once: true });
+      audio.addEventListener(
+        'ended',
+        () => {
+          release(id);
+          setState(id, { kind: 'idle' });
+        },
+        { once: true },
+      );
+      audio.addEventListener(
+        'error',
+        () => {
+          release(id);
+          setState(id, { kind: 'failed' });
+        },
+        { once: true },
+      );
+
       await audio.play();
-      setState(id, { kind: 'playing' });
     } catch {
+      release(id);
       setState(id, { kind: 'failed' });
     }
   }
@@ -96,24 +150,29 @@ export function ResponseList({ responses }: { responses: readonly ResponseRow[] 
             <p className={styles.body}>{response.display_text}</p>
 
             <div className={styles.playback}>
-              {state.kind === 'unavailable' ? (
-                <p className={styles.playbackStatus}>{copy.yours.playback.unavailable}</p>
-              ) : (
-                <button
-                  className={styles.listen}
-                  disabled={state.kind === 'loading'}
-                  onClick={() => void play(response.id)}
-                  type="button"
-                >
-                  {state.kind === 'failed' ? copy.failure.action : copy.yours.playback.listen}
-                </button>
-              )}
+              {/*
+                Always mounted, never swapped out for a message. Unmounting the control a
+                participant just activated drops keyboard focus to <body>; `unavailable` and
+                `loading` are conveyed by `disabled`/`aria-busy` and by the live region instead.
+              */}
+              <button
+                aria-busy={state.kind === 'loading'}
+                className={styles.listen}
+                disabled={state.kind === 'unavailable'}
+                onClick={() => void play(response.id, state)}
+                type="button"
+              >
+                {state.kind === 'failed' ? copy.failure.action : copy.yours.playback.listen}
+              </button>
 
-              {/* One live region per response, never one for the page — following QuestionCard.
-                  Always present so a status change is announced rather than the region appearing. */}
+              {/*
+                One live region per response, never one for the page — following QuestionCard.
+                Always mounted with a single expression inside it, so every state change is one
+                text swap the announcer will read. Rendering a state's message in a sibling
+                element instead would leave this region unchanged and announce nothing.
+              */}
               <p aria-live="polite" className={styles.playbackStatus}>
-                {state.kind === 'loading' ? copy.yours.playback.loading : ''}
-                {state.kind === 'failed' ? copy.yours.playback.failed : ''}
+                {playbackStatus(state)}
               </p>
             </div>
           </li>
@@ -121,4 +180,19 @@ export function ResponseList({ responses }: { responses: readonly ResponseRow[] 
       })}
     </ul>
   );
+}
+
+function playbackStatus(state: PlaybackState): string {
+  switch (state.kind) {
+    case 'loading':
+      return copy.yours.playback.loading;
+    case 'playing':
+      return copy.yours.playback.playing;
+    case 'failed':
+      return copy.yours.playback.failed;
+    case 'unavailable':
+      return copy.yours.playback.unavailable;
+    default:
+      return '';
+  }
 }

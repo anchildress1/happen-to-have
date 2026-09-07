@@ -206,6 +206,10 @@ describe('005 copy — Yours and playback, pinned where the spec fixes it verbat
     // breaks Principle I. Pinned whole so no explanation of the pipeline can be appended.
     expect(copy.yours.playback.listen).toBe('Listen');
     expect(copy.yours.playback.loading).toBe('Getting the audio ready…');
+    // FR-032. Without a visible `playing`, that state rendered byte-identically to `idle` and a
+    // participant part-way through sixty seconds of speech pressed Listen again and got a second
+    // voice over the first.
+    expect(copy.yours.playback.playing).toBe('Playing…');
     expect(copy.yours.playback.failed).toBe("That didn't play.");
     expect(copy.yours.playback.unavailable).toBe("Listen isn't available right now.");
   });

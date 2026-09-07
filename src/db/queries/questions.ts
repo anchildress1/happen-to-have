@@ -227,9 +227,12 @@ export async function listPublishedQuestions(
  * face — `ORDER BY length(display_text) DESC` would look like a layout decision and would be a
  * ranking.
  *
- * **`has_playback` is a boolean, never the bytes.** The screen has no use for the audio until
- * somebody presses Listen, and selecting 3-4 MB per response to answer a yes/no question would
- * put the whole cache on the critical path SC-001 budgets at two seconds.
+ * **Nothing about the audio is selected — not the bytes, and not a boolean either.** The bytes are
+ * obvious: 3-4 MB per response into a server render would put the whole cache on the critical
+ * path SC-001 budgets at two seconds. The boolean is the less obvious half. An earlier revision
+ * carried `generated_audio IS NOT NULL AS has_playback` through this query, the row schema and a
+ * prop, and no component ever read it: `Listen` is offered on every published response regardless
+ * (FR-014, FR-031), and whether audio already exists is decided by the route on the request.
  *
  * Grouping onto questions happens in TypeScript (research D7). `json_agg` would save one round
  * trip and cost a schema for a shape the database invented, where these flat rows validate
@@ -246,8 +249,7 @@ export async function listResponsesForQuestions(
   }
 
   const { rows } = await client.query<Record<string, unknown>>(
-    `SELECT a.id, a.question_id, a.display_text, a.created_at,
-            (a.generated_audio IS NOT NULL) AS has_playback
+    `SELECT a.id, a.question_id, a.display_text, a.created_at
        FROM answers a
       WHERE a.question_id = ANY($1::uuid[])
       ORDER BY a.created_at ASC, a.id ASC`,
