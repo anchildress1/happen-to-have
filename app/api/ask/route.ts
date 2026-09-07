@@ -1,3 +1,4 @@
+import { z } from 'zod';
 import { findQuestionBySubmission, publishQuestion } from '@/db/queries/questions';
 import { readAskEligibility } from '@/db/queries/answers';
 import { MAX_BYTES } from '@/review/audio';
@@ -44,7 +45,15 @@ export async function POST(request: Request): Promise<Response> {
   const audio = form.get('audio');
   const submissionId = form.get('submissionId');
   const declaredDuration = Number(form.get('durationSeconds'));
-  if (!(audio instanceof Blob) || typeof submissionId !== 'string') {
+  // Shape AND format. A non-uuid string used to pass here: the replay lookup returns null for
+  // it, so the request went on to spend rate-limit capacity and three provider calls before
+  // `publishQuestion` threw on parsing it — and that throw was caught as an infrastructure
+  // failure, blaming this system for input the caller malformed.
+  if (
+    !(audio instanceof Blob) ||
+    typeof submissionId !== 'string' ||
+    !z.uuid().safeParse(submissionId).success
+  ) {
     return json({ status: 'withheld', reason: 'content', contentReason: 'unintelligible' }, 200);
   }
 

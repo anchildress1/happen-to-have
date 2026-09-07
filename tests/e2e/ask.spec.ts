@@ -72,13 +72,23 @@ async function participantIdOf(page: Page): Promise<string> {
  * So the test does what quickstart tells a developer to do by hand: flip the flag in the
  * database. It never touches the application, and no dev-only bypass route exists to help it.
  */
+let pool: Pool | undefined;
+
+function db(): Pool {
+  // One pool for the file, not one per call. A pool per `grantAsk` churned a Neon connection
+  // for every test in every viewport project, which is avoidable load and an avoidable source
+  // of flakiness.
+  pool ??= new Pool({ connectionString: process.env.DATABASE_URL });
+  return pool;
+}
+
+test.afterAll(async () => {
+  await pool?.end();
+  pool = undefined;
+});
+
 async function grantAsk(participantId: string): Promise<void> {
-  const pool = new Pool({ connectionString: process.env.DATABASE_URL });
-  try {
-    await pool.query('UPDATE participants SET can_ask = true WHERE id = $1', [participantId]);
-  } finally {
-    await pool.end();
-  }
+  await db().query('UPDATE participants SET can_ask = true WHERE id = $1', [participantId]);
 }
 
 /** Mints a session at `/answer`, grants its ask, and lands on the unlocked ask screen. */
@@ -238,6 +248,23 @@ test.describe('User Story 3 — the ask survives a bad outcome', () => {
     // current route does not remount — 003 shipped exactly that and the Withheld page sat
     // there. Asserting the recorder actually comes back is what catches it.
     await page.getByRole('link', { name: copy.review.withheld.actionQuestion }).click();
+    await expect(page.getByRole('heading', { name: copy.ask.unlocked.heading })).toBeVisible();
+  });
+
+  test('the Back link leaves the refusal screen (Codex, #34)', async ({ page }) => {
+    await stubAsk(page, { status: 'withheld', reason: 'content', contentReason: 'silence' });
+    await openAskFlow(page);
+    await recordQuestion(page);
+    await page.getByRole('button', { name: copy.ask.recording.submit }).click();
+    await expect(
+      page.getByRole('heading', { name: copy.review.withheld.content.silence }),
+    ).toBeVisible();
+
+    // Every ghost on the question flow points at `/ask` — the route already loaded — so a
+    // Next <Link> there does not remount and the outcome state survives. The primary retry
+    // carried a handler for that; the ghost did not, and clicking it left the participant on
+    // the refusal screen. Shipped in #34, caught in review.
+    await page.getByRole('link', { name: copy.review.withheld.ghostQuestion }).click();
     await expect(page.getByRole('heading', { name: copy.ask.unlocked.heading })).toBeVisible();
   });
 
