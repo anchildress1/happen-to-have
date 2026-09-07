@@ -326,16 +326,18 @@ describe('a malformed participant id has no history rather than an error', () =>
 });
 
 /**
- * `has_playback` is derived from `generated_audio IS NOT NULL` on every read, never stored as a
- * flag of its own. FR-030 requires the response to be readable before any audio exists, so the
- * false case is the one every freshly published answer is in — and the true case is what a
- * `Listen` produces.
+ * FR-030 and SC-002: the response's text is readable before any audio exists for it, and stays
+ * exactly as readable afterwards. The render path is entirely independent of the audio column.
  *
- * A stored boolean would drift from the column it describes; this asserts the derivation by
- * flipping the underlying bytes and reading the boolean back.
+ * Asserted by flipping the underlying bytes and reading the list back both ways. An earlier
+ * revision selected `generated_audio IS NOT NULL AS has_playback` and this described that
+ * boolean; the field was removed because nothing rendered it — `Listen` is offered on every
+ * published response regardless (FR-014, FR-031). What is worth pinning is the *independence*,
+ * which is the requirement, rather than a derived flag that was only ever an implementation
+ * detail.
  */
-describe('has_playback tracks the audio column (FR-026, FR-030)', () => {
-  it('is false for a freshly published answer and true once audio exists', async () => {
+describe('the response list is independent of the audio column (FR-030, SC-002)', () => {
+  it('returns identical rows before and after audio exists, and never the bytes', async () => {
     const asker = await createParticipant();
     const answerer = await createParticipant();
     const questionId = await createQuestion(asker, 'What did you learn too late?');
@@ -347,11 +349,17 @@ describe('has_playback tracks the audio column (FR-026, FR-030)', () => {
     );
 
     const before = await listResponsesForQuestions([questionId], db);
-    expect(before.map((r) => r.has_playback)).toEqual([false]);
+    expect(before.map((r) => r.display_text)).toEqual(['That the manual was worth reading.']);
 
     await storePlayback(answerId);
 
     const after = await listResponsesForQuestions([questionId], db);
-    expect(after.map((r) => r.has_playback)).toEqual([true]);
+    expect(after).toEqual(before);
+
+    // The bytes must never travel with the list — 3-4 MB per response on a render path SC-001
+    // budgets at two seconds. `toEqual` above would not catch an extra key, so this does.
+    for (const row of after) {
+      expect(Object.keys(row).sort()).toEqual(['created_at', 'display_text', 'id', 'question_id']);
+    }
   });
 });

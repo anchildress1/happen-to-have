@@ -2,7 +2,7 @@ import { findBySubmission, publishAnswer } from '@/db/queries/answers';
 import { getQuestionText } from '@/db/queries/questions';
 import { MAX_BYTES } from '@/review/audio';
 import { reviewContribution } from '@/review';
-import { readParticipantId } from '@/session/session';
+import { readExistingParticipantId } from '@/session/session';
 
 /**
  * 003's submit endpoint: audio in, one rendered outcome out (FR-011 – FR-019).
@@ -27,7 +27,7 @@ function json(payload: unknown, status: number): Response {
 export async function POST(request: Request): Promise<Response> {
   // No session, no submission. Never mints a participant here: doing so would let an
   // unauthenticated flood create rows, and 001 owns participant creation.
-  const participantId = await readParticipantId(request);
+  const participantId = await readExistingParticipantId(request);
   if (!participantId) {
     // `no-session`, not `exhausted` — nothing was exhausted, and `cause` is the field that
     // exists to distinguish these.

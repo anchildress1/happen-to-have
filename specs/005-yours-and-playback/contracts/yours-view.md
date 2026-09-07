@@ -297,6 +297,7 @@ Where they disagree, **spec.md and plan.md win**.
 | A `/yours/questions/[id]` sub-route for responses | Responses render inline under their question on `/yours` | plan.md's Project Structure builds one route. No second route is in scope. |
 | Header: mobile `Back` / centred title; desktop right slot flips to `Find me a question` | The shared default `AppHeader` | plan.md's only header change is D-2: `AppHeader` reads `copy.nav.yours` instead of a hardcoded string. A contextual variant is not in this feature. |
 | Secondary text at `--ink-50` / `--ink-45` | `--ink-65` | Those tokens fail WCAG AA on `--bg` at body sizes. See [§7](#accessibility). |
+| A `1fr 1fr` desktop grid at `56px` gap | One column, `--content-max: 720px`, sections stacked | Nothing in this screen pairs. `Your Answers` and `Your Questions` are independent lists of unequal and unpredictable length, so a two-column grid leaves one side ragged at every viewport, and a response list that must hold ten entries at phone width has no second column to move into. FR-003 asks for no horizontal scroll, not for a grid. |
 
 Retained from design.md: the `1fr 1fr` desktop grid at a `56px` gap, the `Published` label in
 `--green`, and the `n responses` count.

@@ -136,8 +136,10 @@ export function QuestionCard() {
           </p>
         ) : null}
         <div className={styles.actions}>
-          {/* prefetch={false}: the href carries the question id, so every skip would
-              otherwise fire a fresh RSC prefetch for a placeholder route. */}
+          {/* prefetch={false}: the href carries the question id, so every skip would otherwise
+              fire a fresh RSC prefetch for a route the participant may never open. Written when
+              `/answer/record` was still a placeholder; 003 made it real and the reasoning only
+              got stronger — a prefetch per skip is twenty wasted round trips in a pass. */}
           <Link
             href={`/answer/record?questionId=${encodeURIComponent(current.id)}`}
             className={styles.primaryLink}

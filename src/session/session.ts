@@ -85,7 +85,7 @@ export async function getOrCreateParticipant(
  * Null when the cookie is absent, tampered, or malformed.
  *
  * An id that decrypts is not an id that exists, so any path that writes must still go
- * through `getOrCreateParticipant`.
+ * through `getOrCreateParticipant` or `readExistingParticipantId`.
  */
 export async function readParticipantId(request: Request): Promise<string | null> {
   const session = await getIronSession<SessionData>(
@@ -94,4 +94,35 @@ export async function readParticipantId(request: Request): Promise<string | null
   );
   const parsed = sessionDataSchema.safeParse(session);
   return parsed.success ? parsed.data.participantId : null;
+}
+
+/**
+ * The participant id the cookie claims, **confirmed to still exist**. Null otherwise.
+ *
+ * The distinction `readParticipantId` cannot make, and the one that matters for any route that
+ * goes on to write a row keyed on this id. The cookie is sealed for thirty days and the row it
+ * names can be gone long before that — swept by `scripts/sweep-participants.ts`, or simply
+ * belonging to a database branch this deployment no longer points at.
+ *
+ * When that happened, the id decrypted cleanly, the caller skipped identity creation, and the
+ * first foreign-key write blew up as an unhandled rejection:
+ *
+ *     insert or update on table "submission_rate_limits" violates foreign key constraint
+ *     "submission_rate_limits_participant_id_fkey"
+ *
+ * A 500 on a stale cookie, in other words, where the honest answer is "no session". Routes that
+ * must not mint identity for an unauthenticated caller — the submit endpoints — use this and
+ * answer 401; the participant's next selection request goes through `getOrCreateParticipant` and
+ * heals the cookie on its own.
+ */
+export async function readExistingParticipantId(
+  request: Request,
+  client: ParticipantsClient = participantsClient,
+): Promise<string | null> {
+  const claimed = await readParticipantId(request);
+  if (!claimed) {
+    return null;
+  }
+  const row = await client.findParticipantById(claimed);
+  return row ? row.id : null;
 }

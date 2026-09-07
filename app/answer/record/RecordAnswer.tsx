@@ -9,6 +9,7 @@ import { Screen } from '@/ui/Screen';
 import { RecorderPanel } from '@/ui/RecorderPanel';
 import { useRecorder } from '@/ui/useRecorder';
 import { Watermark } from '@/ui/Watermark';
+import flow from '@/ui/Flow.module.css';
 
 /**
  * Record an answer, submit it, render the verdict (US1, US2, US3).
@@ -92,9 +93,9 @@ export function RecordAnswer({
     // FR-029: blocking, no actions, announced rather than merely shown.
     return (
       <Screen>
-        <div aria-live="polite" role="status">
-          <h1>{copy.review.checking.headingAnswer}</h1>
-          <p>{copy.review.checking.helper}</p>
+        <div aria-live="polite" className={flow.outcome} role="status">
+          <h1 className={flow.heading}>{copy.review.checking.headingAnswer}</h1>
+          <p className={flow.body}>{copy.review.checking.helper}</p>
         </div>
       </Screen>
     );
@@ -107,9 +108,15 @@ export function RecordAnswer({
     return (
       <Screen header={<AppHeader />}>
         <Watermark />
-        <h1>{copy.empty.heading}</h1>
-        <p>{copy.empty.body}</p>
-        <Link href="/answer">{copy.review.withheld.ghostAnswer}</Link>
+        <div className={flow.outcome}>
+          <h1 className={flow.heading}>{copy.empty.heading}</h1>
+          <p className={flow.body}>{copy.empty.body}</p>
+          <div className={flow.actions}>
+            <Link className={flow.primary} href="/answer">
+              {copy.review.withheld.ghostAnswer}
+            </Link>
+          </div>
+        </div>
       </Screen>
     );
   }
@@ -120,7 +127,11 @@ export function RecordAnswer({
       {/* FR-002: the question stays visible for the whole recording. */}
       {/* FR-002: the question stays visible for the whole recording. No fallback heading —
           a question that does not exist is a dead end, not a recording screen. */}
-      <h1>{questionText}</h1>
+      {/* The one heading on this screen that is a PARTICIPANT'S words rather than product
+          chrome, so it takes the sans face — Sour Gummy ships latin only and 002 publishes
+          translated text. `flow.heading` would drop glyphs for exactly the questions this
+          screen exists to show. Pinned by tests/e2e/design.spec.ts. */}
+      <h1 className={flow.questionHeading}>{questionText}</h1>
 
       <RecorderPanel
         recorder={recorder}

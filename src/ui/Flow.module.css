@@ -1,0 +1,204 @@
+/*
+ * The shared look of the linear submission flow: the `/ask` screens and every terminal outcome
+ * a submission lands on — published, Withheld, crisis, rate-limited, processing failure, spent.
+ *
+ * One module for both, rather than a third hand-rolled copy of the link-styled-as-button rules
+ * that `app/page.module.css` and `QuestionCard.module.css` already each carry. Those two
+ * duplicated because they predate any second caller; these two are the second caller.
+ *
+ * These pages shipped as bare semantic markup with no stylesheet at all — the only component in
+ * the app without one. Every one of them rendered browser-default blue and purple anchors, run
+ * together on one line, on the screen a participant reaches immediately after recording. The
+ * markup was right the whole time; nothing had ever been asked to look at it.
+ *
+ * Literal values match the de-facto scale in `app/page.module.css` and `QuestionCard.module.css`
+ * rather than inventing a second one — there are no spacing or radius tokens in `tokens.css`.
+ */
+
+.outcome {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 20px;
+  min-width: 0;
+  text-align: left;
+}
+
+/*
+ * The heading carries the outcome, so it takes the display face — the same treatment the arrival
+ * screen's H1 gets. It is fixed product copy, never a participant's words, which is what makes
+ * Sour Gummy's latin-only subset safe here.
+ */
+.heading {
+  font-family: var(--font-display);
+  font-size: 34px;
+  line-height: 1.15;
+  font-weight: var(--weight-display);
+  font-stretch: var(--width-display);
+  color: var(--green-deep);
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+/* `--ink-65` (5.16:1) is the floor for secondary text: `--ink-55` and `--ink-45` both fail
+   WCAG AA on `--bg` at body sizes. */
+.body {
+  font-family: var(--font-sans);
+  font-size: 16px;
+  line-height: 1.5;
+  color: var(--ink-65);
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.actions {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 4px;
+}
+
+/*
+ * `Button` renders a native `<button>` only, so a navigable primary has to restate its rules —
+ * the same hand-rolled duplication `app/page.module.css` and `QuestionCard.module.css` already
+ * carry. The focus ring is not optional: `tests/e2e/a11y.spec.ts` walks the real tab order and
+ * asserts a visible ring at every stop.
+ */
+.primary,
+.ghost {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 14px;
+  font-family: var(--font-sans);
+  font-weight: var(--weight-medium);
+  text-decoration: none;
+  text-align: center;
+}
+
+.primary {
+  min-height: 56px;
+  padding: 0 24px;
+  font-size: 18px;
+  background: var(--green);
+  color: #fff;
+  border: 1px solid var(--green);
+}
+
+.primary:hover {
+  background: var(--green-hover);
+  border-color: var(--green-hover);
+}
+
+.ghost {
+  min-height: 52px;
+  padding: 0 24px;
+  font-size: 17px;
+  color: var(--green-deep);
+  background: transparent;
+  border: 1px solid var(--green-18);
+}
+
+.ghost:hover {
+  background: var(--green-06);
+}
+
+.primary:focus-visible,
+.ghost:focus-visible {
+  outline: 2px solid var(--green);
+  outline-offset: 3px;
+}
+
+/*
+ * Crisis resources. Human-authored, static, and never behind a dismissal — FR-034 forbids
+ * generated counseling, and the fresh-recording action sits alongside these rather than after
+ * them because the classification can be wrong.
+ */
+.resources {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.resource {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 14px 16px;
+  border: 1px solid var(--green-12);
+  border-radius: 14px;
+  background: #fff;
+}
+
+.resourceName {
+  font-family: var(--font-sans);
+  font-size: 16px;
+  font-weight: var(--weight-medium);
+  color: var(--ink);
+}
+
+.resourceQualifier {
+  font-family: var(--font-sans);
+  font-size: 14px;
+  color: var(--ink-65);
+}
+
+.resourceValue {
+  font-family: var(--font-sans);
+  font-size: 17px;
+  font-weight: var(--weight-medium);
+  color: var(--green-deep);
+}
+
+@media (min-width: 768px) {
+  .heading {
+    font-size: 44px;
+  }
+
+  /* Actions sit side by side once there is room, primary first. */
+  .actions {
+    flex-direction: row;
+    align-items: center;
+  }
+
+  .primary,
+  .ghost {
+    min-width: 200px;
+  }
+}
+
+/*
+ * A participant's own words used as a heading — the question on the answer-recording screen.
+ *
+ * Deliberately NOT `.heading`: that one is the display face, and Sour Gummy ships latin only
+ * while 002 publishes translated text. Display type here would drop glyphs for exactly the
+ * questions the screen exists to show. `tests/e2e/design.spec.ts` pins this.
+ */
+.questionHeading {
+  font-family: var(--font-sans);
+  font-size: 28px;
+  line-height: 1.25;
+  font-weight: var(--weight-medium);
+  color: var(--ink);
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+/* The quiet reassurance under the recorder — smaller than body, still above the AA floor. */
+.footnote {
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--ink-65);
+  margin: 0;
+}
+
+@media (min-width: 768px) {
+  .questionHeading {
+    font-size: 34px;
+  }
+}

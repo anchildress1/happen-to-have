@@ -150,6 +150,22 @@ describe('003 copy is pinned where the spec fixes it verbatim', () => {
     // while 002's FR-025 and FR-026 strings are pinned character-for-character here. An
     // earlier revision replaced it with "Shared. Thank you." and nothing in this file noticed.
     expect(copy.review.published.heading).toBe('Your answer counts. Ask one.');
+
+    // FR-021's two outcomes, pinned separately because they are separately wrong when swapped.
+    expect(copy.review.published.granted).toBe(
+      "That's one question you can ask, whenever you're ready.",
+    );
+    // The line that has to carry the rule, since FR-020 fixes the heading as a fresh grant in
+    // every state. It previously said only "Your question is still waiting for you." — true, and
+    // silent on the fact that this answer earned nothing, which is the part a participant who
+    // answered twice and could ask once actually needed.
+    expect(copy.review.published.alreadyHeld).toBe(
+      "You were already holding an ask, so this answer didn't add a second. It's still waiting, whenever you're ready.",
+    );
+    // The two must never be the same string: one says an ask was earned and the other says it
+    // was not, and rendering either in the other's state tells a participant the opposite of
+    // what happened.
+    expect(copy.review.published.granted).not.toBe(copy.review.published.alreadyHeld);
   });
 
   it('renders the ceiling line as something that is not a failure (FR-007)', () => {
@@ -163,6 +179,94 @@ describe('003 copy is pinned where the spec fixes it verbatim', () => {
     // side did not finish when their browser had refused.
     expect(copy.review.recording.denied.helper).not.toBe(copy.review.failed.helper);
     expect(copy.review.recording.denied.helper).toContain('browser settings');
+  });
+});
+
+describe('005 copy — Yours and playback, pinned where the spec fixes it verbatim', () => {
+  it('renders the section headings exactly, because three requirements quote them', () => {
+    // FR-001, FR-004 and FR-010 quote these character for character, capitalization included.
+    // The warmer rewrite ("Answers you gave") desynchronizes the copy from all three at once,
+    // and nothing but this pin would notice.
+    expect(copy.yours.answers.heading).toBe('Your Answers');
+    expect(copy.yours.questions.heading).toBe('Your Questions');
+  });
+
+  it('labels a listed answer with FR-006, not a status among several', () => {
+    expect(copy.yours.answers.published).toBe('Published');
+  });
+
+  it('renders the answers empty state verbatim (FR-009)', () => {
+    expect(copy.yours.answers.empty.heading).toBe('No answers yet');
+    expect(copy.yours.answers.empty.body).toBe(
+      'Answer a question and it lands here, next to the question it answered.',
+    );
+  });
+
+  it('renders the questions empty state verbatim (FR-016)', () => {
+    // One string covers both ask states on purpose. Branching would need the page to know
+    // whether an ask is held, for a difference the participant reads as identical.
+    expect(copy.yours.questions.empty.heading).toBe('No questions yet');
+    expect(copy.yours.questions.empty.body).toBe(
+      'Answer one to earn an ask. The question you spend it on lands here, with everything that comes back.',
+    );
+  });
+
+  it('promises no arrival when a published question has nothing back (FR-016)', () => {
+    // "Nothing yet — check back soon." was rejected: soon is a promise the system neither
+    // keeps nor tracks.
+    expect(copy.yours.questions.noResponses).toBe('Nothing has come back yet.');
+  });
+
+  it('renders every playback state verbatim (FR-014, FR-032 – FR-034)', () => {
+    // The one place the product genuinely calls a model, and every natural way to say so
+    // breaks Principle I. Pinned whole so no explanation of the pipeline can be appended.
+    expect(copy.yours.playback.listen).toBe('Listen');
+    expect(copy.yours.playback.loading).toBe('Getting the audio ready…');
+    // FR-032. Without a visible `playing`, that state rendered byte-identically to `idle` and a
+    // participant part-way through sixty seconds of speech pressed Listen again and got a second
+    // voice over the first.
+    expect(copy.yours.playback.playing).toBe('Playing…');
+    expect(copy.yours.playback.failed).toBe("That didn't play.");
+    expect(copy.yours.playback.unavailable).toBe("Listen isn't available right now.");
+  });
+});
+
+describe('005 copy — response count (FR-012)', () => {
+  it('renders one response in the singular', () => {
+    // `1 response(s)` is the shape of a form rather than a sentence.
+    expect(copy.yours.questions.responseCount(1)).toBe('1 response');
+  });
+
+  it('renders more than one in the plural', () => {
+    expect(copy.yours.questions.responseCount(3)).toBe('3 responses');
+  });
+
+  it('returns a plural for zero, which the screen never asks it for', () => {
+    // Zero never reaches this in the UI: the entry renders `noResponses` instead. `0 responses`
+    // is true and still wrong — a tally reads as a score on the one screen whose whole job is
+    // to carry none (FR-018, FR-020).
+    expect(copy.yours.questions.responseCount(0)).toBe('0 responses');
+    expect(copy.yours.questions.noResponses).not.toContain('0');
+  });
+
+  it('survives the sweep invoking it with a single string', () => {
+    // allStrings() calls every function-valued entry with '4:30 PM'. This must not throw, and
+    // whatever lands in the interpolation must not put a banned word beside it.
+    expect(() => copy.yours.questions.responseCount('4:30 PM' as never)).not.toThrow();
+    expect(copy.yours.questions.responseCount('4:30 PM' as never)).toBe('4:30 PM responses');
+    expect(allStrings(copy).map(({ path }) => path)).toContain(
+      'copy.yours.questions.responseCount()',
+    );
+  });
+});
+
+describe('005 copy — one Yours, not two', () => {
+  it('keeps the page H1 and the header link on the same key', () => {
+    // A page heading that duplicates a nav label is the one string guaranteed to drift, so
+    // `yours` deliberately holds no heading of its own.
+    expect(copy.nav.yours).toBe('Yours');
+    expect(Object.keys(copy.yours)).toEqual(['answers', 'questions', 'playback']);
+    expect(allStrings(copy.yours).filter(({ text }) => text === 'Yours')).toEqual([]);
   });
 });
 

@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { copy } from '../../src/copy.js';
 
 /**
  * Responsive layout (T085, T085b, T085c). contracts/design.md's Layout section is the
@@ -88,24 +89,47 @@ test.describe('desktop grid engages at exactly 768px, not 767 (T085b)', () => {
   });
 });
 
-test.describe('screens without a bespoke desktop grid centre at 560px (T085c)', () => {
+test.describe('/yours centres its own column (T085c)', () => {
   // biome-ignore lint/correctness/noEmptyPattern: Playwright requires this literal shape to recognize a fixtures parameter.
   test.beforeEach(({}, testInfo) => {
     testInfo.skip(testInfo.project.name !== 'desktop-1440');
   });
 
-  test("/yours (no bespoke grid built yet) uses Screen's default centered 560px column", async ({
-    page,
-  }) => {
+  /**
+   * Rewritten by 005. Both of this test's premises expired when the real screen shipped.
+   *
+   * It asserted `/yours` used `Screen`'s default 560px column, which was true only because the
+   * route was a placeholder with no CSS of its own — 005 sets `--content-max: 720px` for a
+   * two-section history. And it located the element by the placeholder's body copy,
+   * `'Yours is on its way'`, a string that no longer exists anywhere.
+   *
+   * The centring assertion is the part worth keeping, so it stays and is measured against the
+   * column this screen actually declares. What it guards is unchanged and is the same failure
+   * T085d exists for: `--content-max` and a re-declared `max-width` target `.content` at equal
+   * specificity, so a duplicate resolves by stylesheet order, and dev and production disagreed on
+   * that order once already.
+   *
+   * The page's H1 is the locator rather than a body string: it comes from `copy` and cannot drift
+   * out from under this test the way the placeholder's prose did. It is also outside the sections'
+   * `1fr 1fr` desktop grid, so it measures the content column rather than one grid track.
+   */
+  test('/yours centres its widened column at desktop width', async ({ page }) => {
     await page.goto('/yours');
-    const body = page.getByText('Yours is on its way', { exact: false });
-    const box = await body.boundingBox();
-    if (!box) throw new Error('missing bounding box for /yours body copy');
 
-    // design.md's default column is 560px; a block-level <p> fills its container's
-    // width exactly, so its measured width is the column's actual width, not the
-    // declared max-width.
-    expect(box.width).toBeLessThanOrEqual(561);
+    // The page's own H1, not a section heading. The sections sit in a `1fr 1fr` grid at this
+    // width, so a section heading fills half the column and would measure the track rather than
+    // the container. The H1 is outside that grid and spans the full content column.
+    const heading = page.getByRole('heading', { level: 1, name: copy.nav.yours, exact: true });
+    const box = await heading.boundingBox();
+    if (!box) throw new Error('missing bounding box for the Yours page heading');
+
+    // A block-level heading fills its container exactly, so its measured width is the column's
+    // real width rather than the declared max-width. 720px is `--content-max` in
+    // app/yours/page.module.css; the +1 absorbs subpixel rounding.
+    expect(box.width).toBeLessThanOrEqual(721);
+    // Guards the regression in the other direction: a collapse back to Screen's 560px default is
+    // exactly what a stylesheet-order bug looks like, and an upper bound alone would pass.
+    expect(box.width).toBeGreaterThan(561);
 
     const viewportWidth = page.viewportSize()?.width ?? 1440;
     const leftMargin = box.x;

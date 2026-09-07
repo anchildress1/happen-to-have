@@ -15,8 +15,14 @@ WORKDIR /app
 # corepack reads the `packageManager` field in package.json, so the pnpm version
 # stays pinned in one place instead of being repeated here.
 RUN corepack enable
-COPY package.json pnpm-lock.yaml ./
-RUN pnpm install --frozen-lockfile
+# pnpm-workspace.yaml is not optional here: pnpm 11 keeps `overrides` in it, the lockfile
+# records those overrides, and --frozen-lockfile aborts with ERR_PNPM_LOCKFILE_CONFIG_MISMATCH
+# when the install sees none.
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+# --ignore-scripts because the root `prepare` runs `lefthook install`, and this image has
+# no git for it to write hooks into. It skips nothing else: pnpm-workspace.yaml denies every
+# dependency postinstall except lefthook's, which exists only for a developer's checkout.
+RUN pnpm install --frozen-lockfile --ignore-scripts
 
 # ---- builder: compile the standalone Next.js output ----
 FROM ${NODE_IMAGE} AS builder

@@ -14,6 +14,11 @@ description: "Task list for 005-yours-and-playback"
 is reported complete, and [quickstart.md](quickstart.md) names the check that proves each
 success criterion.
 
+**Status**: 107 tasks, all complete. Phases 1–8 were planned; **Phase 9 was not** — it is
+everything the bot reviews, the browser, and running the app turned up after the stack opened.
+It is written down rather than absorbed silently, because a task list that stops at the last
+thing you planned stops being true the moment review starts.
+
 ## Format: `[ID] [P?] [Story] Description`
 
 - **[P]**: can run in parallel — different files, no dependency on an incomplete task
@@ -203,7 +208,7 @@ rather than a deferred feature. Phase 4 and Phase 5 ship together or not at all.
 
 - [x] T065 [US4] Assert `app/yours/page.tsx` imports nothing from `src/playback/` — the provider client is constructed lazily inside the route handler and nowhere else (FR-029, FR-034, SC-011)
 - [x] T066 [US4] Add a test to `tests/integration/playback-cache.test.ts` proving publication writes no audio: after `publishAnswer`, `generated_audio` is NULL and `display_text` reads back intact (SC-002)
-- [ ] T067 [US4] Verify SC-011 by hand per [quickstart.md](quickstart.md) — `GEMINI_API_KEY=` at build and start, then confirm the full history renders with only `Listen` degraded
+- [x] T067 [US4] Verify SC-011 by hand per [quickstart.md](quickstart.md) — `GEMINI_API_KEY=` at build and start, then confirm the full history renders with only `Listen` degraded
 
 ---
 
@@ -234,8 +239,51 @@ rather than a deferred feature. Phase 4 and Phase 5 ship together or not at all.
 - [x] T080 [P] Confirm every helper and secondary string uses `--ink-65` or darker. `--ink-55` and `--ink-45` fail WCAG AA on `--bg` at body sizes, and 001's `design.md` sketch of this screen uses both
 - [x] T081 [P] Confirm every interactive element carries `outline: 2px solid var(--green); outline-offset: 3px;` and meets the 44 px minimum hit target
 - [x] T082 Run `make ai-checks` — format-check, lint, typecheck, unit, integration, secret-scan
-- [ ] T083 Run `make e2e` locally. **CI does not run Playwright** — `.github/workflows/ci.yml` installs no browsers, so a finding only e2e can catch is a finding a green check will not catch
-- [ ] T084 Run `make lhci` once before merge
+- [x] T083 Run `make e2e` locally. **CI does not run Playwright** — `.github/workflows/ci.yml` installs no browsers, so a finding only e2e can catch is a finding a green check will not catch
+- [x] T084 Run `make lhci` once before merge
+
+---
+
+## Phase 9: Post-review — what the bots, the browser, and the running app found
+
+**Purpose**: everything added after the stack was first opened. None of it was foreseen when
+this file was written, and a task list that stops at the last thing you planned is a task list
+that stops being true.
+
+### From the bot reviews (23 threads, all fixed)
+
+- [x] T085 Bump the constitution to **5.1.0 (MINOR)** in `.specify/memory/constitution.md`. Requiring the voice be pinned at one export is a new obligation, and this document defines any new MUST as materially expanded guidance — a PATCH would misreport it to anyone reading the version to decide whether they still comply
+- [x] T086 Inline the voice comparison in the amendment and drop the pointer to `research.md`, which dangles at that commit and would outlive the feature folder anyway
+- [x] T087 Serialize production across instances with `pg_try_advisory_lock` in `src/db/playbackLock.ts`. The in-process map guaranteed one stored *artifact*; FR-028 and SC-005 say one *production*
+- [x] T088 Add `acquireConnection()` to `src/db/client.ts` — a session-level advisory lock belongs to the connection that took it and cannot go through the pooled helper
+- [x] T089 [P] Reject sample rates and payloads that overrun the WAV `uint32` fields in `src/playback/wav.ts`, so an oversized rate is a retryable fault rather than a `RangeError` thrown past the fault contract
+- [x] T090 [P] Require the mime rate to be entirely digits — `rate=24000Hz` parsed as `24000`, and the cache is write-once, so a wrong rate is stored forever
+- [x] T091 [P] `safeParse` in `claimPlayback`, returning `false` on a malformed id, and take `Uint8Array` rather than `Buffer`
+- [x] T092 Preserve user activation across the TTS round trip in `app/yours/ResponseList.tsx` — create and `load()` the element inside the click, or the first `Listen` on iPhone caches audio and plays nothing
+- [x] T093 Hold `Audio` per response and release the previous one before a new play; make `playing` a visible state so a second press cannot layer two voices
+- [x] T094 Revoke each object URL when its audio settles — ten responses played twice pinned ~80 MB
+- [x] T095 Keep the control mounted in every state and route all status text through one live region; `aria-busy` rather than `disabled` while loading, so focus is never dropped
+- [x] T096 Validate cached bytes are a non-empty `Uint8Array` before serving, at all three read sites
+- [x] T097 Build the `1fr 1fr` desktop grid the contract specifies, on a `.sections` wrapper with `minmax(0, 1fr)` tracks
+- [x] T098 Correct Phase 4's ship-stop claim — it renders both empty states while `Your Answers` is still empty, which tells a participant with answers that they have none
+
+### From running the app
+
+- [x] T099 Add `readExistingParticipantId` and use it in the submit routes; call `getOrCreateParticipant` unconditionally in `/api/question`. A cookie that decrypts is not a row that exists, and the FK write crashed with a 500 where 401 is the honest answer
+- [x] T100 Create `src/ui/Flow.module.css` and style `ContributionOutcomeView`, `/ask`, and `/answer/record` — all three rendered browser-default anchors, immediately after someone recorded
+- [x] T101 Make the product name a link home in the display face; `prefetch={false}` on both header links, which is right for a phone and restores `skip.spec.ts`'s zero-request invariant
+- [x] T102 Offer `Ask a question` on `/yours` when an ask is unspent, read from the server and absent otherwise
+
+### From the browser
+
+- [x] T103 Update T075 to assert the 503 control stays mounted and disabled while its siblings stay enabled — counting buttons alone would pass even if a 503 disabled every response
+- [x] T104 Update T077's interactive inventory for the two header links
+- [x] T105 Add **T079**: `Ask a question` renders with an unspent ask and is absent without one. The absent half is the one that matters — a link rendered unconditionally advertises what the server refuses
+- [x] T106 Delete every question `tests/e2e/yours.spec.ts` seeds. Published questions are eligible for everyone, so they grew the selection pool past twenty and broke `skip.spec.ts` T056 three viewports at a time
+
+### Layering
+
+- [x] T107 Move the playback row schemas down to the layer whose queries parse with them. CI caught this: PRs 39 and 40 failed `tsc` in isolation while the tip passed, so nobody reviewing those branches could have built them
 
 ---
 

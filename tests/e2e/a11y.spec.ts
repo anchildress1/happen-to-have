@@ -99,8 +99,19 @@ test.describe('accessibility (T083–T084b, SC-005)', () => {
       await page.goto(route);
       const stops = await collectTabStops(page);
 
-      // A route with nothing to tab to (the /yours placeholder today) is not a failure —
-      // it has no interactive elements to regress. Assert the ring on every stop we did find.
+      // Every route in ROUTES now has at least one interactive element — the header's `Yours`
+      // link, at minimum — so an empty list means the tab walk itself broke rather than that the
+      // route is genuinely inert. Asserted, because the loop below is vacuously green on an
+      // empty list and would keep passing forever.
+      //
+      // This assertion is what 005 replaced. The comment here used to excuse zero stops on
+      // account of the `/yours` placeholder; that route now renders a `Listen` control per
+      // response, and the excuse would have quietly turned this into a test of nothing.
+      expect(
+        stops.length,
+        `no tab stops found on ${route} — the tab walk is broken`,
+      ).toBeGreaterThan(0);
+
       for (const stop of stops) {
         expect(
           hasVisibleRing(stop),

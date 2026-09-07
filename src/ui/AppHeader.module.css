@@ -7,8 +7,33 @@
   font-weight: var(--weight-medium);
 }
 
+/*
+ * The product name, in the display face and the deep green — the same treatment the arrival
+ * screen's H1 gets, so the name reads as the name wherever it appears rather than as body text
+ * that happens to say it.
+ *
+ * Sour Gummy ships latin only, which is fine here and only here: this string is fixed product
+ * chrome, never a participant's words. Anything a participant wrote stays on `--font-sans`.
+ *
+ * The 44px hit target and focus ring match `.right` — it is a link now, and every interactive
+ * element on this screen is walked by `tests/e2e/a11y.spec.ts`.
+ */
 .left {
-  color: var(--ink);
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  font-family: var(--font-display);
+  font-weight: var(--weight-display);
+  font-stretch: var(--width-display);
+  font-size: 17px;
+  color: var(--green-deep);
+  text-decoration: none;
+}
+
+.left:focus-visible {
+  outline: 2px solid var(--green);
+  outline-offset: 3px;
+  border-radius: 4px;
 }
 
 .right {
