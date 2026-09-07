@@ -293,4 +293,79 @@ export const copy = {
       action: 'Go to Yours',
     },
   },
+
+  /**
+   * 005. Every string at `/yours`, fixed in
+   * specs/005-yours-and-playback/contracts/copy.md.
+   *
+   * The page H1 and the header link are both `nav.yours` — there is deliberately no second
+   * `Yours` key here, because a page heading duplicating a nav label is the one string
+   * guaranteed to drift.
+   *
+   * `Your Answers` and `Your Questions` are the only two sections that exist (FR-001), and
+   * both are quoted character-for-character in FR-001, FR-004 and FR-010. When a spec quotes
+   * a string, the string is the contract — warmer alternatives like "Answers you gave"
+   * desynchronize the copy from three requirements at once.
+   */
+  yours: {
+    answers: {
+      /** FR-001, FR-004. Fixed verbatim by the spec, capitalization included. */
+      heading: 'Your Answers',
+      /**
+       * FR-006. A label, not a status among several. Pending, withheld, failed and abandoned
+       * submissions have no row and no entry (FR-008, FR-021), so there is nothing for it to
+       * contrast against — it is here because FR-006 requires the participant be told the
+       * thing reached someone.
+       */
+      published: 'Published',
+      /** FR-009. Points at answering, because that is the only way an entry gets here. */
+      empty: {
+        heading: 'No answers yet',
+        body: 'Answer a question and it lands here, next to the question it answered.',
+      },
+    },
+
+    questions: {
+      /** FR-001, FR-010. Fixed verbatim by the spec, capitalization included. */
+      heading: 'Your Questions',
+      /**
+       * FR-012. A function for two reasons. `3 response(s)` is the shape of a form rather
+       * than a sentence — and the vocabulary sweep in `tests/unit/copy.test.ts` only reaches
+       * interpolated text by invoking function-valued entries, passing a single string. So
+       * this must stay safe to call with anything, and no banned word may sit next to the
+       * substitution regardless of what lands there.
+       *
+       * Zero never reaches this. It renders `noResponses` instead: `0 responses` is a true
+       * statement rendered as a tally, and a tally reads as a score on a screen whose whole
+       * job is to carry none (FR-018, FR-020).
+       */
+      responseCount: (count: number) => (count === 1 ? '1 response' : `${count} responses`),
+      /** FR-016. Points at the loop: earn an ask, spend it, the question shows up here. */
+      empty: {
+        heading: 'No questions yet',
+        body: 'Answer one to earn an ask. The question you spend it on lands here, with everything that comes back.',
+      },
+      /**
+       * FR-016, US1 scenario 7. Per question, not per screen: this participant published and
+       * nobody has answered yet. Says only that, and promises no arrival — nothing in the
+       * product guarantees an answer ever comes.
+       */
+      noResponses: 'Nothing has come back yet.',
+    },
+
+    playback: {
+      /** FR-014. Fixed verbatim by the spec. */
+      listen: 'Listen',
+      /** FR-032. Rendered in that one response's status region, never page-level. */
+      loading: 'Getting the audio ready…',
+      /**
+       * FR-033. Names what failed and nothing else. The response's text is on screen beside
+       * it, so this must not imply the text is gone — and it must not describe how the audio
+       * is made, which would name the machine and break Principle I.
+       */
+      failed: "That didn't play.",
+      /** FR-034. The 503 case: only this control degrades, and no retry is offered. */
+      unavailable: "Listen isn't available right now.",
+    },
+  },
 } as const;

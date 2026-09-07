@@ -1,0 +1,210 @@
+/*
+ * `/yours` — two sections of history at phone and desktop widths.
+ *
+ * There are no spacing, radius, or type-scale tokens in `src/ui/tokens.css`; only colour and
+ * font. The literal values below match the de-facto scale already in `app/page.module.css` and
+ * `src/ui/QuestionCard.module.css` rather than inventing a second one.
+ */
+
+.content {
+  /*
+   * The desktop column, widened via the variable and NOT by re-declaring `max-width`.
+   *
+   * `Screen.module.css` sets `max-width: var(--content-max, 560px)` on `.content`. A `max-width`
+   * here would target the same element at equal specificity, leaving the winner to depend on the
+   * order the two CSS modules happen to be emitted in — dev and production disagreed on that once
+   * already and the screen silently collapsed back to 560px.
+   */
+  --content-max: 720px;
+  align-items: stretch;
+  gap: 32px;
+  text-align: left;
+}
+
+.pageHeading {
+  font-family: var(--font-display);
+  font-size: 34px;
+  font-weight: var(--weight-display);
+  font-stretch: var(--width-display);
+  color: var(--green-deep);
+  margin: 0;
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  /* Grid and flex children default to `min-width: auto`, which refuses to shrink below their
+     content — a single long unbroken token then pushes the whole column wider than the viewport
+     and breaks FR-003's no-horizontal-scroll rule. */
+  min-width: 0;
+}
+
+.sectionHeading {
+  font-family: var(--font-sans);
+  font-size: 20px;
+  font-weight: var(--weight-medium);
+  color: var(--ink);
+  margin: 0;
+}
+
+.list,
+.responses {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+
+.entry {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 18px;
+  border: 1px solid var(--green-12);
+  border-radius: 14px;
+  background: #fff;
+  min-width: 0;
+}
+
+/*
+ * Every string a participant wrote resolves through `--font-sans`, never `--font-display`.
+ * Sour Gummy ships latin only and 002 publishes translated text, so display type would drop
+ * glyphs for exactly the contributions this screen exists to show. Pinned by design.spec.ts.
+ *
+ * `overflow-wrap: anywhere` because `display_text` caps at 2000 characters and may contain a URL
+ * or an unbroken token longer than the column.
+ */
+.body,
+.questionContext,
+.count,
+.noResponses,
+.emptyBody,
+.emptyHeading,
+.playbackStatus {
+  font-family: var(--font-sans);
+  overflow-wrap: anywhere;
+  margin: 0;
+}
+
+.body {
+  font-size: 16px;
+  color: var(--ink);
+  line-height: 1.5;
+}
+
+/* FR-005. Context for the answer below it, so it is quieter — but never quieter than AA allows.
+   `--ink-55` (3.77:1) and `--ink-45` (2.80:1) both FAIL WCAG AA on `--bg` at body sizes, and
+   001's design.md assigns `--ink-50` to this exact line. `--ink-65` is 5.16:1 and is the floor. */
+.questionContext,
+.count,
+.noResponses,
+.emptyBody,
+.playbackStatus {
+  font-size: 15px;
+  color: var(--ink-65);
+  line-height: 1.45;
+}
+
+/* FR-006. A label, not a badge — no pill, no background, nothing that reads as a state among
+   several, because there is no other state a history entry can be in. */
+.published {
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: var(--weight-medium);
+  color: var(--green);
+  margin: 0;
+}
+
+.empty {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 18px;
+  border: 1px dashed var(--green-18);
+  border-radius: 14px;
+}
+
+.emptyHeading {
+  font-size: 16px;
+  font-weight: var(--weight-medium);
+  color: var(--ink);
+}
+
+.response {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px 0 0;
+  border-top: 1px solid var(--green-10);
+  min-width: 0;
+}
+
+.responses .response:first-child {
+  border-top: none;
+  padding-top: 0;
+}
+
+.playback {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+/*
+ * `Listen`. Built as a bare element rather than on `src/ui/Button.tsx`, which renders only the
+ * two full-width screen actions — so the focus ring that component supplies has to be written
+ * here instead. It is mandatory: a11y.spec.ts walks the real tab order on this route and asserts
+ * a visible ring at every stop, and every response contributes one.
+ *
+ * 44px is the absolute minimum hit target, and it is measured rather than declared — a
+ * shrink-wrapped inline element inside a taller container fails the check.
+ */
+.listen {
+  all: unset;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0 18px;
+  border: 1px solid var(--green-18);
+  border-radius: 14px;
+  font-family: var(--font-sans);
+  font-size: 15px;
+  font-weight: var(--weight-medium);
+  color: var(--green-deep);
+  cursor: pointer;
+}
+
+.listen:hover {
+  background: var(--green-06);
+}
+
+.listen:focus-visible {
+  outline: 2px solid var(--green);
+  outline-offset: 3px;
+}
+
+.listen:disabled {
+  cursor: default;
+  color: var(--ink-65);
+}
+
+@media (min-width: 768px) {
+  .pageHeading {
+    font-size: 44px;
+  }
+
+  .section {
+    gap: 20px;
+  }
+
+  .sectionHeading {
+    font-size: 24px;
+  }
+}
