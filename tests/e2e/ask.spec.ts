@@ -143,6 +143,35 @@ test.describe('User Story 2 — the server refuses what the interface never offe
     // 401 throws on parse. 003 shipped that bug.
     expect(await response.json()).toEqual({ status: 'failed', cause: 'no-session' });
   });
+
+  test('refuses a declared duration over the ceiling before any review runs (FR-006a, SC-007)', async ({
+    page,
+  }) => {
+    await openAskFlow(page);
+
+    // Submitted from the page so the session cookie travels, but built by hand so the
+    // recorder's ceiling — a product behaviour, not a security boundary — is skipped
+    // entirely, which is the only way to ask whether the server enforces it.
+    const result = await page.evaluate(async () => {
+      const body = new FormData();
+      body.set('audio', new Blob([new Uint8Array(2048)], { type: 'audio/webm' }));
+      body.set('submissionId', crypto.randomUUID());
+      body.set('durationSeconds', '61');
+      const response = await fetch('/api/ask', { method: 'POST', body });
+      return { status: response.status, text: await response.text() };
+    });
+
+    expect(result.status).toBe(200);
+    expect(JSON.parse(result.text)).toEqual({
+      status: 'withheld',
+      reason: 'content',
+      contentReason: 'unpublishable',
+    });
+
+    // And the ask survived, so `/ask` still opens rather than redirecting.
+    await page.goto('/ask');
+    await expect(page.getByRole('heading', { name: copy.ask.unlocked.heading })).toBeVisible();
+  });
 });
 
 test.describe('User Story 1 — spend the ask', () => {
