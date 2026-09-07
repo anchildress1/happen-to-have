@@ -20,9 +20,26 @@ allowBuilds:
 #   tmp   GHSA-52f5-9888-hmc6, GHSA-ph9p-34f9-6g65 — symlink escape via dir/prefix
 #   uuid  GHSA-w5hq-g745-h8pq  — missing buffer bounds check in v3/v5/v6
 #
-# extract-zip (GHSA-jmr9-qjv8-65gv, symlink path traversal) has NO patched version at any
-# release, so no override can close it. It arrives via puppeteer-core under lighthouse and
-# is only exercised when lhci downloads a browser. Tracked, not fixable here.
+# @puppeteer/browsers is pinned forward to close extract-zip (GHSA-jmr9-qjv8-65gv, symlink
+# path traversal). An earlier note here called that alert unfixable, which was half right:
+# extract-zip has no patched release at any version, so overriding *it* closes nothing. The
+# fix is one level up — 3.x replaced extract-zip with modern-tar and dropped the dependency
+# outright, so forcing the parent removes the package from the tree instead of patching it.
+#
+# puppeteer-core@24.43.1 declares "@puppeteer/browsers": "2.13.2" — an EXACT pin, not a range.
+# Overriding it is therefore a stronger deviation than a caret bump would be, not a weaker one.
+# Verified rather than assumed: `make lhci` runs the browser download path this override
+# rewrites, and it is the check to repeat if lighthouse or lhci is ever bumped.
+#
+# proxy-agent is deliberately NOT overridden, and the reason is worth keeping. @puppeteer/
+# browsers@3 wants `proxy-agent >=8.0.1`, so `pnpm peers check` reports one unmet peer here.
+# That peer is declared OPTIONAL by its own publisher (peerDependenciesMeta), and the package
+# that actually uses proxy-agent at runtime is @lhci/cli, which declares `^6.4.0` as a direct
+# dependency. Forcing 8.x to silence the warning would push lhci's own dependency two majors
+# past what it asks for — and proxy-agent only engages when proxy env vars are set, so `make
+# lhci` would not exercise the thing being changed. An accepted optional-peer warning is the
+# smaller risk than an unverified major bump on a package lhci calls itself.
 overrides:
   tmp: '^0.2.6'
   uuid: '^11.1.1'
+  '@puppeteer/browsers': '^3.2.2'
