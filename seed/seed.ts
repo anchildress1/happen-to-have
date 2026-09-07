@@ -46,7 +46,7 @@ const MAX_DISPLAY_TEXT_LENGTH = 2000;
 // branch, not the UPDATE branch" — it distinguishes a fresh insert from a no-op re-seed.
 const UPSERT_QUESTION_SQL = `
   INSERT INTO questions (id, participant_id, display_text, source_language)
-  VALUES ($1, NULL, $2, $3, 'open')
+  VALUES ($1, NULL, $2, $3)
   ON CONFLICT (id) DO UPDATE SET
     display_text = EXCLUDED.display_text,
     source_language = EXCLUDED.source_language,

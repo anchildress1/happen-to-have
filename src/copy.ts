@@ -41,6 +41,38 @@ export const copy = {
   },
 
   /**
+   * 004. Every string at `/ask`, from specs/004-ask-one/contracts/copy.md.
+   *
+   * The unlocked and recording screens come from the design contract, which files them under a
+   * `003 —` heading its own route map contradicts; the route map is right and `/ask` is 004's.
+   */
+  ask: {
+    unlocked: {
+      /** Two lines on mobile, one on desktop. Rendered as one string either way. */
+      heading: 'Your answer counts. Ask one.',
+      helper: "Your answer is published. You have one question to ask, whenever you're ready.",
+      action: 'Ask a question',
+      /**
+       * Principle II in the participant's language, and its destination is what makes it
+       * true: the ask is held, not spent, until a question is created. This must lead
+       * somewhere that does not consume it.
+       */
+      ghost: "Not now — it'll keep",
+    },
+    recording: {
+      heading: 'What do you happen to need?',
+      helper:
+        "Say it plainly, the way you'd ask a neighbor. Up to 60 seconds. People will answer in their own voices.",
+      /** The participant-facing form of FR-016, and it is true — nothing is consumed until
+       *  the insert. It is what makes abandoning the flow feel safe. */
+      footnote: 'Your ask is used only once the question is published.',
+      /** The only new recording string. Start, Stop, `Record again`, the timer, the ceiling
+       *  line and all three microphone-failure states are 003's, reused verbatim. */
+      submit: 'Share this question',
+    },
+  },
+
+  /**
    * Authored, not designed. The imported design covers no empty, loading, or failure state
    * (contracts/design.md, "Gaps"). Flagged there for a design pass; the empty state is what
    * a judge hits by clicking once more than expected.
@@ -180,6 +212,43 @@ export const copy = {
       alreadyHeld: 'Your question is still waiting for you.',
       action: 'Ask your question',
       ghost: 'Answer another',
+    },
+
+    /**
+     * 004 FR-015a. The terminal state of the ask flow, and the only screen in the feature the
+     * design contract does not cover — it carries `/ask` unlocked, `/ask` recording, Withheld,
+     * crisis, processing failure and the rate limit, and no published-question state at all.
+     *
+     * The heading states what happened rather than how it felt. `Shared. Thank you.` is the
+     * substitution 003 caught itself making: friendlier, and silent about the rule the screen
+     * exists to close.
+     *
+     * The helper names the spend before the next step. A participant who does not learn the
+     * ask is gone here learns it at `/ask` two minutes later, from a redirect with no
+     * explanation.
+     */
+    publishedQuestion: {
+      heading: 'Your question is out there.',
+      helper: "That's your ask spent. Answer another question to earn the next one.",
+      /** The loop is the product: you spent it, go earn another. `/yours` is the ghost. */
+      ghost: 'Yours',
+    },
+
+    /**
+     * 004, research D6. The two-tab case: one tab published, the other recorded afterwards
+     * and submitted.
+     *
+     * MUST NOT reuse the processing-failure copy. That helper says "Something on our side
+     * didn't finish. Your recording was discarded. You can record again." — wrong fault, and
+     * then an instruction the server will refuse.
+     *
+     * It does not apologise and offers no retry. Nothing went wrong; the ask bought a
+     * question and this recording arrived after it.
+     */
+    spent: {
+      heading: 'Your ask is already spent.',
+      helper: 'A question from you is already out there. Answer another one to earn your next ask.',
+      ghost: 'Yours',
     },
 
     /**

@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { copy } from '@/copy';
 import { AppHeader } from '@/ui/AppHeader';
 import { Button } from '@/ui/Button';
-import { type AnswerOutcome, AnswerOutcomeView } from '@/ui/AnswerOutcome';
+import { type ContributionOutcome, ContributionOutcomeView } from '@/ui/ContributionOutcome';
 import { Screen } from '@/ui/Screen';
 import { canRecord, MAX_SECONDS, useRecorder } from '@/ui/useRecorder';
 import { Watermark } from '@/ui/Watermark';
@@ -27,7 +27,7 @@ export function RecordAnswer({
 }) {
   const recorder = useRecorder();
   const [checking, setChecking] = useState(false);
-  const [outcome, setOutcome] = useState<AnswerOutcome | null>(null);
+  const [outcome, setOutcome] = useState<ContributionOutcome | null>(null);
 
   /**
    * Capability is UNKNOWN until the browser tells us (FR-029).
@@ -66,7 +66,7 @@ export function RecordAnswer({
 
     try {
       const response = await fetch('/api/answer', { method: 'POST', body });
-      setOutcome((await response.json()) as AnswerOutcome);
+      setOutcome((await response.json()) as ContributionOutcome);
     } catch {
       // A dropped connection is not proof that publication failed (FR-014), so this must not
       // say the recording was rejected — only that we could not confirm. `failed` renders
@@ -86,8 +86,9 @@ export function RecordAnswer({
     return (
       <Screen header={<AppHeader />}>
         <Watermark />
-        <AnswerOutcomeView
+        <ContributionOutcomeView
           outcome={outcome}
+          kind="answer"
           questionId={questionId}
           onRetry={() => {
             setOutcome(null);

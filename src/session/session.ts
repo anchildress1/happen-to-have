@@ -24,7 +24,7 @@ export interface SessionData {
   participantId: string;
 }
 
-const sessionDataSchema = z.object({
+export const sessionDataSchema = z.object({
   participantId: z.uuid(),
 });
 
