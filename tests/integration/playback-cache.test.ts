@@ -183,6 +183,53 @@ describe('T024 the produce-once guarantee is a predicate in the statement (FR-02
 });
 
 /**
+ * `claimPlayback` degrades instead of throwing (FR-027, FR-028).
+ *
+ * Every other read helper here — `listPublishedAnswers`, `authorizePlayback`, `readPlayback` —
+ * returns an empty result for an id it cannot parse. This one used to `parse` and throw, so a
+ * stale link or a tampered path turned a `Promise<boolean>` into a 500. Both refusals now collapse
+ * to `false`, which is exactly the caller's decision: this call did not store audio.
+ *
+ * The `Uint8Array` case is not academic. The Neon driver returns `bytea` as a `Buffer` and PGlite
+ * returns a plain `Uint8Array`; a `Buffer` parameter type would be satisfied by the production
+ * driver and by nothing under test.
+ */
+describe('claimPlayback refuses bad input without throwing (FR-027, FR-028)', () => {
+  it('returns false for a malformed id', async () => {
+    await expect(claimPlayback('not-a-uuid', FIRST_AUDIO, 'Sulafat', db)).resolves.toBe(false);
+    await expect(claimPlayback('', FIRST_AUDIO, 'Sulafat', db)).resolves.toBe(false);
+    expect(await answersHoldingAudio()).toBe(0);
+  });
+
+  it('returns false for a well-formed id no answer holds, and stores nothing', async () => {
+    const asker = await createParticipant();
+    const answerer = await createParticipant();
+    const questionId = await createQuestion(asker, 'What repair are you proudest of?');
+    const answerId = await publishAnswer(questionId, answerer);
+
+    expect(await claimPlayback(randomUUID(), FIRST_AUDIO, 'Sulafat', db)).toBe(false);
+
+    // The existing answer is untouched: a miss must not spray audio onto some other row.
+    expect(await answersHoldingAudio()).toBe(0);
+    expect(await readPlayback(answerId, db)).toBeNull();
+  });
+
+  it('accepts a plain Uint8Array and stores the bytes intact', async () => {
+    const asker = await createParticipant();
+    const answerer = await createParticipant();
+    const questionId = await createQuestion(asker, 'What repair are you proudest of?');
+    const answerId = await publishAnswer(questionId, answerer);
+
+    const plain = Uint8Array.from([0x4f, 0x67, 0x67, 0x53]);
+    // Guards the point of the test: a Buffer would pass a Buffer-typed parameter too.
+    expect(Buffer.isBuffer(plain)).toBe(false);
+
+    expect(await claimPlayback(answerId, plain, 'Sulafat', db)).toBe(true);
+    expect(bytes(await readPlayback(answerId, db))).toEqual([...plain]);
+  });
+});
+
+/**
  * T025 — FR-002 and FR-031, the authorization for hearing a response.
  *
  * **A refusal is `null`, and the caller MUST render it as 404 rather than 403.** A distinct

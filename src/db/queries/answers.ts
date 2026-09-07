@@ -1,5 +1,10 @@
 import { z } from 'zod';
-import { type AnswerHistoryRow, answerHistoryRowSchema } from '../../schema/rows';
+import {
+  type AnswerHistoryRow,
+  answerHistoryRowSchema,
+  playbackAudioRowSchema,
+  playbackTargetRowSchema,
+} from '../../schema/rows';
 import { db, type SqlClient } from '../client';
 
 /**
@@ -204,7 +209,7 @@ export async function authorizePlayback(
     return null;
   }
 
-  const { rows } = await client.query<{ display_text: string; cached: boolean }>(
+  const { rows } = await client.query<Record<string, unknown>>(
     `SELECT a.display_text, (a.generated_audio IS NOT NULL) AS cached
        FROM answers a
        JOIN questions q ON q.id = a.question_id
@@ -213,8 +218,15 @@ export async function authorizePlayback(
     [answer.data, participant.data],
   );
 
-  const row = rows[0];
-  return row ? { displayText: row.display_text, cached: row.cached } : null;
+  if (!rows[0]) {
+    return null;
+  }
+
+  // Parsed, not asserted. A TypeScript type parameter describes the shape the schema promised,
+  // never the shape that arrived, and this text is about to be sent to a paid provider and cached
+  // permanently — a wrong shape here is billed and then stored.
+  const row = playbackTargetRowSchema.parse(rows[0]);
+  return { displayText: row.display_text, cached: row.cached };
 }
 
 /**
@@ -232,11 +244,14 @@ export async function readPlayback(
     return null;
   }
 
-  const { rows } = await client.query<{ generated_audio: Uint8Array | null }>(
+  const { rows } = await client.query<Record<string, unknown>>(
     'SELECT generated_audio FROM answers WHERE id = $1',
     [parsed.data],
   );
-  return rows[0]?.generated_audio ?? null;
+  if (!rows[0]) {
+    return null;
+  }
+  return playbackAudioRowSchema.parse(rows[0]).generated_audio;
 }
 
 /**
@@ -264,15 +279,34 @@ export const CLAIM_PLAYBACK_SQL = `
   RETURNING id
 `;
 
-/** True when this call stored the audio; false when another request had already stored some. */
+/**
+ * True when this call stored the audio.
+ *
+ * False covers both refusals: another request had already stored some, or the id was malformed.
+ * They collapse deliberately — the caller's only decision is whether to re-read and serve the
+ * winner's bytes, and it is the same decision either way. Throwing on a bad id would break the
+ * `Promise<boolean>` contract and turn a stale link into a 500.
+ *
+ * `Uint8Array` and not `Buffer`: the Neon driver hands `bytea` back as a `Buffer` and PGlite as a
+ * plain `Uint8Array`. `Buffer` is a subclass, so the wider type accepts both and the narrower one
+ * is a lie under test.
+ */
 export async function claimPlayback(
   answerIdValue: string,
-  audio: Buffer,
+  audio: Uint8Array,
   voiceId: string,
   client: SqlClient = db,
 ): Promise<boolean> {
-  const parsed = z.uuid().parse(answerIdValue);
-  const { rows } = await client.query<{ id: string }>(CLAIM_PLAYBACK_SQL, [parsed, audio, voiceId]);
+  const parsed = z.uuid().safeParse(answerIdValue);
+  if (!parsed.success) {
+    return false;
+  }
+
+  const { rows } = await client.query<{ id: string }>(CLAIM_PLAYBACK_SQL, [
+    parsed.data,
+    audio,
+    voiceId,
+  ]);
   return rows.length > 0;
 }
 
