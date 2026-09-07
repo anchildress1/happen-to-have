@@ -139,7 +139,7 @@ export function AskQuestion() {
 
       {/* FR-016 in the participant's language, and it is true: nothing is consumed until the
           insert. This is what makes abandoning the flow feel safe. */}
-      <p>{copy.ask.recording.footnote}</p>
+      <p className={flow.footnote}>{copy.ask.recording.footnote}</p>
     </Screen>
   );
 }

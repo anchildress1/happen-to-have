@@ -170,3 +170,35 @@
     min-width: 200px;
   }
 }
+
+/*
+ * A participant's own words used as a heading — the question on the answer-recording screen.
+ *
+ * Deliberately NOT `.heading`: that one is the display face, and Sour Gummy ships latin only
+ * while 002 publishes translated text. Display type here would drop glyphs for exactly the
+ * questions the screen exists to show. `tests/e2e/design.spec.ts` pins this.
+ */
+.questionHeading {
+  font-family: var(--font-sans);
+  font-size: 28px;
+  line-height: 1.25;
+  font-weight: var(--weight-medium);
+  color: var(--ink);
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+/* The quiet reassurance under the recorder — smaller than body, still above the AA floor. */
+.footnote {
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--ink-65);
+  margin: 0;
+}
+
+@media (min-width: 768px) {
+  .questionHeading {
+    font-size: 34px;
+  }
+}
