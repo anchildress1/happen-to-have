@@ -73,6 +73,15 @@ export function ContributionOutcomeView({
     : copy.review.failed.headingQuestion;
   // The ghost destination for a question is the unlocked ask state, which is the same route.
   const ghostHref = isAnswer ? '/answer' : '/ask';
+  /**
+   * On the question flow every ghost points at `/ask` — the route the participant is already
+   * on — so a Next `<Link>` there does not remount and the outcome state survives, leaving
+   * them staring at the refusal screen they just tried to leave. The primary retry already
+   * carries `onRetry` for exactly this reason; the ghost needs it too.
+   *
+   * On the answer flow the ghosts genuinely navigate elsewhere, so they must NOT clear state.
+   */
+  const ghostClear = isAnswer ? undefined : onRetry;
   if (outcome.status === 'withheld' && outcome.reason === 'crisis') {
     return (
       <section>
@@ -92,7 +101,9 @@ export function ContributionOutcomeView({
         <Link href={retry} onClick={onRetry}>
           {retryLabel}
         </Link>
-        <Link href={ghostHref}>{crisisGhost}</Link>
+        <Link href={ghostHref} onClick={ghostClear}>
+          {crisisGhost}
+        </Link>
       </section>
     );
   }
@@ -110,7 +121,9 @@ export function ContributionOutcomeView({
         <Link href={retry} onClick={onRetry}>
           {retryLabel}
         </Link>
-        <Link href={ghostHref}>{withheldGhost}</Link>
+        <Link href={ghostHref} onClick={ghostClear}>
+          {withheldGhost}
+        </Link>
       </section>
     );
   }
@@ -189,7 +202,9 @@ export function ContributionOutcomeView({
       {outcome.status === 'lost' ? (
         <Link href="/yours">{copy.review.rateLimited.action}</Link>
       ) : outcome.status === 'ineligible' ? (
-        <Link href={ghostHref}>{withheldGhost}</Link>
+        <Link href={ghostHref} onClick={ghostClear}>
+          {withheldGhost}
+        </Link>
       ) : (
         <Link href={retry} onClick={onRetry}>
           {retryLabel}

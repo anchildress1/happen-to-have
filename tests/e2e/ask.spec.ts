@@ -72,6 +72,26 @@ async function participantIdOf(page: Page): Promise<string> {
  * So the test does what quickstart tells a developer to do by hand: flip the flag in the
  * database. It never touches the application, and no dev-only bypass route exists to help it.
  */
+/**
+ * Grants the ask in the DATABASE, because there is no other way to grant one.
+ *
+ * **This is the shape of the feature showing through the test.** Stubbing `/api/answer` to
+ * return `askGranted: true` does not work and must not: `/ask` re-reads
+ * `participants.can_ask` on the server (FR-004), so a client that merely believes it earned
+ * an ask is redirected straight back to `/answer`. The first version of this suite stubbed
+ * the response and every test failed at the unlocked screen — which is Principle II working,
+ * not a broken test.
+ *
+ * So the test does what quickstart tells a developer to do by hand: flip the flag in the
+ * database. It never touches the application, and no dev-only bypass route exists to help it.
+ *
+ * **The pool is per call, and deliberately so.** Review first suggested hoisting it to module
+ * scope and closing it in `afterAll`, then caught why that is worse here: `fullyParallel` is
+ * on, so each test can land in its own worker, the pool is never actually shared, and its
+ * connection stays idle until every test in that worker finishes instead of closing straight
+ * away. Opening and closing around one statement holds fewer connections, which is the thing
+ * the hoist was meant to improve.
+ */
 async function grantAsk(participantId: string): Promise<void> {
   const pool = new Pool({ connectionString: process.env.DATABASE_URL });
   try {
@@ -132,6 +152,35 @@ test.describe('User Story 2 — the server refuses what the interface never offe
     // The body matters: the client calls `response.json()` unconditionally, so a bodiless
     // 401 throws on parse. 003 shipped that bug.
     expect(await response.json()).toEqual({ status: 'failed', cause: 'no-session' });
+  });
+
+  test('refuses a declared duration over the ceiling before any review runs (FR-006a, SC-007)', async ({
+    page,
+  }) => {
+    await openAskFlow(page);
+
+    // Submitted from the page so the session cookie travels, but built by hand so the
+    // recorder's ceiling — a product behaviour, not a security boundary — is skipped
+    // entirely, which is the only way to ask whether the server enforces it.
+    const result = await page.evaluate(async () => {
+      const body = new FormData();
+      body.set('audio', new Blob([new Uint8Array(2048)], { type: 'audio/webm' }));
+      body.set('submissionId', crypto.randomUUID());
+      body.set('durationSeconds', '61');
+      const response = await fetch('/api/ask', { method: 'POST', body });
+      return { status: response.status, text: await response.text() };
+    });
+
+    expect(result.status).toBe(200);
+    expect(JSON.parse(result.text)).toEqual({
+      status: 'withheld',
+      reason: 'content',
+      contentReason: 'unpublishable',
+    });
+
+    // And the ask survived, so `/ask` still opens rather than redirecting.
+    await page.goto('/ask');
+    await expect(page.getByRole('heading', { name: copy.ask.unlocked.heading })).toBeVisible();
   });
 });
 
@@ -238,6 +287,23 @@ test.describe('User Story 3 — the ask survives a bad outcome', () => {
     // current route does not remount — 003 shipped exactly that and the Withheld page sat
     // there. Asserting the recorder actually comes back is what catches it.
     await page.getByRole('link', { name: copy.review.withheld.actionQuestion }).click();
+    await expect(page.getByRole('heading', { name: copy.ask.unlocked.heading })).toBeVisible();
+  });
+
+  test('the Back link leaves the refusal screen (Codex, #34)', async ({ page }) => {
+    await stubAsk(page, { status: 'withheld', reason: 'content', contentReason: 'silence' });
+    await openAskFlow(page);
+    await recordQuestion(page);
+    await page.getByRole('button', { name: copy.ask.recording.submit }).click();
+    await expect(
+      page.getByRole('heading', { name: copy.review.withheld.content.silence }),
+    ).toBeVisible();
+
+    // Every ghost on the question flow points at `/ask` — the route already loaded — so a
+    // Next <Link> there does not remount and the outcome state survives. The primary retry
+    // carried a handler for that; the ghost did not, and clicking it left the participant on
+    // the refusal screen. Shipped in #34, caught in review.
+    await page.getByRole('link', { name: copy.review.withheld.ghostQuestion }).click();
     await expect(page.getByRole('heading', { name: copy.ask.unlocked.heading })).toBeVisible();
   });
 
