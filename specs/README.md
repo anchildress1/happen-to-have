@@ -7,7 +7,7 @@ Five specs. Build in numeric order; each depends only on lower numbers.
 | 001 | [participant-and-pool](001-participant-and-pool/spec.md) | Anonymous identity, landing, seeded pool, selection, skip, empty states |
 | 002 | [contribution-review](002-contribution-review/spec.md) | The per-signal review fan-out, aggregate decision, shared result page, crisis routing, retry, audio lifecycle, rate limiting |
 | 003 | [answer-and-unlock](003-answer-and-unlock/spec.md) | Answer recording, 60s ceiling, checking state, **granting** one ask |
-| 004 | [ask-one](004-ask-one/spec.md) | Question recording, publication, **consuming** the ask, question lifecycle and closure |
+| 004 | [ask-one](004-ask-one/spec.md) | The whole of `/ask` — question recording, publication, **consuming** the ask, question lifecycle and derived closure |
 | 005 | [yours-and-playback](005-yours-and-playback/spec.md) | `Yours` history, flat responses, lazy generated playback |
 
 ## Dependency graph
@@ -30,7 +30,7 @@ graph TD
     S002 --> S005
     S003 --> S005
     S004 --> S005
-    S004 -. "closure state" .-> S001
+    S004 -. "derived closure" .-> S001
 ```
 
 ## Design system
@@ -50,7 +50,13 @@ Source: Claude Design project `Happen to Have UI mockups`. The `ios-frame.jsx` a
 Rules that touch more than one spec are defined once and referenced elsewhere:
 
 - **Ask granting** → 003. **Ask consumption** → 004. Neither restates the other.
-- **Question closure rule** → 004. 001 honors the resulting closed state.
+- **Question closure rule** → 004, and it is **derived, never stored**. A question stops being
+  routed once it holds three published answers; 001's selection query reads that from the answer
+  rows with `HAVING COUNT(a.id) < 3`. There is no status column — 001 created one and 004 dropped
+  it, along with its index and its enum, rather than leave a field whose only stated purpose was a
+  write that never came.
+- **Everything at `/ask`** → 004. 003 renders the link to it; every state behind it, including the
+  refusal for a participant holding no ask, belongs to 004.
 - **Review, Withheld page, crisis resources, independent check retries, audio deletion** → 002.
   003 and 004 supply contribution-specific fresh-recording routes; crisis also permits retry.
 - **Persistence** → only published contributions enter the database and Yours; no retained attempts.
