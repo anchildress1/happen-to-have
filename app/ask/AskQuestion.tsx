@@ -7,7 +7,8 @@ import { AppHeader } from '@/ui/AppHeader';
 import { Button } from '@/ui/Button';
 import { type ContributionOutcome, ContributionOutcomeView } from '@/ui/ContributionOutcome';
 import { Screen } from '@/ui/Screen';
-import { canRecord, MAX_SECONDS, useRecorder } from '@/ui/useRecorder';
+import { RecorderPanel } from '@/ui/RecorderPanel';
+import { canRecord, useRecorder } from '@/ui/useRecorder';
 import { Watermark } from '@/ui/Watermark';
 
 /**
@@ -152,43 +153,12 @@ export function AskQuestion() {
       <h1>{copy.ask.recording.heading}</h1>
       <p>{copy.ask.recording.helper}</p>
 
-      {/* Three causes, three next actions. Sharing one message here would tell someone our
-          processing failed when their browser refused the microphone. */}
-      {recorder.state === 'denied' && (
-        <>
-          <h2>{copy.review.recording.denied.heading}</h2>
-          <p>{copy.review.recording.denied.helper}</p>
-        </>
-      )}
-      {recorder.state === 'noDevice' && (
-        <>
-          <h2>{copy.review.recording.noDevice.heading}</h2>
-          <p>{copy.review.recording.noDevice.helper}</p>
-        </>
-      )}
-
-      {recorder.state === 'recording' && (
-        <p aria-live="polite">{copy.review.recording.timer(recorder.seconds, MAX_SECONDS)}</p>
-      )}
-
-      {/* Reaching the ceiling is not a failure and must not read as one. */}
-      {recorder.reachedLimit && recorder.state === 'stopped' && (
-        <p>{copy.review.recording.reachedLimit}</p>
-      )}
-
-      {recorder.state === 'recording' ? (
-        <Button onClick={recorder.stop}>{copy.review.recording.stop}</Button>
-      ) : (
-        <Button onClick={startRecording} disabled={recorder.state === 'requesting'}>
-          {recorder.blob ? copy.review.recording.again : copy.review.recording.start}
-        </Button>
-      )}
-
-      {recorder.blob && recorder.state === 'stopped' && (
-        <Button variant="ghost" onClick={() => recorder.blob && submit(recorder.blob)}>
-          {copy.ask.recording.submit}
-        </Button>
-      )}
+      <RecorderPanel
+        recorder={recorder}
+        submitLabel={copy.ask.recording.submit}
+        onStart={startRecording}
+        onSubmit={submit}
+      />
 
       {/* FR-016 in the participant's language, and it is true: nothing is consumed until the
           insert. This is what makes abandoning the flow feel safe. */}
